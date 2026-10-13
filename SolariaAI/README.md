@@ -3,6 +3,12 @@
 Standalone PyTorch/torchvision training for folder-organized sketch or image datasets.
 Minecraft/Java integration is intentionally out of scope.
 
+See [PROJECT_SPECIFICATION.md](PROJECT_SPECIFICATION.md) for the complete project
+scope, architecture, data contract, training workflow, export contract, and
+completion criteria.
+See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the current implementation and
+validation status.
+
 ## Dataset
 
 Put images in `data/train/<class-name>/` and `data/val/<class-name>/`. Classes are
