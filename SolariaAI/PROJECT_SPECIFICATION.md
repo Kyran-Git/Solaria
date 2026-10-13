@@ -439,3 +439,6 @@ background, rotation, and mild occlusion while retaining the intended class.
 Use the existing `data/train/<class-name>/` and `data/val/<class-name>/`
 layout, keep both splits mapped to the same six labels, and review all
 duplicate, near-duplicate, and class-imbalance warnings before training.
+
+The expanded camera-to-blueprint stages and their versioned contracts are
+defined in [docs/PIPELINE_SPECIFICATION.md](docs/PIPELINE_SPECIFICATION.md).

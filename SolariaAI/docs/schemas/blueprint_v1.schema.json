@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://solaria.local/schemas/blueprint_v1.schema.json",
+  "title": "Solaria blueprint_v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "class_label",
+    "parameters",
+    "fallbacks",
+    "scale",
+    "max_size_blocks"
+  ],
+  "properties": {
+    "version": {"const": "blueprint_v1"},
+    "class_label": {"type": "string", "minLength": 1},
+    "parameters": {
+      "type": "object",
+      "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1}
+    },
+    "fallbacks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["used", "reason"],
+      "properties": {
+        "used": {"type": "boolean"},
+        "reason": {"type": ["string", "null"]}
+      }
+    },
+    "scale": {"type": "number", "exclusiveMinimum": 0},
+    "max_size_blocks": {"type": "integer", "minimum": 1}
+  }
+}

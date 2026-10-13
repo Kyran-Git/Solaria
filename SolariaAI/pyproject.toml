@@ -17,7 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 export = ["onnx>=1.14", "onnxruntime>=1.16", "onnxscript>=0.1"]
-dev = ["pytest>=7.4", "ruff>=0.5"]
+dev = ["pytest>=7.4", "ruff>=0.5", "jsonschema>=4.21"]
 
 [project.scripts]
 solaria-classifier = "solaria_classifier.cli:main"
