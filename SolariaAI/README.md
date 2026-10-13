@@ -35,6 +35,21 @@ variation, and pixel noise. ONNX export has a dynamic batch dimension and writes
 `model.onnx.metadata.json` documenting resize, RGB/grayscale handling, and
 ImageNet normalization.
 
+## Proposed real-data classes
+
+The downstream pipeline proposes these six labels:
+`spiral_galaxy`, `solar_system`, `black_hole`, `ringed_planet`, `comet`, and
+`supernova`. Real training requires at least 100 clean labeled drawings and
+20 varied camera-captured labeled drawings per class, split by drawing rather
+than near-identical capture. See `PROJECT_SPECIFICATION.md` for the complete
+capture and layout requirements. Real-data training is awaiting human-supplied
+drawings.
+
+Downstream consumers can use `solaria_classifier.confidence.classify_logits`
+with a configurable threshold (the proposed default is `0.60`) to reject
+ambiguous predictions as `unknown`. This does not add an `unknown` model class;
+an explicit `unknown` folder is an optional future dataset choice.
+
 ## Tests
 
 ```powershell
