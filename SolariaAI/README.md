@@ -37,13 +37,14 @@ ImageNet normalization.
 
 ## Proposed real-data classes
 
-The downstream pipeline proposes these six labels:
-`spiral_galaxy`, `solar_system`, `black_hole`, `ringed_planet`, `comet`, and
-`supernova`. Real training requires at least 100 clean labeled drawings and
-20 varied camera-captured labeled drawings per class, split by drawing rather
-than near-identical capture. See `PROJECT_SPECIFICATION.md` for the complete
-capture and layout requirements. Real-data training is awaiting human-supplied
-drawings.
+The project targets this ten-class astronomy label set:
+`sun`, `earth`, `moon`, `mars`, `jupiter`, `rocket`, `satellite`,
+`solar_system`, `lunar_eclipse`, and `solar_eclipse`.
+
+Real training requires clean labeled drawings with participant-aware splitting,
+careful preprocessing, and a human-validated train/val/test workflow. See
+`PROJECT_SPECIFICATION.md` for the complete capture and layout requirements.
+Real-data training remains awaiting human-supplied captures and review.
 
 Downstream consumers can use `solaria_classifier.confidence.classify_logits`
 with a configurable threshold (the proposed default is `0.60`) to reject

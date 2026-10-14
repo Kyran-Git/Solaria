@@ -12,10 +12,10 @@ def _validator(name: str) -> Draft202012Validator:
     return Draft202012Validator(schema)
 
 
-def test_valid_prediction_and_blueprint_examples() -> None:
+def test_valid_prediction_review_and_api_examples() -> None:
     prediction = {
         "version": "prediction_v1",
-        "label": "comet",
+        "label": "sun",
         "confidence": 0.91,
         "accepted": True,
         "reason": None,
@@ -23,16 +23,33 @@ def test_valid_prediction_and_blueprint_examples() -> None:
         "model_artifact": "runs/demo/model.onnx",
         "metadata_artifact": "runs/demo/model.onnx.metadata.json",
     }
-    blueprint = {
-        "version": "blueprint_v1",
-        "class_label": "comet",
-        "parameters": {"tail_length": 0.8, "core_radius": 0.2},
-        "fallbacks": {"used": False, "reason": None},
-        "scale": 2.0,
-        "max_size_blocks": 128,
+    review = {
+        "version": "review_v1",
+        "predicted_label": "sun",
+        "final_label": "sun",
+        "action": "confirm",
+        "override": False,
+        "reviewer": "mock_service",
+        "notes": None,
+    }
+    build = {
+        "version": "build_result_v1",
+        "status": "completed",
+        "message": "Build completed successfully.",
+        "artifact": "runs/demo/build-report.json",
+    }
+    payload = {
+        "version": "api_v1",
+        "request_id": "req-001",
+        "status": "ok",
+        "prediction": prediction,
+        "review": review,
+        "build_result": build,
     }
     _validator("prediction_v1.schema.json").validate(prediction)
-    _validator("blueprint_v1.schema.json").validate(blueprint)
+    _validator("review_v1.schema.json").validate(review)
+    _validator("build_result_v1.schema.json").validate(build)
+    _validator("api_v1.schema.json").validate(payload)
 
 
 @pytest.mark.parametrize(
@@ -40,17 +57,26 @@ def test_valid_prediction_and_blueprint_examples() -> None:
     [
         (
             "prediction_v1.schema.json",
-            {"version": "prediction_v1", "label": "comet", "confidence": 1.2},
+            {"version": "prediction_v1", "label": "sun", "confidence": 1.2},
         ),
         (
-            "blueprint_v1.schema.json",
+            "review_v1.schema.json",
             {
-                "version": "blueprint_v1",
-                "class_label": "comet",
-                "parameters": {"tail_length": 2.0},
-                "fallbacks": {"used": False, "reason": None},
-                "scale": 2.0,
-                "max_size_blocks": 128,
+                "version": "review_v1",
+                "predicted_label": "sun",
+                "final_label": "sun",
+                "action": "confirm",
+                "override": "no",
+                "reviewer": "mock_service",
+                "notes": None,
+            },
+        ),
+        (
+            "build_result_v1.schema.json",
+            {
+                "version": "build_result_v1",
+                "status": "queued",
+                "message": "Build completed successfully.",
             },
         ),
     ],

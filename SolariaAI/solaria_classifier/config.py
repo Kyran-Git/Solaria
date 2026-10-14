@@ -10,6 +10,8 @@ class AugmentationConfig:
     image_size: int = 224
     rotation: float = 12.0
     scale_jitter: tuple[float, float] = (0.85, 1.15)
+    brightness_jitter: float = 0.0
+    horizontal_flip: bool = False
     line_thickness: float = 0.0
     noise_std: float = 0.02
 
