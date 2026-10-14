@@ -421,24 +421,31 @@ class-order contracts. A future dataset may instead include an explicit
 `unknown` class directory, but that is a dataset/model decision and is not
 implicitly added by this helper.
 
-The proposed six-class dataset labels are:
+The required ten-class dataset labels are:
 
-1. `spiral_galaxy`
-2. `solar_system`
-3. `black_hole`
-4. `ringed_planet`
-5. `comet`
-6. `supernova`
+1. `sun`
+2. `earth`
+3. `moon`
+4. `mars`
+5. `jupiter`
+6. `rocket`
+7. `satellite`
+8. `solar_system`
+9. `lunar_eclipse`
+10. `solar_eclipse`
 
-For a real-data training run, provide at least 100 clean labeled drawings and
-at least 20 varied camera-captured labeled drawings per class, with the
-validation split held out by drawing rather than by near-identical captures.
+For a real-data training run, provide about 1,000 labeled student drawings total
+(about 100 per class), with the validation/test splits held out by participant
+rather than by image. Use the `data/train/<class-name>/`,
+`data/val/<class-name>/`, and optional `data/test/<class-name>/` layout.
 Clean examples should be legible, centered, and supplied as PNG or JPEG files;
 camera examples should include varied lighting, viewing angle, distance,
 background, rotation, and mild occlusion while retaining the intended class.
-Use the existing `data/train/<class-name>/` and `data/val/<class-name>/`
-layout, keep both splits mapped to the same six labels, and review all
-duplicate, near-duplicate, and class-imbalance warnings before training.
+Use anonymous participant codes such as `P017` in filenames and manifests, and
+review all duplicate, near-duplicate, and class-imbalance warnings before
+training.
 
-The expanded camera-to-blueprint stages and their versioned contracts are
-defined in [docs/PIPELINE_SPECIFICATION.md](docs/PIPELINE_SPECIFICATION.md).
+The AI-owned service and review contracts are defined in
+[docs/PIPELINE_SPECIFICATION.md](docs/PIPELINE_SPECIFICATION.md). Blueprint,
+voxel, and Minecraft placement remain outside this project and are owned by the
+separate mod project.

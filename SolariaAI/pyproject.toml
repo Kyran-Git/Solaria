@@ -18,12 +18,14 @@ dependencies = [
 [project.optional-dependencies]
 export = ["onnx>=1.14", "onnxruntime>=1.16", "onnxscript>=0.1"]
 dev = ["pytest>=7.4", "ruff>=0.5", "jsonschema>=4.21"]
+vision = ["opencv-python-headless>=4.8"]
 
 [project.scripts]
 solaria-classifier = "solaria_classifier.cli:main"
+solaria-clean = "solaria_vision.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["solaria_classifier*"]
+include = ["solaria_classifier*", "solaria_vision*", "solaria_pipeline*"]
 
 [tool.ruff]
 line-length = 100
