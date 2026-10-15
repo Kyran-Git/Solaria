@@ -51,7 +51,20 @@ dependencies {
 	implementation "dev.architectury:architectury-fabric:${project.architectury_version}"
 }
 
+tasks.register('syncWiki', Copy) {
+	from 'wiki'
+	into 'src/main/resources/assets/oracle_index/books/solariamod'
+}
+
+tasks.withType(AbstractCopyTask).configureEach { task ->
+	if (task.name != 'syncWiki') {
+		mustRunAfter syncWiki
+	}
+}
+
 processResources {
+	dependsOn syncWiki
+
 	def version = project.version
 	inputs.property "version", version
 
