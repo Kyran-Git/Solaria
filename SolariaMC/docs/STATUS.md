@@ -49,8 +49,10 @@ Last updated: 2026-10-15
 
 At resumption, commit `6268615` contained the root ignore/wiki-sync changes, but
 the M0 documents were still untracked. The old M0 status incorrectly claimed a
-local commit. Validation labels above are independent of commit state; record
-confirmed local commit IDs in the completion summary. No push is authorized.
+local commit. M1 and the corrected audit documents are now in local commit
+`ee8c636` (`Implement M1 mod foundation and validate configuration`):
+**committed locally, awaiting push approval**. Nothing was pushed. Pre-existing
+untracked wiki/resources, plan copy, and AI/shared files were not included.
 
 ## Contract observations (carried forward; not revalidated in M1)
 
