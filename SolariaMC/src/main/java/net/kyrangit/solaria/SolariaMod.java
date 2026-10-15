@@ -1,27 +1,35 @@
 package net.kyrangit.solaria;
 
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.loader.api.FabricLoader;
 
 import net.minecraft.resources.Identifier;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import net.kyrangit.solaria.command.SolariaCommands;
+import net.kyrangit.solaria.config.ConfigManager;
+import net.kyrangit.solaria.logging.PrivacyLog;
 
 public class SolariaMod implements ModInitializer {
 	public static final String MOD_ID = "solariamod";
 
-	// This logger is used to write text to the console and the log file.
-	// It is considered best practice to use your mod id as the logger's name.
-	// That way, it's clear which mod wrote info, warnings, and errors.
-	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+	private static ConfigManager config;
 
 	@Override
 	public void onInitialize() {
-		// This code runs as soon as Minecraft is in a mod-load-ready state.
-		// However, some things (like resources) may still be uninitialized.
-		// Proceed with mild caution.
+		config = new ConfigManager(FabricLoader.getInstance().getConfigDir().resolve("solariamod.json"));
+		ConfigManager.ReloadResult result = config.reload();
+		if (!result.success()) {
+			PrivacyLog.failure(result.error().reasonCode());
+		}
+		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
+			SolariaCommands.register(dispatcher, config));
+	}
 
-		LOGGER.info("Hello Fabric world!");
+	public static ConfigManager config() {
+		if (config == null) {
+			throw new IllegalStateException("Solaria common initialization has not completed.");
+		}
+		return config;
 	}
 
 	public static Identifier id(String path) {

@@ -30,6 +30,16 @@ repositories {
 	}
 }
 
+loom {
+	splitEnvironmentSourceSets()
+	mods {
+		solariamod {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+}
+
 fabricApi {
 	configureDataGeneration {
 		client = true
@@ -75,6 +85,24 @@ processResources {
 
 tasks.withType(JavaCompile).configureEach {
 	it.options.release = 25
+}
+
+// Dependency-free unit tests: failures throw AssertionError and fail test/build.
+tasks.register('foundationTest', JavaExec) {
+	group = 'verification'
+	description = 'Runs M1 plumbing checks (synthetic), without a new test library.'
+	dependsOn testClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'net.kyrangit.solaria.FoundationTests'
+	javaLauncher = javaToolchains.launcherFor {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+tasks.named('test') {
+	dependsOn foundationTest
+	// Tests use a Java main runner rather than a JUnit engine.
+	exclude '**/*'
 }
 
 java {

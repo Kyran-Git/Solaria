@@ -3,7 +3,7 @@
 	"id": "solariamod",
 	"version": "${version}",
 	"name": "SolariaMod",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"description": "Teacher-reviewed astronomy drawings brought into Minecraft as 3D structures.",
 	"authors": [
 		"Me!"
 	],
@@ -17,6 +17,12 @@
 	"entrypoints": {
 		"main": [
 			"net.kyrangit.solaria.SolariaMod"
+		],
+		"client": [
+			"net.kyrangit.solaria.client.SolariaClient"
+		],
+		"server": [
+			"net.kyrangit.solaria.SolariaServer"
 		],
 		"fabric-datagen": [
 			"net.kyrangit.solaria.SolariaModDataGenerator"
