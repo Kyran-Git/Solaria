@@ -38,6 +38,13 @@ loom {
 			sourceSet sourceSets.client
 		}
 	}
+	runs {
+		// Client entrypoint lives in the client source set; without this the IDE run
+		// uses solariamod.main and Knot throws ClassNotFoundException for SolariaClient.
+		client {
+			source sourceSets.client
+		}
+	}
 }
 
 fabricApi {
@@ -61,7 +68,10 @@ dependencies {
 	implementation "dev.architectury:architectury-fabric:${project.architectury_version}"
 }
 
-tasks.register('syncWiki', Copy) {
+// Mirror the wiki source into the book folder Oracle Index reads at runtime.
+// Sync (not Copy) also deletes renamed/removed pages, so the in-game wiki cannot
+// keep serving a stale page that no longer exists in wiki/.
+tasks.register('syncWiki', Sync) {
 	from 'wiki'
 	into 'src/main/resources/assets/oracle_index/books/solariamod'
 }
@@ -99,8 +109,22 @@ tasks.register('foundationTest', JavaExec) {
 	}
 }
 
+// Wiki structure checks: mirrors the Oracle Index navigation rules, so a page that
+// is missing from _meta.json (or listed without its .mdx suffix) fails the build
+// instead of silently disappearing from the in-game sidebar.
+tasks.register('wikiStructureTest', JavaExec) {
+	group = 'verification'
+	description = 'Validates the Oracle Index book structure (synthetic).'
+	dependsOn syncWiki, testClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'net.kyrangit.solaria.WikiStructureTests'
+	javaLauncher = javaToolchains.launcherFor {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
 tasks.named('test') {
-	dependsOn foundationTest
+	dependsOn foundationTest, wikiStructureTest
 	// Tests use a Java main runner rather than a JUnit engine.
 	exclude '**/*'
 }

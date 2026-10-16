@@ -1,0 +1,14 @@
+{
+	"schema": "1",
+	"id": "solariamod",
+	"modid": "solariamod",
+	"platforms": {
+		"modrinth": "solaria-niklauscareer"
+	},
+	"licenses": {
+		"project": {
+			"id": "CC0-1.0",
+			"url": "https://github.com/FabricMC/fabric-example-mod/blob/main/LICENSE"
+		}
+	}
+}

@@ -35,12 +35,13 @@ against the actual 26.1.2 decompiled sources.
 
 | Task | Status | Notes |
 |---|---|---|
-| `gradlew.bat build` | verified | Java 25 build passes, including 112 synthetic assertions via `foundationTest`. |
-| `gradlew.bat test` | wired through `foundationTest` | Standard test engine is `NO-SOURCE`; dependency-free Java tests execute before it. See M1 status for run evidence. |
+| `gradlew.bat build` | verified | Java 25 build passes, including 112 synthetic assertions via `foundationTest` and 26 wiki-structure assertions via `wikiStructureTest`. |
+| `gradlew.bat test` | wired through `foundationTest` + `wikiStructureTest` | Standard test engine is `NO-SOURCE`; dependency-free Java tests execute before it. See M1 status for run evidence. |
 | `gradlew.bat runClient` | awaiting human action | Task exists; no GUI observation claimed. Earlier documentation overstated verification. |
 | `gradlew.bat runServer --args="nogui"` | partial smoke check | Fabric loaded the mod and created config; Minecraft exited at the EULA gate. No running world or command behavior verified. |
 | `gradlew.bat runDatagen` | unverified | Task exists; not executed in this continuation. |
-| `syncWiki` | ✅ works | Copies `wiki/` to `src/main/resources/assets/oracle_index/books/solariamod/`. Runs before `processResources`. |
+| `syncWiki` | ✅ works | `Sync` task: mirrors `wiki/` into `src/main/resources/assets/oracle_index/books/solariamod/` and deletes pages removed from `wiki/`. Runs before `processResources`. The generated folder is git-ignored; `wiki/` is the source of truth. |
+| `gradlew.bat wikiStructureTest` | ✅ works | 26 synthetic assertions over the Oracle Index book (see `docs/WIKI.md`). Fails the build when a page is missing from a `_meta.json`, listed without its `.mdx` suffix, or not synced. |
 
 ## Build output
 
@@ -65,10 +66,12 @@ version: `1.0.0`.
    viewer. Oracle Index is declared as `recommends` (optional at runtime) in
    `fabric.mod.json`. Architectury is a transitive requirement of Oracle Index.
 
-5. **`syncWiki` task.** A custom Gradle task copies the `wiki/` directory into
-   the resource tree so Oracle Index can find the pages at runtime. This was a
-   local change at the start of M0 and is now present in existing commit
-   `6268615`. M1 preserves it.
+5. **`syncWiki` task.** A custom Gradle `Sync` task mirrors the `wiki/`
+   directory into the resource tree so Oracle Index can find the pages at runtime.
+   Because it is a `Sync` (not `Copy`), pages deleted from `wiki/` also disappear
+   from the generated book, so the in-game wiki cannot serve stale pages. The
+   generated `src/main/resources/assets/oracle_index/` folder is git-ignored;
+   `wiki/` is the single source of truth. See `docs/WIKI.md` for the layout rules.
 
 ## Entrypoints (current)
 

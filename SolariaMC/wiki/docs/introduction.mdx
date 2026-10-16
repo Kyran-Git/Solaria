@@ -1,0 +1,37 @@
+---
+history:
+  - 1.0: Added
+---
+
+# Introduction
+
+Solaria is a Fabric mod for **Minecraft 26.1.2** that requires **Java 25**,
+[Fabric Loader](https://fabricmc.net) `>=0.19.3` and the
+[Fabric API](https://modrinth.com/mod/fabric-api).
+
+## Reading this wiki in game
+
+Solaria ships with [Oracle Index](https://modrinth.com/mod/oracle-index) as a recommended
+dependency. Oracle Index is a client-side viewer that renders wiki pages directly inside
+the game, so you can look up a block or item without leaving your world.
+
+The book is identified by the folder name `solariamod`, which is also the `id` field of
+`wiki/sinytra-wiki.json`. Solaria's pages are bundled with the mod itself, so they are
+available even when you are offline.
+
+## Structure
+
+| Folder | Purpose |
+| --- | --- |
+| `wiki/docs` | Guide-like documentation pages, read in order. |
+| `wiki/content` | Reference pages for in-game blocks, items and entities. |
+| `wiki/assets` | Images and item renders used by the pages. |
+
+Every folder needs a `_meta.json`, and every page must be listed in the `_meta.json` of
+its folder. Page entries must include the `.mdx` suffix (`"introduction.mdx": "Introduction"`);
+a key without it is treated as a folder and the page disappears from the in-game sidebar.
+
+## Next steps
+
+Documentation for the mod's features is still being written. If a page you are looking for is
+missing, feel free to add it – see the repository `README` for contribution details.

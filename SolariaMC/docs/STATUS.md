@@ -45,6 +45,34 @@ Last updated: 2026-10-15
   Existing Oracle Index bundles ML libraries; see `TOOLCHAIN.md` caveat. Solaria's
   new code performs no network requests and contains no classification code.
 
+## In-game wiki fix (2026-10-15)
+
+The Solaria wiki did not appear in Oracle Index. Root cause found and fixed.
+
+- **Cause:** `wiki/docs/_meta.json` listed the page as `"introduction"` without the
+  `.mdx` suffix. Oracle Index 2.0.0 (`rearth.oracle.ui.OracleScreen.parseJson`)
+  computes `directory = !id.endsWith(".mdx")`, so it treated the page as a folder,
+  looked for `books/solariamod/docs/introduction/_meta.json`, logged
+  `No _meta.json found for solariamod at oracle_index:books/solariamod/docs/introduction/_meta.json`
+  and dropped the branch from the sidebar. The exact warning is visible in
+  `run/logs/latest.log` at 22:40:18 and 22:40:23.
+- **Fix:** key changed to `"introduction.mdx"`. Layout (`sinytra-wiki.json` with
+  `"schema": "1"`, `docs/` root, `_meta.json` per folder, book folder named
+  `solariamod`) was already correct and matches the Oracle Index 2.0.0 code.
+- **Hardening:** `syncWiki` is now a Gradle `Sync` task (was `Copy`), so pages
+  deleted from `wiki/` no longer linger in the shipped book. The generated
+  `src/main/resources/assets/oracle_index/` folder is git-ignored; `wiki/` is the
+  single source of truth.
+- **Regression guard:** new `wikiStructureTest` task
+  (`src/test/java/net/kyrangit/solaria/WikiStructureTests.java`) with 26 synthetic
+  assertions. Verified to fail with the original `"introduction"` key and to pass
+  with the corrected key. Wired into `test` and `build`.
+- **Evidence:** `gradlew.bat clean build test` green — 112 `foundationTest` +
+  26 `wikiStructureTest` assertions; `docs/_meta.json` inside
+  `build/libs/solariamod-1.0.0.jar` contains `"introduction.mdx"`.
+- Rules documented in `docs/WIKI.md`.
+- In-game confirmation that the wiki now renders: `awaiting human action`.
+
 ## Commit bookkeeping
 
 At resumption, commit `6268615` contained the root ignore/wiki-sync changes, but
