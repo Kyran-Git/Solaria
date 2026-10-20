@@ -82,7 +82,29 @@ public final class WikiStructureTests {
 			check(read(source).equals(read(synced)), "synced book matches wiki/: " + normalize(relative));
 		}
 
+		checkAstronomyPages();
 		System.out.println("Wiki structure check (synthetic): " + assertions + " assertions passed.");
+	}
+
+	private static void checkAstronomyPages() throws IOException {
+		Path astronomy = WIKI.resolve("docs/astronomy");
+		List<String> expected = List.of(
+			"planets/mercury.mdx", "planets/venus.mdx", "planets/earth.mdx", "planets/mars.mdx",
+			"planets/jupiter.mdx", "planets/saturn.mdx", "planets/uranus.mdx", "planets/neptune.mdx",
+			"moons/the_moon.mdx", "moons/moon_phases.mdx", "smaller_objects/asteroids.mdx",
+			"smaller_objects/comets.mdx", "smaller_objects/dwarf_planets.mdx", "stars/the_sun.mdx");
+		for (String relative : expected) {
+			Path page = astronomy.resolve(relative);
+			check(Files.isRegularFile(page), "astronomy page exists: " + relative);
+			String text = read(page);
+			check(text.startsWith("# "), "astronomy page has a heading: " + relative);
+			check(!text.contains("[["), "astronomy page has no Obsidian wikilinks: " + relative);
+			check(!text.contains("<details>") && !text.contains("<summary>"),
+				"answers use visible Markdown rather than HTML: " + relative);
+		}
+		check(read(astronomy.resolve("moons/moon_phases.mdx"))
+			.contains("[The Moon](/docs/astronomy/moons/the_moon)"),
+			"Moon Phases links to the converted Moon page");
 	}
 
 	private static List<Path> folders() throws IOException {

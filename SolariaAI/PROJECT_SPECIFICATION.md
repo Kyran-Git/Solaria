@@ -428,11 +428,11 @@ The required ten-class dataset labels are:
 3. `moon`
 4. `mars`
 5. `jupiter`
-6. `rocket`
-7. `satellite`
-8. `solar_system`
-9. `lunar_eclipse`
-10. `solar_eclipse`
+6. `Venus`
+7. `Saturn`
+8. `Neptune`
+9. `Uranus`
+10. `Pluto`
 
 For a real-data training run, provide about 1,000 labeled student drawings total
 (about 100 per class), with the validation/test splits held out by participant

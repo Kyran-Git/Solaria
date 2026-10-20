@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://solaria.local/schemas/review_v1.schema.json",
+  "title": "Solaria review_v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "predicted_label",
+    "final_label",
+    "action",
+    "override",
+    "reviewer",
+    "notes"
+  ],
+  "properties": {
+    "version": {"const": "review_v1"},
+    "predicted_label": {"type": "string", "minLength": 1},
+    "final_label": {"type": ["string", "null"], "minLength": 1},
+    "action": {"enum": ["confirm", "override", "reject"]},
+    "override": {"type": "boolean"},
+    "reviewer": {"type": "string", "minLength": 1},
+    "notes": {"type": ["string", "null"]}
+  }
+}

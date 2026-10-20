@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://solaria.local/schemas/build_result_v1.schema.json",
+  "title": "Solaria build_result_v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "status",
+    "message",
+    "artifact"
+  ],
+  "properties": {
+    "version": {"const": "build_result_v1"},
+    "status": {"enum": ["completed", "failed", "not_attempted"]},
+    "message": {"type": ["string", "null"]},
+    "artifact": {"type": ["string", "null"]}
+  }
+}
