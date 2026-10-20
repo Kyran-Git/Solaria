@@ -40,23 +40,23 @@ public final class Palette {
 		return MaterialPalette.builder(FALLBACK)
 			.add(GLOWSTONE)              //  1 — sun core / light source
 			.add(GOLD_BLOCK)             //  2 — sun surface
-			.add(YELLOW_CONCRETE)        //  3 — sun corona
-			.add(BLUE_CONCRETE)          //  4 — earth ocean / satellite panel
+			.add(YELLOW_CONCRETE)        //  3 — sun corona / venus cloud
+			.add(BLUE_CONCRETE)          //  4 — earth ocean / neptune body
 			.add(GREEN_CONCRETE)         //  5 — earth land
-			.add(SNOW_BLOCK)             //  6 — earth ice / mars polar
-			.add(IRON_BLOCK)             //  7 — earth core / mars core / satellite body
+			.add(SNOW_BLOCK)             //  6 — earth ice / mars polar cap / pluto heart
+			.add(IRON_BLOCK)             //  7 — earth core / mars core
 			.add(LIGHT_GRAY_CONCRETE)    //  8 — moon surface
-			.add(GRAY_CONCRETE)          //  9 — moon crater / rocket fin
+			.add(GRAY_CONCRETE)          //  9 — moon crater / uranus shading
 			.add(STONE)                  // 10 — moon core (same as fallback, still valid)
 			.add(RED_TERRACOTTA)         // 11 — mars surface
-			.add(WHITE_CONCRETE)         // 12 — mars polar cap / rocket body
-			.add(ORANGE_CONCRETE)        // 13 — jupiter light band
-			.add(BROWN_CONCRETE)         // 14 — jupiter dark band
-			.add(RED_CONCRETE)           // 15 — jupiter great red spot / rocket nose
-			.add(DIAMOND_BLOCK)          // 16 — jupiter core
-			.add(BLACK_CONCRETE)         // 17 — rocket engine / shadow / space
-			.add(LIGHT_BLUE_CONCRETE)    // 18 — rocket window
-			.add(QUARTZ_BLOCK)           // 19 — satellite dish
+			.add(WHITE_CONCRETE)         // 12 — mars polar cap / saturn ring highlight
+			.add(ORANGE_CONCRETE)        // 13 — jupiter light band / saturn band
+			.add(BROWN_CONCRETE)         // 14 — jupiter dark band / pluto tan surface
+			.add(RED_CONCRETE)           // 15 — jupiter great red spot / neptune storm
+			.add(DIAMOND_BLOCK)          // 16 — jupiter core / uranus body
+			.add(BLACK_CONCRETE)         // 17 — shadow / space backdrop
+			.add(LIGHT_BLUE_CONCRETE)    // 18 — uranus pale cyan / neptune light streak
+			.add(QUARTZ_BLOCK)           // 19 — saturn ring / pluto highlight
 			.build();
 	}
 }

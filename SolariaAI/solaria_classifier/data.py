@@ -13,6 +13,8 @@ from PIL import Image, ImageOps
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
+from .classes import CLASS_IDS, is_valid_class
+
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
@@ -24,6 +26,23 @@ class DatasetBundle:
     classes: list[str]
     class_to_idx: dict[str, int]
     test: datasets.ImageFolder | None = None
+
+
+def check_class_set(classes: list[str], scope: str) -> None:
+    """Fail when a split holds labels outside the required ten-class set.
+
+    A stray folder such as ``Mercury`` or a leftover ``rocket`` directory would
+    otherwise be discovered silently by ``ImageFolder`` and would change the
+    model's output width and label order. Rejecting it here keeps the dataset,
+    the checkpoint, and the mod's blueprint list in step.
+    """
+    unknown = sorted(label for label in classes if not is_valid_class(label))
+    if unknown:
+        expected = ", ".join(CLASS_IDS)
+        raise ValueError(
+            f"{scope} contains unsupported class folders {unknown}. "
+            f"The required ten-class set is: {expected}."
+        )
 
 
 def _transform(train: bool, size: int, grayscale: bool, rotation: float,
@@ -110,6 +129,7 @@ def prepare_dataset_from_manifest(
     participants = sorted({row["participant_code"] for row in rows})
     split_by_participant = _prepare_split_assignment(participants, seed)
     class_names = sorted({row["class"] for row in rows})
+    check_class_set(class_names, "Manifest")
     counts = {split: 0 for split in ("train", "val", "test")}
     split_files: dict[str, list[str]] = {split: [] for split in counts}
     for row in rows:
@@ -155,12 +175,15 @@ def build_datasets(data_dir: str | Path, augmentation: object, grayscale: bool =
     }
     train = datasets.ImageFolder(root / "train", transform=_transform(True, **kwargs))
     val = datasets.ImageFolder(root / "val", transform=_transform(False, **kwargs))
+    check_class_set(train.classes, "Training split")
+    check_class_set(val.classes, "Validation split")
     if train.class_to_idx != val.class_to_idx:
         raise ValueError("Train and validation class mappings differ.")
     test_bundle = None
     test_path = root / "test"
     if test_path.exists():
         test = datasets.ImageFolder(test_path, transform=_transform(False, **kwargs))
+        check_class_set(test.classes, "Test split")
         if test.class_to_idx != train.class_to_idx:
             raise ValueError("Test split class mapping differs from train and validation.")
         test_bundle = test

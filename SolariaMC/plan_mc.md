@@ -38,6 +38,40 @@ thesis now describe the same system.
    items given to students) happens before the human confirms ethics approval.
    See M8.
 
+### 2026-10-20 (second revision): new class set
+
+The ten classes changed. **[REV]** The new list is:
+
+1. `sun`
+2. `earth`
+3. `moon`
+4. `mars`
+5. `jupiter`
+6. `venus`
+7. `saturn`
+8. `neptune`
+9. `uranus`
+10. `pluto`
+
+- **Removed:** `rocket`, `satellite`, `solar_system`, `lunar_eclipse`,
+  `solar_eclipse`. Delete their generators and tests if any exist. Do not keep
+  them as hidden extras.
+- **Wire ids are lowercase** (the list was written with capitals, but ids are
+  dataset folder names and model labels and must match everywhere). The thesis
+  shows display names (Venus, Saturn, and so on).
+- **Mercury is not in the list.** This is the human's choice. Do not add it.
+- **Pluto is a dwarf planet.** Use "dwarf planet" in any text the mod shows
+  about it.
+- **Every class is now a single body.** There are no multi-body scenes, so the
+  compressed-scale solar system and the eclipse alignments are gone. Blueprint
+  sizes are chosen for recognisability and are **not to scale with each other**.
+  Say so to the player (see M5 item 4).
+- **Shared-contract impact:** the class list comes from `GET /v1/health`, so the
+  contract text does not change. But the AI project's dataset folders, model
+  metadata, fixtures, mock labels, and docs must carry the same ten ids. The AI
+  agent must be told (section 7). The mod holds one blueprint per class above.
+- **Thesis:** `FYP_Report_V7.docx` is already updated to this list.
+
 ---
 
 ## Agent progress ledger (maintained by the agent)
@@ -120,7 +154,7 @@ thesis now describe the same system.
 
 Written and compiling (untracked in `blueprint/`):
 
-- [x] `AstronomyClass` with 10 wire ids.
+- [x] `AstronomyClass` with 10 wire ids. **[REV]** These are the old ids. Replace them with the new class set (revision log) and update the tests that enumerate them.
 - [x] `VoxelGrid`, a dense x→y→z grid, with `snapshot()` for deterministic
       comparison.
 - [x] `MaterialPalette` with 1-based indices, `FORBIDDEN_BLOCKS` set, and builder
@@ -206,7 +240,7 @@ told (section 7).
 |---|---|
 | Minecraft target | **Java Edition with Fabric** (not Forge, not Education Edition, which cannot run Fabric mods). Defined by `SolariaMC/src/main/resources/fabric.mod.json`: `fabricloader >=0.19.3`, `minecraft ~26.1.2`, `java >=25`, `fabric-api *`. Do not change these constraints without asking. **[REV]** Reason for Fabric over Forge, as used in the thesis: it is generally lighter and faster, and easier to develop for. |
 | Product | **[REV]** A student's pencil drawing of an astronomy concept is scanned, classified (by the service), and **shown to the student with a build prompt when the confidence passes the threshold**. The student accepts the prompt and the structure is built in-game. The **teacher can override** the label if the structure shows the wrong concept. |
-| Classes (10) | `sun`, `earth`, `moon`, `mars`, `jupiter`, `rocket`, `satellite`, `solar_system`, `lunar_eclipse`, `solar_eclipse`. The live list always comes from `GET /v1/health`. The mod holds one blueprint per class above. |
+| Classes (10) | **[REV]** `sun`, `earth`, `moon`, `mars`, `jupiter`, `venus`, `saturn`, `neptune`, `uranus`, `pluto` (lowercase wire ids). The live list always comes from `GET /v1/health`. The mod holds one blueprint per class above. |
 | Student accept and teacher override | **[REV] Required.** Nothing is built without the student accepting the prompt. Below the confidence threshold the student is told to retry and nothing is built. The teacher (override permission) can change the label before the build, or after the build via undo and rebuild. A teacher may also reject a prediction. |
 | Structures | Each class has a fixed, pre-authored blueprint (a deterministic voxel grid). **No parameter extraction** from the drawing. The mod owns all blueprint, voxel, palette, and placement logic. |
 | Integration | Local HTTP+JSON service (Appendix A). The mod never contains ML code. |
@@ -366,17 +400,32 @@ ledger).
    concrete powder), fluids, blocks that need support, and anything harmful or
    disruptive (explosives, fire, lava).
 3. **Deterministic generators** for all ten classes, enforcing the size cap and
-   scale (scale down or reject with `CAP_EXCEEDED`). Proposed designs, to refine
-   for educational accuracy:
-   - `sun`, `earth`, `moon`, `mars`, `jupiter`: spheres with class-appropriate
-     materials and surface detail (for example banding on Jupiter, craters on the
-     Moon),
-   - `rocket`: body, nose cone, fins,
-   - `satellite`: body, solar-panel wings, antenna dish,
-   - `solar_system`: central sun and the planets in the correct order at a
-     compressed, clearly stated scale,
-   - `lunar_eclipse`: sun, Earth, Moon aligned with the Moon in Earth's shadow,
-   - `solar_eclipse`: sun, Moon, Earth aligned with the Moon between them.
+   scale (scale down or reject with `CAP_EXCEEDED`). **[REV]** Every class is a
+   single body. Proposed designs, to refine for educational accuracy:
+   - `sun`: sphere in warm yellow and orange blocks with a lighter, uneven
+     surface,
+   - `earth`: sphere with ocean, continent patches, and a few white cloud
+     patches,
+   - `moon`: grey sphere with craters (shallow pits),
+   - `mars`: red-orange sphere with darker patches and a white polar cap,
+   - `jupiter`: sphere with horizontal bands and a Great Red Spot,
+   - `venus`: pale yellow sphere with soft swirling cloud patterns and no
+     surface features,
+   - `saturn`: banded pale gold sphere with a flat ring around the equator,
+   - `neptune`: deep blue sphere with a dark storm spot and light streaks,
+   - `uranus`: pale cyan sphere with a thin ring tilted close to vertical (the
+     planet spins on its side),
+   - `pluto`: small tan and brown sphere with a pale heart-shaped region.
+   Rules for all ten:
+   - Each blueprint has its own diameter chosen so the shape is recognisable
+     and fits `max_size_blocks`. **Sizes are not proportional to real sizes**,
+     so say this in `BLUEPRINTS.md` and to the player.
+   - Rings count toward the footprint and the size cap.
+   - Ring blocks must be ordinary full blocks that need no support, with no
+     gravity or fluid blocks.
+   - Check that the 19-block palette covers the colours above (yellow, orange,
+     blue, green, white, grey, red, tan, brown, cyan). If it does not, propose
+     extra safe blocks to the human and wait for approval before adding them.
 4. **Preview tool:** a Gradle task or test that renders each blueprint to PNG
    slices under `SolariaMC/build/previews/`, so the human can review structures
    without launching Minecraft. **[REV]** Slices are enough. The isometric image
@@ -487,7 +536,8 @@ Done: criteria in 3.3.
    and builds the corrected class in one action, as one history entry. Also a way
    to clear in-flight builds.
 4. **Feedback:** server to client messages for progress, success, and each
-   failure code.
+   failure code. **[REV]** The success message states that the model is not to
+   scale with the other bodies.
 5. **Single-player note:** with default settings a single-player world without
    cheats gives the player permission level 0. **[REV]** With
    `build_permission_level` at 0 the student can build, but `/solaria override`
@@ -513,8 +563,9 @@ Done: criteria in 3.3.
    chat after a successful build. Content is authored by the teacher. Do not
    invent scientific claims beyond obvious basics, and mark the file as a draft
    for the teacher to review.
-2. In-world labels (for example signs) for the compressed-scale structures so the
-   scale is stated, not implied.
+2. In-world labels (for example signs) that show the name of the body and the
+   words "not to scale", so the statement is in the world and not only in chat.
+   Use "dwarf planet" on the Pluto label.
 
 ### Phase M7: End-to-end integration, then PAUSE
 
@@ -566,9 +617,11 @@ Label every participant-facing draft "not approved for use with participants".
    script, observation sheet, short usability questionnaire for teacher and
    students). State plainly that this measures usability, not learning.
 3. **Draft pre/post assessment items:** a question bank aligned to the ten
-   concepts and the misconceptions in the thesis (seasons, moon phases,
-   eclipses), laid out for Google Forms, marked as a draft for the teacher and
-   supervisor to review. Do not claim validity or reliability.
+   bodies in the class list. **[REV]** Eclipses, rockets, and satellites are no
+   longer classes, so do not write items on them. Use misconceptions from the
+   thesis only where they concern these ten bodies. Lay the items out for Google
+   Forms, marked as a draft for the teacher and supervisor to review. Do not
+   claim validity or reliability.
 4. `SolariaMC/docs/REPORT_SYNC_MC.md`: a consistency check of the code against
    the thesis (section 5). Do not edit the thesis.
 5. Package: `gradlew.bat build` produces the jar. Document its location and the
@@ -585,7 +638,8 @@ that the code makes each statement true and to list anything that is not.
 - Integration: the mod is a client of a local Python service over `api_v1`
   (local HTTP and JSON), and the mod contains no ML code.
 - Structures: pre-authored blueprints, one per class, no parameter extraction.
-  Scale is compressed where stated.
+  **[REV]** Every class is a single body. Sizes are chosen for recognisability,
+  so bodies are not to scale with one another, and the player is told this.
 - Flow: the student accepts a build prompt above the confidence threshold, the
   teacher can override, and a structure that is too large is scaled down or
   rejected. The last build can be undone.
@@ -644,6 +698,19 @@ blueprints, the failure messages, and the manual test checklist.
   (recommended yes), and the in-game wiki (recommended drop or make optional).
 - **[REV] Getting the supervisor's agreement** to the platform and flow change,
   since Objective 2 and three figures in the thesis changed.
+- **[REV] Telling the AI agent about the new class set.** In `SolariaAI`, the
+  class list appears in the project specification (the required ten-class list),
+  the README, the status file, the dataset folder names, the model metadata, the
+  fixtures, and the mock service labels. All must use the ten ids in the
+  revision log. The mod cannot work until the model's `classes` match its
+  blueprints.
+- **[REV] Deciding how students draw.** Seven of the ten classes are round
+  bodies, and pencil drawings of Venus, Mars, Neptune, Uranus, Earth and Pluto
+  can look almost the same. Decide whether the worksheet asks for one
+  distinguishing feature per planet (for example rings, bands, craters, a
+  tilted ring), or allows colour. This decides how well the classifier can work,
+  and it is a data-collection decision, not a mod decision.
+- **[REV] Confirming Mercury is left out on purpose.**
 
 ---
 

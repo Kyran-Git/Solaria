@@ -428,11 +428,23 @@ The required ten-class dataset labels are:
 3. `moon`
 4. `mars`
 5. `jupiter`
-6. `Venus`
-7. `Saturn`
-8. `Neptune`
-9. `Uranus`
-10. `Pluto`
+6. `venus`
+7. `saturn`
+8. `neptune`
+9. `uranus`
+10. `pluto`
+
+These ids are lowercase on purpose: each one is a dataset directory name and a
+model label, so it must match byte-for-byte in the dataset folders, the
+checkpoint's `classes` list, the ONNX metadata sidecar, the mock service
+responses, and the Minecraft client's blueprint table. Display names such as
+`Venus` and `Saturn` belong in user-facing text only and never on the wire.
+`mercury` is intentionally absent from this set. Pluto is a dwarf planet, and
+any user-facing text about it must say "dwarf planet".
+
+The canonical list lives in `solaria_classifier/classes.py`. Import `CLASS_IDS`
+from there instead of re-typing the list; `data.check_class_set` rejects any
+dataset split or manifest that carries a label outside this set.
 
 For a real-data training run, provide about 1,000 labeled student drawings total
 (about 100 per class), with the validation/test splits held out by participant
