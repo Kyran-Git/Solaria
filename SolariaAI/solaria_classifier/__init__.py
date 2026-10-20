@@ -16,7 +16,6 @@ __all__ = [
     "ApiV1Envelope",
     "BuildResultRecord",
     "CLASS_IDS",
-    "CLASS_LABELS",
     "DISPLAY_NAMES",
     "PredictionRecord",
     "ReviewRecord",

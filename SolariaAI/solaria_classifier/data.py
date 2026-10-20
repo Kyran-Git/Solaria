@@ -119,11 +119,11 @@ def prepare_dataset_from_manifest(
 ) -> dict[str, object]:
     manifest = Path(manifest_path)
     rows = list(csv.DictReader(manifest.read_text(encoding="utf-8").splitlines()))
-    required = {"file", "class", "participant_code"}
-    if not required.issubset(rows[0].keys()) if rows else False:
-        raise ValueError("Manifest CSV must include file,class,participant_code columns.")
     if not rows:
         raise ValueError("Manifest CSV is empty.")
+    required = {"file", "class", "participant_code"}
+    if not required.issubset(rows[0].keys()):
+        raise ValueError("Manifest CSV must include file,class,participant_code columns.")
 
     root = manifest.parent
     participants = sorted({row["participant_code"] for row in rows})
