@@ -10,8 +10,8 @@ Two rules that must not drift:
    labels, so they must match byte-for-byte across the Python service, the
    exported metadata, and the mod. Display names (``Venus``, ``Saturn``, ...)
    are presentation only and never appear on the wire.
-2. **Mercury is intentionally absent.** The required set is the ten bodies
-   below; do not add a Mercury folder or label.
+2. **Pluto is not in the class set.** The ten required bodies are listed
+   below. Do not add a Pluto folder or label.
 
 The order below is the documented curriculum order. It is *not* the model's
 class index order: ``torchvision.datasets.ImageFolder`` sorts directory names
@@ -24,35 +24,31 @@ from __future__ import annotations
 
 #: The ten required class ids, in documented curriculum order.
 CLASS_IDS: tuple[str, ...] = (
-    "sun",
     "earth",
     "moon",
+    "mercury",
+    "venus",
     "mars",
     "jupiter",
-    "venus",
     "saturn",
-    "neptune",
     "uranus",
-    "pluto",
+    "neptune",
+    "sun",
 )
 
 #: Human-readable display names. Presentation only; never sent on the wire.
 DISPLAY_NAMES: dict[str, str] = {
-    "sun": "Sun",
     "earth": "Earth",
     "moon": "Moon",
+    "mercury": "Mercury",
+    "venus": "Venus",
     "mars": "Mars",
     "jupiter": "Jupiter",
-    "venus": "Venus",
     "saturn": "Saturn",
-    "neptune": "Neptune",
     "uranus": "Uranus",
-    "pluto": "Pluto",
+    "neptune": "Neptune",
+    "sun": "The Sun",
 }
-
-#: Classes whose body is a dwarf planet rather than a planet. Copy that must
-#: describe Pluto has to say "dwarf planet".
-DWARF_PLANETS: frozenset[str] = frozenset({"pluto"})
 
 
 def is_valid_class(label: str) -> bool:

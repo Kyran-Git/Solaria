@@ -10,9 +10,9 @@ from solaria_classifier.service import (
 
 
 def test_prediction_record_matches_api_contract() -> None:
-    prediction = PredictionRecord(label="sun", confidence=0.91, accepted=True, threshold=0.6)
+    prediction = PredictionRecord(label="earth", confidence=0.91, accepted=True, threshold=0.6)
     assert prediction.version == "prediction_v1"
-    assert prediction.label == "sun"
+    assert prediction.label == "earth"
     assert 0.0 <= prediction.confidence <= 1.0
 
 

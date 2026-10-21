@@ -43,20 +43,20 @@ public final class Palette {
 			.add(YELLOW_CONCRETE)        //  3 — sun corona / venus cloud
 			.add(BLUE_CONCRETE)          //  4 — earth ocean / neptune body
 			.add(GREEN_CONCRETE)         //  5 — earth land
-			.add(SNOW_BLOCK)             //  6 — earth ice / mars polar cap / pluto heart
+			.add(SNOW_BLOCK)             //  6 — earth ice / mars polar cap
 			.add(IRON_BLOCK)             //  7 — earth core / mars core
 			.add(LIGHT_GRAY_CONCRETE)    //  8 — moon surface
 			.add(GRAY_CONCRETE)          //  9 — moon crater / uranus shading
-			.add(STONE)                  // 10 — moon core (same as fallback, still valid)
+			.add(STONE)                  // 10 — moon core / mercury surface
 			.add(RED_TERRACOTTA)         // 11 — mars surface
 			.add(WHITE_CONCRETE)         // 12 — mars polar cap / saturn ring highlight
 			.add(ORANGE_CONCRETE)        // 13 — jupiter light band / saturn band
-			.add(BROWN_CONCRETE)         // 14 — jupiter dark band / pluto tan surface
+			.add(BROWN_CONCRETE)         // 14 — jupiter dark band / mercury surface
 			.add(RED_CONCRETE)           // 15 — jupiter great red spot / neptune storm
 			.add(DIAMOND_BLOCK)          // 16 — jupiter core / uranus body
 			.add(BLACK_CONCRETE)         // 17 — shadow / space backdrop
 			.add(LIGHT_BLUE_CONCRETE)    // 18 — uranus pale cyan / neptune light streak
-			.add(QUARTZ_BLOCK)           // 19 — saturn ring / pluto highlight
+			.add(QUARTZ_BLOCK)           // 19 — saturn ring / mercury highlight
 			.build();
 	}
 }

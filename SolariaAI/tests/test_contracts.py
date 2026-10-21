@@ -15,7 +15,7 @@ def _validator(name: str) -> Draft202012Validator:
 def test_valid_prediction_review_and_api_examples() -> None:
     prediction = {
         "version": "prediction_v1",
-        "label": "sun",
+        "label": "earth",
         "confidence": 0.91,
         "accepted": True,
         "reason": None,
@@ -25,8 +25,8 @@ def test_valid_prediction_review_and_api_examples() -> None:
     }
     review = {
         "version": "review_v1",
-        "predicted_label": "sun",
-        "final_label": "sun",
+        "predicted_label": "earth",
+        "final_label": "earth",
         "action": "confirm",
         "override": False,
         "reviewer": "mock_service",
@@ -57,14 +57,14 @@ def test_valid_prediction_review_and_api_examples() -> None:
     [
         (
             "prediction_v1.schema.json",
-            {"version": "prediction_v1", "label": "sun", "confidence": 1.2},
+            {"version": "prediction_v1", "label": "earth", "confidence": 1.2},
         ),
         (
             "review_v1.schema.json",
             {
                 "version": "review_v1",
-                "predicted_label": "sun",
-                "final_label": "sun",
+                "predicted_label": "earth",
+                "final_label": "earth",
                 "action": "confirm",
                 "override": "no",
                 "reviewer": "mock_service",

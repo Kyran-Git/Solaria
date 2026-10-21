@@ -40,7 +40,7 @@ thesis now describe the same system.
 
 ### 2026-10-20 (second revision): new class set
 
-The ten classes changed. **[REV]** The new list is:
+The ten classes changed. **[REV]** The new list was:
 
 1. `sun`
 2. `earth`
@@ -53,24 +53,40 @@ The ten classes changed. **[REV]** The new list is:
 9. `uranus`
 10. `pluto`
 
-- **Removed:** `rocket`, `satellite`, `solar_system`, `lunar_eclipse`,
+- **Removed:** `removed vehicle class`, `satellite`, `solar_system`, `lunar_eclipse`,
   `solar_eclipse`. Delete their generators and tests if any exist. Do not keep
   them as hidden extras.
 - **Wire ids are lowercase** (the list was written with capitals, but ids are
   dataset folder names and model labels and must match everywhere). The thesis
   shows display names (Venus, Saturn, and so on).
-- **Mercury is not in the list.** This is the human's choice. Do not add it.
-- **Pluto is a dwarf planet.** Use "dwarf planet" in any text the mod shows
-  about it.
-- **Every class is now a single body.** There are no multi-body scenes, so the
-  compressed-scale solar system and the eclipse alignments are gone. Blueprint
-  sizes are chosen for recognisability and are **not to scale with each other**.
-  Say so to the player (see M5 item 4).
-- **Shared-contract impact:** the class list comes from `GET /v1/health`, so the
-  contract text does not change. But the AI project's dataset folders, model
-  metadata, fixtures, mock labels, and docs must carry the same ten ids. The AI
-  agent must be told (section 7). The mod holds one blueprint per class above.
-- **Thesis:** `FYP_Report_V7.docx` is already updated to this list.
+- This second revision was later superseded by the third revision below.
+
+### 2026-10-21 (third revision): class set with Mercury, no Pluto
+
+**[REV]** The final ten classes are:
+
+1. `earth`
+2. `moon`
+3. `mercury`
+4. `venus`
+5. `mars`
+6. `jupiter`
+7. `saturn`
+8. `uranus`
+9. `neptune`
+10. `sun`
+
+- **Added:** `mercury`. It must behave like the other nine bodies.
+- **Removed:** `pluto`. Delete its generator and palette references if any
+  exist. Do not keep it as a hidden extra, and do not describe any remaining
+  rocky body as a dwarf planet.
+- The live list still comes from `GET /v1/health`; the contract text does not
+  change. The AI project's dataset folders, model metadata, fixtures, mock
+  labels, and docs must carry the same ten ids. The mod holds one blueprint
+  per class above.
+- `removed vehicle class` no longer exists **anywhere** in the project: not in code,
+  fixtures, docs, or revision logs as a live choice. Only this revision file
+  may name it as a removed item for history.
 
 ---
 
@@ -87,25 +103,25 @@ The ten classes changed. **[REV]** The new list is:
 
 | Phase | State | Short reason |
 |---|---|---|
-| M0 Audit and toolchain | ✅ done (`synthetic-validated`) | `TOOLCHAIN.md`, `STATUS.md`, root `.gitignore` section, build green. |
-| M1 Mod foundation | ✅ done (`synthetic-validated`), in-game `awaiting human action` | Entrypoints, config, privacy log, commands, 112 assertions. **[REV] Config needs the permission split (see M1 follow-up).** |
-| M2 Blueprints / voxel generators | 🚧 **in progress** | Data model + palette compiling. Generators, doc, previews and tests **not done**. |
-| M3 Service client | ⬜ not started | |
-| M4 Scan and build prompt UI | ⬜ not started | [REV] Was "Scan and review UI". |
-| M5 Placement / networking / undo / override | ⬜ not started | PAUSE point. |
-| M6 Teacher-facing polish | ⬜ not started | Optional, first to descope. |
-| M7 End-to-end integration | ⬜ not started | PAUSE point. |
-| M8 Classroom / evaluation | ⬜ not started | Documents only, ethics-gated. |
+| M0 Audit and toolchain | âœ… done (`synthetic-validated`) | `TOOLCHAIN.md`, `STATUS.md`, root `.gitignore` section, build green. |
+| M1 Mod foundation | âœ… done (`synthetic-validated`), in-game `awaiting human action` | Entrypoints, config, privacy log, commands, 112 assertions. **[REV] Config needs the permission split (see M1 follow-up).** |
+| M2 Blueprints / voxel generators | ðŸš§ **in progress** | Data model + palette compiling. Generators, doc, previews and tests **not done**. |
+| M3 Service client | â¬œ not started | |
+| M4 Scan and build prompt UI | â¬œ not started | [REV] Was "Scan and review UI". |
+| M5 Placement / networking / undo / override | â¬œ not started | PAUSE point. |
+| M6 Teacher-facing polish | â¬œ not started | Optional, first to descope. |
+| M7 End-to-end integration | â¬œ not started | PAUSE point. |
+| M8 Classroom / evaluation | â¬œ not started | Documents only, ethics-gated. |
 
-### M0 details ✅
+### M0 details âœ…
 
-- [x] Inventory, versions, mappings → `docs/TOOLCHAIN.md` (corrected: MC 26.1.2
+- [x] Inventory, versions, mappings â†’ `docs/TOOLCHAIN.md` (corrected: MC 26.1.2
       is **unobfuscated with Mojang names**, no Yarn mappings).
 - [x] `gradlew.bat build` green. `docs/STATUS.md` with section 3.1 labels.
 - [x] Root `.gitignore` has `# SolariaMC` section.
 - [ ] **Push not done, needs human approval.**
 
-### In-game wiki fix ✅ (`synthetic-validated`, in-game `awaiting human action`)
+### In-game wiki fix âœ… (`synthetic-validated`, in-game `awaiting human action`)
 
 - [x] Root-caused why nothing appeared in Oracle Index: `wiki/docs/_meta.json`
       used the key `"introduction"` without the `.mdx` suffix. Oracle Index 2.0.0
@@ -130,7 +146,7 @@ The ten classes changed. **[REV]** The new list is:
       updated.
 - [ ] In-game confirmation that the wiki renders: `awaiting human action`.
 
-### M1 details ✅ (`synthetic-validated`)
+### M1 details âœ… (`synthetic-validated`)
 
 - [x] Entrypoints: common, client (`src/client/java`), server. Loom split
       environment source sets. Packages: `config`, `command`, `logging`.
@@ -142,7 +158,7 @@ The ten classes changed. **[REV]** The new list is:
 - [x] `/solaria`, `/solaria status`, `/solaria config reload`, permission-gated
       via 26.1.2 `PermissionSet / Permission.HasCommandLevel`.
 - [x] 112 dependency-free assertions, custom `foundationTest` task.
-- [ ] In-game: mod loading, commands, permissions, rendering → `awaiting human
+- [ ] In-game: mod loading, commands, permissions, rendering â†’ `awaiting human
       action`. EULA not accepted, so the server stops at the EULA gate.
 - [ ] **[REV] Follow-up:** replace `teacher_permission_level` with
       `build_permission_level` (default 0) and `override_permission_level`
@@ -150,12 +166,12 @@ The ten classes changed. **[REV]** The new list is:
       rejected with a clear message (not silently ignored). Small change, do it
       before M5.
 
-### M2 details 🚧 in progress
+### M2 details ðŸš§ in progress
 
 Written and compiling (untracked in `blueprint/`):
 
 - [x] `AstronomyClass` with 10 wire ids. **[REV]** These are the old ids. Replace them with the new class set (revision log) and update the tests that enumerate them.
-- [x] `VoxelGrid`, a dense x→y→z grid, with `snapshot()` for deterministic
+- [x] `VoxelGrid`, a dense xâ†’yâ†’z grid, with `snapshot()` for deterministic
       comparison.
 - [x] `MaterialPalette` with 1-based indices, `FORBIDDEN_BLOCKS` set, and builder
       validation against gravity/fluid/harmful blocks.
@@ -168,7 +184,7 @@ Written and compiling (untracked in `blueprint/`):
 - [ ] Deterministic generators for all 10 classes.
 - [ ] Size cap / scale enforcement (`max_size_blocks`, `blocks_per_unit`).
 - [ ] `docs/BLUEPRINTS.md`.
-- [ ] Preview Gradle task (PNG slices only, see M2.4) → `build/previews/`.
+- [ ] Preview Gradle task (PNG slices only, see M2.4) â†’ `build/previews/`.
 - [ ] Tests: determinism, cap/scale, all classes covered, no forbidden blocks.
 - [ ] **Deviation:** section 4 M2.2 asks for the palette as a *data file*, but it
       is currently hardcoded in `Palette.java`. **Recommendation:** make it a
@@ -240,7 +256,7 @@ told (section 7).
 |---|---|
 | Minecraft target | **Java Edition with Fabric** (not Forge, not Education Edition, which cannot run Fabric mods). Defined by `SolariaMC/src/main/resources/fabric.mod.json`: `fabricloader >=0.19.3`, `minecraft ~26.1.2`, `java >=25`, `fabric-api *`. Do not change these constraints without asking. **[REV]** Reason for Fabric over Forge, as used in the thesis: it is generally lighter and faster, and easier to develop for. |
 | Product | **[REV]** A student's pencil drawing of an astronomy concept is scanned, classified (by the service), and **shown to the student with a build prompt when the confidence passes the threshold**. The student accepts the prompt and the structure is built in-game. The **teacher can override** the label if the structure shows the wrong concept. |
-| Classes (10) | **[REV]** `sun`, `earth`, `moon`, `mars`, `jupiter`, `venus`, `saturn`, `neptune`, `uranus`, `pluto` (lowercase wire ids). The live list always comes from `GET /v1/health`. The mod holds one blueprint per class above. |
+| Classes (10) | **[REV]** `earth`, `moon`, `mercury`, `venus`, `mars`, `jupiter`, `saturn`, `uranus`, `neptune`, `sun` (lowercase wire ids). The live list always comes from `GET /v1/health`. The mod holds one blueprint per class above. |
 | Student accept and teacher override | **[REV] Required.** Nothing is built without the student accepting the prompt. Below the confidence threshold the student is told to retry and nothing is built. The teacher (override permission) can change the label before the build, or after the build via undo and rebuild. A teacher may also reject a prediction. |
 | Structures | Each class has a fixed, pre-authored blueprint (a deterministic voxel grid). **No parameter extraction** from the drawing. The mod owns all blueprint, voxel, palette, and placement logic. |
 | Integration | Local HTTP+JSON service (Appendix A). The mod never contains ML code. |
@@ -357,7 +373,7 @@ the human via the manual checklist.
 M0 to M2 and the mock-based part of M3 do not need the AI agent's code. From M3
 onward prefer the published mock service and fixtures once they exist.
 
-### Phase M0: Audit and toolchain ✅
+### Phase M0: Audit and toolchain âœ…
 
 1. Inventory `SolariaMC`: is it a fresh Fabric template or does it contain code?
    What are the Loom, mappings, and Fabric API versions in use?
@@ -371,7 +387,7 @@ onward prefer the published mock service and fixtures once they exist.
 
 Done: build green, docs written, commit.
 
-### Phase M1: Mod foundation ✅
+### Phase M1: Mod foundation âœ…
 
 1. Mod entrypoints (common, client, server) with a clear package layout:
    `config`, `net` (service client), `screen`, `blueprint`, `placement`,
@@ -390,7 +406,7 @@ Done: build green, docs written, commit.
 Done: criteria in 3.3. **[REV]** The permission split is a follow-up (see the M1
 ledger).
 
-### Phase M2: Blueprints and voxel generators, then PAUSE 🚧
+### Phase M2: Blueprints and voxel generators, then PAUSE ðŸš§
 
 1. **`blueprint_v1`** (owned by this project, documented in
    `SolariaMC/docs/BLUEPRINTS.md`): class, material palette references, scale,
@@ -407,6 +423,7 @@ ledger).
    - `earth`: sphere with ocean, continent patches, and a few white cloud
      patches,
    - `moon`: grey sphere with craters (shallow pits),
+   - `mercury`: small dark-grey rocky sphere with prominent craters,
    - `mars`: red-orange sphere with darker patches and a white polar cap,
    - `jupiter`: sphere with horizontal bands and a Great Red Spot,
    - `venus`: pale yellow sphere with soft swirling cloud patterns and no
@@ -414,8 +431,7 @@ ledger).
    - `saturn`: banded pale gold sphere with a flat ring around the equator,
    - `neptune`: deep blue sphere with a dark storm spot and light streaks,
    - `uranus`: pale cyan sphere with a thin ring tilted close to vertical (the
-     planet spins on its side),
-   - `pluto`: small tan and brown sphere with a pale heart-shaped region.
+     planet spins on its side).
    Rules for all ten:
    - Each blueprint has its own diameter chosen so the shape is recognisable
      and fits `max_size_blocks`. **Sizes are not proportional to real sizes**,
@@ -565,7 +581,6 @@ Done: criteria in 3.3.
    for the teacher to review.
 2. In-world labels (for example signs) that show the name of the body and the
    words "not to scale", so the statement is in the world and not only in chat.
-   Use "dwarf planet" on the Pluto label.
 
 ### Phase M7: End-to-end integration, then PAUSE
 
@@ -617,7 +632,7 @@ Label every participant-facing draft "not approved for use with participants".
    script, observation sheet, short usability questionnaire for teacher and
    students). State plainly that this measures usability, not learning.
 3. **Draft pre/post assessment items:** a question bank aligned to the ten
-   bodies in the class list. **[REV]** Eclipses, rockets, and satellites are no
+   bodies in the class list. **[REV]** Eclipses, removed vehicle classs, and satellites are no
    longer classes, so do not write items on them. Use misconceptions from the
    thesis only where they concern these ten bodies. Lay the items out for Google
    Forms, marked as a draft for the teacher and supervisor to review. Do not
@@ -705,12 +720,11 @@ blueprints, the failure messages, and the manual test checklist.
   revision log. The mod cannot work until the model's `classes` match its
   blueprints.
 - **[REV] Deciding how students draw.** Seven of the ten classes are round
-  bodies, and pencil drawings of Venus, Mars, Neptune, Uranus, Earth and Pluto
+  bodies, and pencil drawings of Venus, Mars, Neptune, Uranus, Earth and Mercury
   can look almost the same. Decide whether the worksheet asks for one
   distinguishing feature per planet (for example rings, bands, craters, a
   tilted ring), or allows colour. This decides how well the classifier can work,
   and it is a data-collection decision, not a mod decision.
-- **[REV] Confirming Mercury is left out on purpose.**
 
 ---
 

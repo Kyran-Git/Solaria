@@ -5,21 +5,20 @@ package net.kyrangit.solaria.blueprint;
  * The live list comes from GET /v1/health; the mod holds one blueprint per value here.
  *
  * <p>Ids are lowercase and must match the dataset folder names, the model
- * metadata, and the service's {@code classes} list byte-for-byte. Mercury is
- * intentionally absent. Pluto is a dwarf planet; any text shown to the player
- * about it must say "dwarf planet".
+ * metadata, and the service's {@code classes} list byte-for-byte. Pluto is
+ * intentionally absent.
  */
 public enum AstronomyClass {
-	SUN("sun"),
 	EARTH("earth"),
 	MOON("moon"),
+	MERCURY("mercury"),
+	VENUS("venus"),
 	MARS("mars"),
 	JUPITER("jupiter"),
-	VENUS("venus"),
 	SATURN("saturn"),
-	NEPTUNE("neptune"),
 	URANUS("uranus"),
-	PLUTO("pluto");
+	NEPTUNE("neptune"),
+	SUN("sun");
 
 	private final String id;
 

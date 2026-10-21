@@ -15,10 +15,10 @@ The separate Fabric client is not part of this status file.
   schemas, and the evaluation tooling.
 - `SolariaMC` is treated as a separate client; no Java/Fabric work is in scope for
   this repository.
-- The target class list is ten labels: `sun`, `earth`, `moon`, `mars`,
-  `jupiter`, `venus`, `saturn`, `neptune`, `uranus`, and `pluto`. Ids are
+- The target class list is ten labels: `earth`, `moon`, `mercury`, `venus`,
+  `mars`, `jupiter`, `saturn`, `uranus`, `neptune`, and `sun`. Ids are
   lowercase because they are dataset folder names and model labels.
-  `mercury` is intentionally excluded. The canonical list is
+  `pluto` is intentionally excluded. The canonical list is
   `solaria_classifier.classes.CLASS_IDS`, and `data.check_class_set` rejects
   any split or manifest carrying a label outside it.
 - Real student-drawing data is required for training, but the agent never

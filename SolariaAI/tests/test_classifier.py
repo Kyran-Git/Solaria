@@ -37,19 +37,18 @@ def test_required_class_set_has_ten_unique_ids() -> None:
 
 
 def test_retired_classes_are_rejected() -> None:
-    for retired in ("rocket", "satellite", "solar_system", "lunar_eclipse", "solar_eclipse"):
+    for retired in ("satellite", "solar_system", "lunar_eclipse", "solar_eclipse", "pluto"):
         with pytest.raises(ValueError, match="unsupported class folders"):
             check_class_set([retired], "Test split")
 
 
-def test_mercury_is_not_a_class() -> None:
-    with pytest.raises(ValueError, match="unsupported class folders"):
-        check_class_set(["mercury"], "Test split")
+def test_mercury_is_a_valid_class() -> None:
+    check_class_set(["mercury"], "Test split")
 
 
 def test_dataset_with_retired_class_folder_fails(tmp_path: Path) -> None:
     _write_dataset(tmp_path)
-    retired = tmp_path / "train" / "rocket"
+    retired = tmp_path / "train" / "pluto"
     retired.mkdir()
     Image.new("RGB", (24, 24), (0, 0, 255)).save(retired / "one.png")
 

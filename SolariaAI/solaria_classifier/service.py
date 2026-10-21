@@ -12,7 +12,7 @@ VALID_CLASSES: list[str] = list(CLASS_IDS)
 @dataclass(frozen=True)
 class PredictionRecord:
     version: str = "prediction_v1"
-    label: str = "sun"
+    label: str = "earth"
     confidence: float = 0.92
     accepted: bool = True
     reason: str | None = None
@@ -32,8 +32,8 @@ class PredictionRecord:
 @dataclass(frozen=True)
 class ReviewRecord:
     version: str = "review_v1"
-    predicted_label: str = "sun"
-    final_label: str | None = "sun"
+    predicted_label: str = "earth"
+    final_label: str | None = "earth"
     action: str = "confirm"
     override: bool = False
     reviewer: str = "mock_service"
@@ -85,7 +85,7 @@ class ApiV1Envelope:
 def mock_service_response(
     *,
     request_id: str = "mock-request",
-    label: str = "sun",
+    label: str = "earth",
     confidence: float = 0.92,
     accepted: bool = True,
     threshold: float = 0.6,

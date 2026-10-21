@@ -41,22 +41,22 @@ The project targets this ten-class astronomy label set:
 
 | # | Class id | Display name |
 |---|---|---|
-| 1 | `sun` | Sun |
-| 2 | `earth` | Earth |
-| 3 | `moon` | Moon |
-| 4 | `mars` | Mars |
-| 5 | `jupiter` | Jupiter |
-| 6 | `venus` | Venus |
+| 1 | `earth` | Earth |
+| 2 | `moon` | Moon |
+| 3 | `mercury` | Mercury |
+| 4 | `venus` | Venus |
+| 5 | `mars` | Mars |
+| 6 | `jupiter` | Jupiter |
 | 7 | `saturn` | Saturn |
-| 8 | `neptune` | Neptune |
-| 9 | `uranus` | Uranus |
-| 10 | `pluto` | Pluto (dwarf planet) |
+| 8 | `uranus` | Uranus |
+| 9 | `neptune` | Neptune |
+| 10 | `sun` | The Sun |
 
 Class ids are lowercase because they are dataset folder names and model labels.
 Display names are for user-facing text only and never travel over the wire.
-`mercury` is intentionally not in this set. The canonical list is
+`pluto` is intentionally not in this set. The canonical list is
 `solaria_classifier.classes.CLASS_IDS`; `solaria_classifier.data.check_class_set`
-rejects a split or manifest that contains any other label, so a stray `rocket`,
+rejects a split or manifest that contains any other label, so a stray `pluto`,
 `satellite`, `solar_system`, `lunar_eclipse`, or `solar_eclipse` folder fails the
 run instead of quietly widening the model.
 

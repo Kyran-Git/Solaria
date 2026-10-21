@@ -31,10 +31,10 @@ class DatasetBundle:
 def check_class_set(classes: list[str], scope: str) -> None:
     """Fail when a split holds labels outside the required ten-class set.
 
-    A stray folder such as ``Mercury`` or a leftover ``rocket`` directory would
-    otherwise be discovered silently by ``ImageFolder`` and would change the
-    model's output width and label order. Rejecting it here keeps the dataset,
-    the checkpoint, and the mod's blueprint list in step.
+    A stray folder such as ``pluto`` would otherwise be discovered silently by
+    ``ImageFolder`` and would change the model's output width and label order.
+    Rejecting it here keeps the dataset, the checkpoint, and the mod's
+    blueprint list in step.
     """
     unknown = sorted(label for label in classes if not is_valid_class(label))
     if unknown:
