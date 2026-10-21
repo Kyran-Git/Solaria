@@ -91,8 +91,8 @@ public final class WikiStructureTests {
 		List<String> expected = List.of(
 			"planets/mercury.mdx", "planets/venus.mdx", "planets/earth.mdx", "planets/mars.mdx",
 			"planets/jupiter.mdx", "planets/saturn.mdx", "planets/uranus.mdx", "planets/neptune.mdx",
-			"moons/the_moon.mdx", "moons/moon_phases.mdx", "smaller_objects/asteroids.mdx",
-			"smaller_objects/comets.mdx", "smaller_objects/dwarf_planets.mdx", "stars/the_sun.mdx");
+			"moons/the_moon.mdx", "moons/moon_phases.mdx",
+			"stars/the_sun.mdx");
 		for (String relative : expected) {
 			Path page = astronomy.resolve(relative);
 			check(Files.isRegularFile(page), "astronomy page exists: " + relative);

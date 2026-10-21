@@ -53,9 +53,9 @@ The ten classes changed. **[REV]** The new list was:
 9. `uranus`
 10. `pluto`
 
-- **Removed:** `removed vehicle class`, `satellite`, `solar_system`, `lunar_eclipse`,
-  `solar_eclipse`. Delete their generators and tests if any exist. Do not keep
-  them as hidden extras.
+- **Removed at this stage:** `removed vehicle class`, `satellite`, `solar_system`,
+  `lunar_eclipse`, and `solar_eclipse`. Delete their generators and tests if any
+  exist. Do not keep them as hidden extras.
 - **Wire ids are lowercase** (the list was written with capitals, but ids are
   dataset folder names and model labels and must match everywhere). The thesis
   shows display names (Venus, Saturn, and so on).
@@ -65,16 +65,16 @@ The ten classes changed. **[REV]** The new list was:
 
 **[REV]** The final ten classes are:
 
-1. `earth`
-2. `moon`
-3. `mercury`
-4. `venus`
-5. `mars`
-6. `jupiter`
-7. `saturn`
-8. `uranus`
-9. `neptune`
-10. `sun`
+1. `sun`
+2. `earth`
+3. `moon`
+4. `mars`
+5. `jupiter`
+6. `Venus`
+7. `Saturn`
+8. `Neptune`
+9. `Uranus`
+10. `mercury`
 
 - **Added:** `mercury`. It must behave like the other nine bodies.
 - **Removed:** `pluto`. Delete its generator and palette references if any
@@ -632,9 +632,10 @@ Label every participant-facing draft "not approved for use with participants".
    script, observation sheet, short usability questionnaire for teacher and
    students). State plainly that this measures usability, not learning.
 3. **Draft pre/post assessment items:** a question bank aligned to the ten
-   bodies in the class list. **[REV]** Eclipses, removed vehicle classs, and satellites are no
-   longer classes, so do not write items on them. Use misconceptions from the
-   thesis only where they concern these ten bodies. Lay the items out for Google
+   bodies in the class list. **[REV]** Eclipses, the removed vehicle class, and
+   the generic satellite category are no longer classes, so do not write items
+   on them. Use misconceptions from the thesis only where they concern these ten
+   bodies. Lay the items out for Google
    Forms, marked as a draft for the teacher and supervisor to review. Do not
    claim validity or reliability.
 4. `SolariaMC/docs/REPORT_SYNC_MC.md`: a consistency check of the code against
