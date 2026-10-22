@@ -94,3 +94,11 @@ SolariaMC/run/resourcepacks/
 SolariaMC/run/resources/
 SolariaMC/run/datagen/
 SolariaMC/run/.fabric/
+
+# Markdown documentation
+# All Markdown is kept locally but is intentionally not published to the remote.
+# The files stay on disk; they are simply untracked (git rm --cached) so a
+# clone of the remote does not contain them.
+# Note: *.md does not match *.mdx, so the Oracle Index wiki sources under
+# SolariaMC/wiki/ and SolariaMC/Astronomy-wiki/ remain tracked.
+*.md
