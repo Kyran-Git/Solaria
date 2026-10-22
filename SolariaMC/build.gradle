@@ -123,8 +123,36 @@ tasks.register('wikiStructureTest', JavaExec) {
 	}
 }
 
+// M2 blueprint checks: ten-class contract, deterministic generators, size-cap /
+// scale enforcement, no forbidden blocks. Pure plumbing check (synthetic).
+tasks.register('blueprintTest', JavaExec) {
+	group = 'verification'
+	description = 'Validates the M2 blueprints and voxel generators (synthetic).'
+	dependsOn testClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'net.kyrangit.solaria.BlueprintTests'
+	javaLauncher = javaToolchains.launcherFor {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+// Manual-only preview task: renders PNG slices under build/previews/ for human review.
+// Not wired into `test` to keep CI/build cheap; run with `gradlew blueprintPreview`.
+tasks.register('blueprintPreview', JavaExec) {
+	group = 'verification'
+	description = 'Writes PNG slice previews of every blueprint to build/previews/.'
+	dependsOn testClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'net.kyrangit.solaria.BlueprintPreview'
+	// Headless so the task works on CI machines without a display.
+	systemProperty 'java.awt.headless', 'true'
+	javaLauncher = javaToolchains.launcherFor {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
 tasks.named('test') {
-	dependsOn foundationTest, wikiStructureTest
+	dependsOn foundationTest, wikiStructureTest, blueprintTest
 	// Tests use a Java main runner rather than a JUnit engine.
 	exclude '**/*'
 }

@@ -56,9 +56,10 @@ The ten classes changed. **[REV]** The new list was:
 - **Removed at this stage:** `removed vehicle class`, `satellite`, `solar_system`,
   `lunar_eclipse`, and `solar_eclipse`. Delete their generators and tests if any
   exist. Do not keep them as hidden extras.
-- **Wire ids are lowercase** (the list was written with capitals, but ids are
-  dataset folder names and model labels and must match everywhere). The thesis
-  shows display names (Venus, Saturn, and so on).
+- **Wire ids follow the third revision's casing** (`sun`, `earth`, `moon`, `mars`,
+  `jupiter`, `Venus`, `Saturn`, `Neptune`, `Uranus`, `mercury`) and must match
+  everywhere (dataset folder names, model labels, service `classes` list, and
+  `AstronomyClass#id()`). The in-game display may differ.
 - This second revision was later superseded by the third revision below.
 
 ### 2026-10-21 (third revision): class set with Mercury, no Pluto
@@ -166,31 +167,47 @@ The ten classes changed. **[REV]** The new list was:
       rejected with a clear message (not silently ignored). Small change, do it
       before M5.
 
-### M2 details ðŸš§ in progress
+### M2 details ✅ complete (synthetic; awaits human preview review)
 
-Written and compiling (untracked in `blueprint/`):
+Shipping files (tracked under `SolariaMC/src/.../blueprint/` and `.../test/...`):
 
-- [x] `AstronomyClass` with 10 wire ids. **[REV]** These are the old ids. Replace them with the new class set (revision log) and update the tests that enumerate them.
-- [x] `VoxelGrid`, a dense xâ†’yâ†’z grid, with `snapshot()` for deterministic
+- [x] `AstronomyClass` carries the third-revision wire ids
+      (`sun`, `earth`, `moon`, `mars`, `jupiter`, `Venus`, `Saturn`, `Neptune`,
+      `Uranus`, `mercury`); `BlueprintTests` enumerates them.
+- [x] `VoxelGrid`, dense `x -> y -> z` grid with `snapshot()` for deterministic
       comparison.
 - [x] `MaterialPalette` with 1-based indices, `FORBIDDEN_BLOCKS` set, and builder
       validation against gravity/fluid/harmful blocks.
-- [x] `Palette.create()` with 19 safe unique blocks (verified via `javap`).
-- [x] `Blueprint` record.
-- [x] `compileJava` passes with all five files.
+- [x] `Palette.create()` with 19 safe unique blocks.
+- [x] `Blueprint` record now carries `blocksPerUnit` and `diameter`, plus a
+      `hasSameVoxels(Blueprint)` determinism oracle.
+- [x] `VoxelNoise` provides deterministic hashes, trilinear value noise, and a
+      unit-vector-on-sphere helper. No `Random`, no iteration-order dependence.
+- [x] `BlueprintException(ReasonCode, String)` carries Appendix A.5 codes;
+      `ReasonCode` gained `CAP_EXCEEDED` and `BLUEPRINT_MISSING`.
+- [x] `BlueprintGenerator.generate(cls, blocksPerUnit, maxSizeBlocks)` with
+      scale-down-or-reject and `CAP_EXCEEDED` on impossibly small caps.
+      Per-class geometry lives in `BlueprintShapes`.
+- [x] `docs/BLUEPRINTS.md` documents the schema, determinism rules, cap flow,
+      palette table, and the tan/cyan colour gap plus the deferred
+      `minecraft:terracotta` proposal.
+- [x] Gradle `blueprintTest` task runs the 246-assertion plumbing check (passes).
+- [x] Gradle `blueprintPreview` task writes 154 PNG slices to
+      `build/previews/<class>/yNNN.png` (manual review; not part of `test`).
+- [x] `./gradlew test` is green under JDK 25 toolchain: foundation (112), wiki
+      (150), blueprint (246) assertions.
 
-**Not done yet (phase incomplete):**
+**Open items carried forward:**
 
-- [ ] Deterministic generators for all 10 classes.
-- [ ] Size cap / scale enforcement (`max_size_blocks`, `blocks_per_unit`).
-- [ ] `docs/BLUEPRINTS.md`.
-- [ ] Preview Gradle task (PNG slices only, see M2.4) â†’ `build/previews/`.
-- [ ] Tests: determinism, cap/scale, all classes covered, no forbidden blocks.
-- [ ] **Deviation:** section 4 M2.2 asks for the palette as a *data file*, but it
-      is currently hardcoded in `Palette.java`. **Recommendation:** make it a
-      small JSON data file, since teachers may want to adjust materials. Needs a
+- [ ] **Human preview review.** The PAUSE for human eyes on `build/previews/`
+      is still unmet; the ten classes compile and are deterministic, but a
+      teacher has not yet signed off on the visuals.
+- [ ] **Palette as a data file.** Section 4 M2.2 asks for a palette data file;
+      the current implementation is a hardcoded `Palette.java`. Deferred to a
       human decision.
-- [ ] **PAUSE not reached.** No previews exist for human review.
+- [ ] **Tan colour swatch.** Add `minecraft:terracotta` to the palette only
+      once a human approves (plan says 10 colours including tan; palette has
+      a mix proxy for now).
 
 ### Deviations and blockers (carried forward)
 
