@@ -1,11 +1,13 @@
 package net.kyrangit.solaria.blueprint;
 
 /**
- * The ten astronomy classes recognised by the Solaria classifier.
+ * The ten astronomy classes recognised by the Solaria classifier (fourth revision, v2).
  * The live list comes from GET /v1/health; the mod holds one blueprint per value here.
  *
- * <p>Ids must match the dataset folder names, the model metadata, and the service's
- * {@code classes} list byte-for-byte.
+ * <p>Ids are all lowercase wire-format strings and must match the dataset folder names,
+ * the model metadata, and the service's {@code classes} list byte-for-byte.
+ *
+ * <p>Each class maps to an individual explorable dimension {@code solaria:<id>}.
  */
 public enum AstronomyClass {
 	SUN("sun"),
@@ -13,10 +15,10 @@ public enum AstronomyClass {
 	MOON("moon"),
 	MARS("mars"),
 	JUPITER("jupiter"),
-	VENUS("Venus"),
-	SATURN("Saturn"),
-	NEPTUNE("Neptune"),
-	URANUS("Uranus"),
+	VENUS("venus"),
+	SATURN("saturn"),
+	URANUS("uranus"),
+	NEPTUNE("neptune"),
 	MERCURY("mercury");
 
 	private final String id;

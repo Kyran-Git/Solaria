@@ -7,6 +7,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.resources.Identifier;
 import net.kyrangit.solaria.command.SolariaCommands;
 import net.kyrangit.solaria.config.ConfigManager;
+import net.kyrangit.solaria.item.SolariaItems;
 import net.kyrangit.solaria.logging.PrivacyLog;
 
 public class SolariaMod implements ModInitializer {
@@ -21,6 +22,10 @@ public class SolariaMod implements ModInitializer {
 		if (!result.success()) {
 			PrivacyLog.failure(result.error().reasonCode());
 		}
+		// Classloads SolariaItems so the scanner item registers before the
+		// vanilla item registry is frozen, and wires the Tools and Utilities
+		// creative tab entry via Fabric's CreativeModeTabEvents hook.
+		SolariaItems.register();
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
 			SolariaCommands.register(dispatcher, config));
 	}

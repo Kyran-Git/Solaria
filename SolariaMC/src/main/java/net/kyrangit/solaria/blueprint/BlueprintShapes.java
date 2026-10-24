@@ -1,379 +1,476 @@
 package net.kyrangit.solaria.blueprint;
 
 /**
- * Per-class voxel shape builders used by {@link BlueprintGenerator}.
+ * Per-class voxel shape generators used by {@link BlueprintGenerator}.
  *
- * <p>Kept as a separate file so {@link BlueprintGenerator} stays readable and so this
- * geometry can grow (more features per class) without that file growing with it.
- * Everything here is deterministic and iteration-order safe; see
- * {@link BlueprintGenerator} for the full contract.
+ * <p>Every method returns a {@link Blueprint} whose {@link Blueprint#voxelAt} is a
+ * <em>pure function</em>: the block at (x, y, z) depends only on the class seed,
+ * the diameter, and the coordinates. No mutable state, no stored grid.
+ *
+ * <p>Coordinates passed to {@code voxelAt} are relative to the planet centre.
+ * Points outside the shape return 0 (air).
+ *
+ * <p>Determinism rules (see {@link BlueprintGenerator} for the full contract):
+ * <ul>
+ *   <li>No {@link java.util.Random} — all randomness via {@link VoxelNoise}.</li>
+ *   <li>Same seed + same (x,y,z) = same result on every machine.</li>
+ *   <li>The normalised position (nx,ny,nz) = (x,y,z) / radius is passed to noise
+ *       so features scale with the planet, not with block counts.</li>
+ * </ul>
  */
 final class BlueprintShapes {
 	private BlueprintShapes() {
 	}
 
-	// --------------------------------------------------------------------- Sphere helpers
+	// ------------------------------------------------------------------ helpers
+
+	/** True when (x,y,z) is inside a sphere of the given radius. */
+	private static boolean inSphere(int x, int y, int z, double radius) {
+		return (double) x * x + (double) y * y + (double) z * z <= radius * radius;
+	}
+
+	/** Scatter crater positions from a seed; returns the centre of crater {@code i}. */
+	private static double[] craterCentre(int i, int seed, double radius) {
+		double[] dir = VoxelNoise.unitVector(seed ^ (i * 0x9E3779B1));
+		return new double[]{dir[0] * radius, dir[1] * radius, dir[2] * radius};
+	}
 
 	/**
-	 * Fill a solid sphere centred in a cubic grid, using a per-voxel colour chooser.
-	 * The chooser receives the voxel coordinates and the normalised unit vector from
-	 * the centre, and must return a palette index &gt; 0.
+	 * Returns the crater-rim palette index if (x,y,z) falls on a crater rim,
+	 * or 0 if it falls inside a crater pit (air), or -1 if unaffected.
+	 * craterRadius is expressed as a fraction of the body radius.
 	 */
-	static VoxelGrid solidSphere(int diameter, VoxelColourChooser chooser) {
-		VoxelGrid grid = new VoxelGrid(diameter, diameter, diameter);
-		double radius = diameter / 2.0;
-		double centre = (diameter - 1) / 2.0;
-		for (int x = 0; x < diameter; x++) {
-			for (int y = 0; y < diameter; y++) {
-				for (int z = 0; z < diameter; z++) {
-					double dx = x - centre;
-					double dy = y - centre;
-					double dz = z - centre;
-					double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-					if (distance <= radius) {
-						double nx = dx / radius;
-						double ny = dy / radius;
-						double nz = dz / radius;
-						grid.set(x, y, z, chooser.choose(x, y, z, nx, ny, nz, distance / radius));
-					}
-				}
-			}
-		}
-		return grid;
-	}
-
-	/** Carve a shallow spherical pit at a surface point. Used for craters on Moon and Mercury. */
-	static void carveCrater(VoxelGrid grid, double cx, double cy, double cz, double craterRadius) {
-		int xMin = Math.max(0, (int) Math.floor(cx - craterRadius));
-		int yMin = Math.max(0, (int) Math.floor(cy - craterRadius));
-		int zMin = Math.max(0, (int) Math.floor(cz - craterRadius));
-		int xMax = Math.min(grid.sizeX() - 1, (int) Math.ceil(cx + craterRadius));
-		int yMax = Math.min(grid.sizeY() - 1, (int) Math.ceil(cy + craterRadius));
-		int zMax = Math.min(grid.sizeZ() - 1, (int) Math.ceil(cz + craterRadius));
-		double radiusSq = craterRadius * craterRadius;
-		for (int x = xMin; x <= xMax; x++) {
-			for (int y = yMin; y <= yMax; y++) {
-				for (int z = zMin; z <= zMax; z++) {
-					double dx = x - cx;
-					double dy = y - cy;
-					double dz = z - cz;
-					if (dx * dx + dy * dy + dz * dz <= radiusSq) {
-						grid.set(x, y, z, 0);
-					}
-				}
-			}
-		}
-	}
-
-	/** Mark voxels within an annular shell on the surface. Used for crater rims. */
-	static void ringCrater(VoxelGrid grid, double cx, double cy, double cz,
-	                       double innerRadius, double outerRadius, int paletteIndex) {
-		int xMin = Math.max(0, (int) Math.floor(cx - outerRadius));
-		int yMin = Math.max(0, (int) Math.floor(cy - outerRadius));
-		int zMin = Math.max(0, (int) Math.floor(cz - outerRadius));
-		int xMax = Math.min(grid.sizeX() - 1, (int) Math.ceil(cx + outerRadius));
-		int yMax = Math.min(grid.sizeY() - 1, (int) Math.ceil(cy + outerRadius));
-		int zMax = Math.min(grid.sizeZ() - 1, (int) Math.ceil(cz + outerRadius));
-		double innerSq = innerRadius * innerRadius;
-		double outerSq = outerRadius * outerRadius;
-		for (int x = xMin; x <= xMax; x++) {
-			for (int y = yMin; y <= yMax; y++) {
-				for (int z = zMin; z <= zMax; z++) {
-					if (grid.get(x, y, z) == 0) {
-						continue;
-					}
-					double dx = x - cx;
-					double dy = y - cy;
-					double dz = z - cz;
-					double distanceSq = dx * dx + dy * dy + dz * dz;
-					if (distanceSq >= innerSq && distanceSq <= outerSq) {
-						grid.set(x, y, z, paletteIndex);
-					}
-				}
-			}
-		}
-	}
-
-	/** Scatter {@code count} craters at deterministic surface points. */
-	static void scatterCraters(VoxelGrid grid, int diameter, int seed, int count, int rimPaletteIndex) {
-		double bodyRadius = diameter / 2.0;
-		double centre = (diameter - 1) / 2.0;
-		double craterRadius = Math.max(1.3, bodyRadius * 0.22);
+	private static int craterEffect(int x, int y, int z, int count, int seed,
+	                                double bodyRadius, double craterFrac, int rimPalette) {
+		double cr = bodyRadius * craterFrac;
+		double rimWidth = Math.max(1.0, cr * 0.3);
 		for (int i = 0; i < count; i++) {
-			double[] direction = VoxelNoise.unitVector(seed + i * 0x9E37);
-			double cx = centre + direction[0] * (bodyRadius - 0.5);
-			double cy = centre + direction[1] * (bodyRadius - 0.5);
-			double cz = centre + direction[2] * (bodyRadius - 0.5);
-			ringCrater(grid, cx, cy, cz, craterRadius * 0.6, craterRadius, rimPaletteIndex);
-			carveCrater(grid, cx, cy, cz, craterRadius * 0.55);
+			double[] c = craterCentre(i, seed ^ 0xC4A7, bodyRadius > 0 ? (int) bodyRadius : 1);
+			double dx = x - c[0];
+			double dy = y - c[1];
+			double dz = z - c[2];
+			double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+			if (dist <= cr) {
+				return 0; // air — pit
+			}
+			if (dist <= cr + rimWidth) {
+				return rimPalette; // raised rim
+			}
 		}
+		return -1; // unaffected
 	}
 
-	@FunctionalInterface
-	interface VoxelColourChooser {
-		int choose(int x, int y, int z, double nx, double ny, double nz, double normalisedDistance);
-	}
+	// ================================================================== SUN
 
-	// --------------------------------------------------------------------- Per-class generators
-
+	/**
+	 * Sun: glowing gold sphere with granulation noise on the outer shell.
+	 * Three concentric colour zones: core (glowstone), shell (gold), corona (yellow/ochre).
+	 */
 	static Blueprint sun(MaterialPalette palette, int diameter, double scale, int seed) {
-		int glow = palette.indexOf(Palette.GLOWSTONE);
-		int gold = palette.indexOf(Palette.GOLD_BLOCK);
-		int yellow = palette.indexOf(Palette.YELLOW_CONCRETE);
-		int orange = palette.indexOf(Palette.ORANGE_CONCRETE);
-		VoxelGrid grid = solidSphere(diameter, (x, y, z, nx, ny, nz, normalised) -> {
-			if (normalised < 0.35) {
-				return glow;
-			}
-			if (normalised < 0.75) {
-				return gold;
-			}
-			double noise = VoxelNoise.noise3(nx * 2.0, ny * 2.0, nz * 2.0, seed);
-			return noise > 0.55 ? yellow : orange;
-		});
-		return new Blueprint(AstronomyClass.SUN, grid, palette, scale, diameter);
+		int core    = palette.indexOf(Palette.GLOWSTONE);
+		int surface = palette.indexOf(Palette.GOLD_BLOCK);
+		int corona  = palette.indexOf(Palette.YELLOW_CONCRETE);
+		int gran1   = palette.indexOf(Palette.SHROOMLIGHT);
+		int gran2   = palette.indexOf(Palette.OCHRE_FROGLIGHT);
+		int honey   = palette.indexOf(Palette.HONEYCOMB_BLOCK);
+		double radius = diameter / 2.0;
+		return new Blueprint(AstronomyClass.SUN,
+			(x, y, z) -> {
+				double r2 = (double) x * x + (double) y * y + (double) z * z;
+				double dist = Math.sqrt(r2);
+				if (dist > radius) return 0;
+				double norm = dist / radius;
+				double nx = x / radius, ny = y / radius, nz = z / radius;
+				if (norm < 0.35) return core;
+				if (norm < 0.78) return surface;
+				// Outer shell: granulation noise
+				double g = VoxelNoise.noise3(nx * 6.0, ny * 6.0, nz * 6.0, seed);
+				if (norm > 0.92) {
+					// Corona fringe
+					return g > 0.55 ? honey : corona;
+				}
+				if (g > 0.68) return gran1;
+				if (g > 0.54) return gran2;
+				return surface;
+			},
+			palette, scale, diameter);
 	}
 
+	// ================================================================== EARTH
+
+	/**
+	 * Earth: blue oceans, green/brown land, white polar caps, and thin cloud layer.
+	 */
 	static Blueprint earth(MaterialPalette palette, int diameter, double scale, int seed) {
-		int ocean = palette.indexOf(Palette.BLUE_CONCRETE);
-		int land = palette.indexOf(Palette.GREEN_CONCRETE);
-		int cloud = palette.indexOf(Palette.WHITE_CONCRETE);
-		int ice = palette.indexOf(Palette.SNOW_BLOCK);
-		int core = palette.indexOf(Palette.IRON_BLOCK);
-		VoxelGrid grid = solidSphere(diameter, (x, y, z, nx, ny, nz, normalised) -> {
-			if (normalised < 0.25) {
-				return core;
-			}
-			// Polar caps
-			if (Math.abs(ny) > 0.85) {
-				return ice;
-			}
-			double continents = VoxelNoise.noise3(nx * 2.1, ny * 2.1, nz * 2.1, seed);
-			double clouds = VoxelNoise.noise3(nx * 3.3 + 11.0, ny * 3.3, nz * 3.3, seed ^ 0x5A5A);
-			if (normalised > 0.9 && clouds > 0.72) {
-				return cloud;
-			}
-			return continents > 0.55 ? land : ocean;
-		});
-		return new Blueprint(AstronomyClass.EARTH, grid, palette, scale, diameter);
+		int ocean    = palette.indexOf(Palette.BLUE_CONCRETE);
+		int deep     = palette.indexOf(Palette.DARK_PRISMARINE);
+		int shallow  = palette.indexOf(Palette.PRISMARINE);
+		int land     = palette.indexOf(Palette.GREEN_CONCRETE);
+		int forest   = palette.indexOf(Palette.GREEN_TERRACOTTA);
+		int grass    = palette.indexOf(Palette.LIME_CONCRETE);
+		int dry      = palette.indexOf(Palette.LIME_TERRACOTTA);
+		int desert   = palette.indexOf(Palette.TERRACOTTA);
+		int ice      = palette.indexOf(Palette.SNOW_BLOCK);
+		int glacier  = palette.indexOf(Palette.BLUE_ICE);
+		int cloud    = palette.indexOf(Palette.WHITE_CONCRETE);
+		double radius = diameter / 2.0;
+		return new Blueprint(AstronomyClass.EARTH,
+			(x, y, z) -> {
+				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
+				if (dist > radius) return 0;
+				double norm = dist / radius;
+				double nx = x / radius, ny = y / radius, nz = z / radius;
+				// Polar ice caps: |ny| > 0.82
+				double absy = Math.abs(ny);
+				if (absy > 0.82) return (norm > 0.94 && absy > 0.9) ? glacier : ice;
+				// Thin cloud shell (outermost 4%)
+				if (norm > 0.96) {
+					double c = VoxelNoise.noise3(nx * 4.5, ny * 4.5, nz * 4.5, seed ^ 0xCCDD);
+					return c > 0.58 ? cloud : ocean;
+				}
+				// Continent noise
+				double continent = VoxelNoise.noise3(nx * 1.8, ny * 1.8, nz * 1.8, seed);
+				if (continent > 0.54) {
+					// Land biome
+					double biome = VoxelNoise.noise3(nx * 3.5, ny * 3.5, nz * 3.5, seed ^ 0xAB12);
+					if (biome > 0.65) return forest;
+					if (biome > 0.52) return grass;
+					if (biome > 0.42) return dry;
+					if (biome > 0.30) return desert;
+					return land;
+				}
+				// Ocean depth
+				double depth = VoxelNoise.noise3(nx * 2.5, ny * 2.5, nz * 2.5, seed ^ 0x5F5F);
+				return depth > 0.58 ? shallow : (depth < 0.35 ? deep : ocean);
+			},
+			palette, scale, diameter);
 	}
 
+	// ================================================================== MOON
+
+	/**
+	 * Moon: grey highlands with dark maria patches and scattered impact craters.
+	 */
 	static Blueprint moon(MaterialPalette palette, int diameter, double scale, int seed) {
-		int light = palette.indexOf(Palette.LIGHT_GRAY_CONCRETE);
-		int dark = palette.indexOf(Palette.GRAY_CONCRETE);
-		int core = palette.indexOf(Palette.STONE);
-		VoxelGrid grid = solidSphere(diameter, (x, y, z, nx, ny, nz, normalised) -> {
-			if (normalised < 0.3) {
-				return core;
-			}
-			// Maria: darker patches of basaltic plain
-			double maria = VoxelNoise.noise3(nx * 1.8, ny * 1.8, nz * 1.8, seed);
-			return maria > 0.6 ? dark : light;
-		});
-		scatterCraters(grid, diameter, seed, 5, dark);
-		return new Blueprint(AstronomyClass.MOON, grid, palette, scale, diameter);
+		int surface  = palette.indexOf(Palette.LIGHT_GRAY_CONCRETE);
+		int highland = palette.indexOf(Palette.ANDESITE);
+		int bright   = palette.indexOf(Palette.SMOOTH_STONE);
+		int dusty    = palette.indexOf(Palette.LIGHT_GRAY_TERRACOTTA);
+		int mare     = palette.indexOf(Palette.SMOOTH_BASALT);
+		int mareAlt  = palette.indexOf(Palette.GRAY_CONCRETE);
+		int rimBlock = palette.indexOf(Palette.CALCITE);
+		double radius = diameter / 2.0;
+		int craterCount = 18;
+		return new Blueprint(AstronomyClass.MOON,
+			(x, y, z) -> {
+				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
+				if (dist > radius) return 0;
+				double nx = x / radius, ny = y / radius, nz = z / radius;
+				// Check craters first
+				int ce = craterEffect(x, y, z, craterCount, seed, radius, 0.08, rimBlock);
+				if (ce == 0) return 0;
+				if (ce > 0) return ce;
+				// Maria (dark smooth plains)
+				double mare3 = VoxelNoise.noise3(nx * 1.4, ny * 1.4, nz * 1.4, seed ^ 0x1A2B);
+				if (mare3 > 0.64) {
+					return (VoxelNoise.noise3(nx * 3.0, ny * 3.0, nz * 3.0, seed ^ 0x3C4D) > 0.52) ? mare : mareAlt;
+				}
+				// Highlands texture
+				double tex = VoxelNoise.noise3(nx * 5.0, ny * 5.0, nz * 5.0, seed ^ 0xF00F);
+				if (tex > 0.68) return bright;
+				if (tex > 0.55) return highland;
+				if (tex < 0.32) return dusty;
+				return surface;
+			},
+			palette, scale, diameter);
 	}
 
-	static Blueprint mercury(MaterialPalette palette, int diameter, double scale, int seed) {
-		int surface = palette.indexOf(Palette.STONE);
-		int patch = palette.indexOf(Palette.BROWN_CONCRETE);
-		int highlight = palette.indexOf(Palette.QUARTZ_BLOCK);
-		VoxelGrid grid = solidSphere(diameter, (x, y, z, nx, ny, nz, normalised) -> {
-			double n = VoxelNoise.noise3(nx * 2.4, ny * 2.4, nz * 2.4, seed);
-			return n > 0.65 ? patch : surface;
-		});
-		// Mercury is heavily cratered; a touch more than the Moon relative to its size.
-		scatterCraters(grid, diameter, seed, 6, highlight);
-		return new Blueprint(AstronomyClass.MERCURY, grid, palette, scale, diameter);
-	}
+	// ================================================================== MARS
 
+	/**
+	 * Mars: rust-red with dark volcanic regions, white polar caps, and canyon shadows.
+	 */
 	static Blueprint mars(MaterialPalette palette, int diameter, double scale, int seed) {
-		int surface = palette.indexOf(Palette.RED_TERRACOTTA);
-		int dark = palette.indexOf(Palette.BROWN_CONCRETE);
-		int polar = palette.indexOf(Palette.WHITE_CONCRETE);
-		int core = palette.indexOf(Palette.IRON_BLOCK);
-		VoxelGrid grid = solidSphere(diameter, (x, y, z, nx, ny, nz, normalised) -> {
-			if (normalised < 0.3) {
-				return core;
-			}
-			if (Math.abs(ny) > 0.82) {
-				return polar;
-			}
-			double patch = VoxelNoise.noise3(nx * 2.6, ny * 2.6, nz * 2.6, seed);
-			return patch > 0.6 ? dark : surface;
-		});
-		return new Blueprint(AstronomyClass.MARS, grid, palette, scale, diameter);
+		int surface  = palette.indexOf(Palette.RED_TERRACOTTA);
+		int dust     = palette.indexOf(Palette.ORANGE_TERRACOTTA);
+		int rock     = palette.indexOf(Palette.RED_SANDSTONE);
+		int smooth   = palette.indexOf(Palette.SMOOTH_RED_SANDSTONE);
+		int highland = palette.indexOf(Palette.GRANITE);
+		int dark     = palette.indexOf(Palette.NETHERRACK);
+		int canyon   = palette.indexOf(Palette.RED_NETHER_BRICKS);
+		int polar    = palette.indexOf(Palette.WHITE_CONCRETE);
+		int polarDry = palette.indexOf(Palette.SNOW_BLOCK);
+		double radius = diameter / 2.0;
+		return new Blueprint(AstronomyClass.MARS,
+			(x, y, z) -> {
+				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
+				if (dist > radius) return 0;
+				double nx = x / radius, ny = y / radius, nz = z / radius;
+				double absy = Math.abs(ny);
+				// Polar caps
+				if (absy > 0.82) return absy > 0.9 ? polarDry : polar;
+				// Surface noise
+				double base = VoxelNoise.noise3(nx * 2.0, ny * 2.0, nz * 2.0, seed);
+				double detail = VoxelNoise.noise3(nx * 5.5, ny * 5.5, nz * 5.5, seed ^ 0x9191);
+				if (base < 0.28) {
+					// Deep canyon / dark volcanic lowland
+					return detail > 0.55 ? canyon : dark;
+				}
+				if (base < 0.42) return smooth;
+				if (base > 0.72) return highland;
+				if (detail > 0.60) return rock;
+				if (detail < 0.30) return dust;
+				return surface;
+			},
+			palette, scale, diameter);
 	}
 
-	static Blueprint venus(MaterialPalette palette, int diameter, double scale, int seed) {
-		int cloud = palette.indexOf(Palette.YELLOW_CONCRETE);
-		int pale = palette.indexOf(Palette.WHITE_CONCRETE);
-		int core = palette.indexOf(Palette.GOLD_BLOCK);
-		VoxelGrid grid = solidSphere(diameter, (x, y, z, nx, ny, nz, normalised) -> {
-			if (normalised < 0.3) {
-				return core;
-			}
-			double swirl = VoxelNoise.noise3(nx * 2.0 + ny * 1.2, ny * 1.8, nz * 2.0, seed);
-			return swirl > 0.55 ? pale : cloud;
-		});
-		return new Blueprint(AstronomyClass.VENUS, grid, palette, scale, diameter);
-	}
+	// ================================================================== JUPITER
 
+	/**
+	 * Jupiter: horizontal bands with an equator-pinned Great Red Spot.
+	 */
 	static Blueprint jupiter(MaterialPalette palette, int diameter, double scale, int seed) {
+		int paleBand  = palette.indexOf(Palette.WHITE_CONCRETE);
 		int lightBand = palette.indexOf(Palette.ORANGE_CONCRETE);
-		int darkBand = palette.indexOf(Palette.BROWN_CONCRETE);
-		int creamBand = palette.indexOf(Palette.WHITE_CONCRETE);
-		int redSpot = palette.indexOf(Palette.RED_CONCRETE);
-		int core = palette.indexOf(Palette.DIAMOND_BLOCK);
-		// Great Red Spot: deterministic unit vector pinned near the equator.
-		double[] spotDir = VoxelNoise.unitVector(seed ^ 0x6705);
-		double spotLat = Math.max(-0.3, Math.min(0.3, spotDir[1]));
-		double planarLen = Math.sqrt(spotDir[0] * spotDir[0] + spotDir[2] * spotDir[2]);
-		double equatorialScale = Math.sqrt(1 - spotLat * spotLat) / Math.max(1e-9, planarLen);
-		double sx = spotDir[0] * equatorialScale;
-		double sz = spotDir[2] * equatorialScale;
-		VoxelGrid grid = solidSphere(diameter, (x, y, z, nx, ny, nz, normalised) -> {
-			if (normalised < 0.3) {
-				return core;
-			}
-			double dot = nx * sx + ny * spotLat + nz * sz;
-			if (normalised > 0.85 && dot > 0.9) {
-				return redSpot;
-			}
-			int bandIndex = (int) Math.floor(ny * 4.5 + 4.5);
-			int bandHash = VoxelNoise.hash(bandIndex, 0, 0, seed) & 0x3;
-			return switch (bandHash) {
-				case 0 -> creamBand;
-				case 1 -> darkBand;
-				default -> lightBand;
-			};
-		});
-		return new Blueprint(AstronomyClass.JUPITER, grid, palette, scale, diameter);
+		int darkBand  = palette.indexOf(Palette.BROWN_CONCRETE);
+		int tan       = palette.indexOf(Palette.TERRACOTTA);
+		int cream     = palette.indexOf(Palette.WHITE_TERRACOTTA);
+		int warm      = palette.indexOf(Palette.RAW_COPPER_BLOCK);
+		int peach     = palette.indexOf(Palette.RAW_IRON_BLOCK);
+		int redSpot   = palette.indexOf(Palette.RED_CONCRETE);
+		double radius = diameter / 2.0;
+		// Great Red Spot: deterministic position on equator
+		double[] spotDir = VoxelNoise.unitVector(seed ^ 0x47A1);
+		double rawSpotX = spotDir[0];
+		double rawSpotZ = spotDir[2];
+		double spotLen = Math.sqrt(rawSpotX * rawSpotX + rawSpotZ * rawSpotZ);
+		final double spotX = spotLen > 1e-9 ? rawSpotX / spotLen : 1.0;
+		final double spotZ = spotLen > 1e-9 ? rawSpotZ / spotLen : 0.0;
+		double spotSize = 0.18; // angular half-width
+		return new Blueprint(AstronomyClass.JUPITER,
+			(x, y, z) -> {
+				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
+				if (dist > radius) return 0;
+				double nx = x / radius, ny = y / radius, nz = z / radius;
+				// Latitude-based bands (ny = sin(latitude))
+				double lat = ny; // -1 to 1
+				double bandNoise = VoxelNoise.noise3(nx * 0.5, ny * 8.0, nz * 0.5, seed);
+				double bandPos = lat + bandNoise * 0.10;
+				// Great Red Spot: oval near ny ≈ -0.25 (southern equatorial belt)
+				double dotSpot = nx * spotX + nz * spotZ;
+				double spotDist = Math.sqrt((dotSpot - 1.0) * (dotSpot - 1.0) * 0.5 + (ny + 0.25) * (ny + 0.25));
+				if (spotDist < spotSize) return redSpot;
+				// Band colouring
+				int bandIdx = (int) Math.floor((bandPos + 1.0) * 9.0);
+				int detail = VoxelNoise.hash(bandIdx, (int) (nx * 50), (int) (nz * 50), seed) & 0x3;
+				return switch (bandIdx % 6) {
+					case 0, 2 -> detail == 0 ? cream : (detail == 1 ? peach : lightBand);
+					case 1, 3 -> detail == 0 ? tan   : (detail == 1 ? warm  : darkBand);
+					case 4    -> detail == 0 ? cream : paleBand;
+					default   -> detail == 0 ? peach : tan;
+				};
+			},
+			palette, scale, diameter);
 	}
 
-	static Blueprint neptune(MaterialPalette palette, int diameter, double scale, int seed) {
-		int body = palette.indexOf(Palette.BLUE_CONCRETE);
-		int streak = palette.indexOf(Palette.LIGHT_BLUE_CONCRETE);
-		int storm = palette.indexOf(Palette.RED_CONCRETE);
-		int core = palette.indexOf(Palette.DIAMOND_BLOCK);
-		double[] stormDir = VoxelNoise.unitVector(seed ^ 0x4201);
-		VoxelGrid grid = solidSphere(diameter, (x, y, z, nx, ny, nz, normalised) -> {
-			if (normalised < 0.3) {
-				return core;
-			}
-			double dot = nx * stormDir[0] + ny * stormDir[1] + nz * stormDir[2];
-			if (normalised > 0.85 && dot > 0.92) {
-				return storm;
-			}
-			double streakNoise = VoxelNoise.noise3(nx * 1.0, ny * 3.5, nz * 1.0, seed);
-			return streakNoise > 0.72 ? streak : body;
-		});
-		return new Blueprint(AstronomyClass.NEPTUNE, grid, palette, scale, diameter);
+	// ================================================================== VENUS
+
+	/**
+	 * Venus: pale gold swirling cloud deck with amber and cream tones.
+	 */
+	static Blueprint venus(MaterialPalette palette, int diameter, double scale, int seed) {
+		int cloud1 = palette.indexOf(Palette.YELLOW_CONCRETE);
+		int cloud2 = palette.indexOf(Palette.GOLD_BLOCK);
+		int cloud3 = palette.indexOf(Palette.RAW_GOLD_BLOCK);
+		int amber  = palette.indexOf(Palette.HONEYCOMB_BLOCK);
+		int cream  = palette.indexOf(Palette.END_STONE_BRICKS);
+		int pale   = palette.indexOf(Palette.OCHRE_FROGLIGHT);
+		int base   = palette.indexOf(Palette.SMOOTH_SANDSTONE);
+		double radius = diameter / 2.0;
+		return new Blueprint(AstronomyClass.VENUS,
+			(x, y, z) -> {
+				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
+				if (dist > radius) return 0;
+				double nx = x / radius, ny = y / radius, nz = z / radius;
+				// Swirling cloud noise at two frequencies
+				double swirl1 = VoxelNoise.noise3(nx * 3.0 + ny * 1.5, ny * 3.0, nz * 3.0 + nx, seed);
+				double swirl2 = VoxelNoise.noise3(nx * 6.0, ny * 6.0 + nz, nz * 5.0, seed ^ 0xBEEF);
+				double combined = swirl1 * 0.6 + swirl2 * 0.4;
+				if (combined > 0.72) return pale;
+				if (combined > 0.62) return cream;
+				if (combined > 0.52) return cloud1;
+				if (combined > 0.42) return amber;
+				if (combined > 0.32) return cloud3;
+				if (combined > 0.20) return cloud2;
+				return base;
+			},
+			palette, scale, diameter);
 	}
 
+	// ================================================================== SATURN
+
+	/**
+	 * Saturn: pale gold banded body with a flat equatorial quartz-block ring.
+	 */
 	static Blueprint saturn(MaterialPalette palette, int diameter, double scale, int seed) {
-		int lightBand = palette.indexOf(Palette.ORANGE_CONCRETE);
-		int paleBand = palette.indexOf(Palette.WHITE_CONCRETE);
-		int goldBand = palette.indexOf(Palette.GOLD_BLOCK);
-		int core = palette.indexOf(Palette.DIAMOND_BLOCK);
+		int body     = palette.indexOf(Palette.YELLOW_TERRACOTTA);
+		int paleBand = palette.indexOf(Palette.WHITE_TERRACOTTA);
+		int goldBand = palette.indexOf(Palette.SMOOTH_SANDSTONE);
+		int creamBand = palette.indexOf(Palette.END_STONE_BRICKS);
 		int ringMain = palette.indexOf(Palette.QUARTZ_BLOCK);
+		int ringBrt  = palette.indexOf(Palette.SMOOTH_QUARTZ);
 		int ringEdge = palette.indexOf(Palette.LIGHT_GRAY_CONCRETE);
-
-		// Flat equatorial ring, outer radius ~1.9 x body radius.
-		// The ring stays inside the grid bounds and counts against the size cap (plan M2.3).
+		int ringGap  = palette.indexOf(Palette.GRAY_TERRACOTTA);
 		double bodyRadius = diameter / 2.0;
-		double ringOuter = bodyRadius * 1.9;
-		double ringInner = bodyRadius * 1.25;
-		int gridSize = (int) Math.ceil(ringOuter * 2.0) + 1;
-		if ((gridSize & 1) == 0) {
-			gridSize++;
-		}
-		VoxelGrid grid = new VoxelGrid(gridSize, gridSize, gridSize);
-		double centre = (gridSize - 1) / 2.0;
-
-		for (int x = 0; x < gridSize; x++) {
-			for (int y = 0; y < gridSize; y++) {
-				for (int z = 0; z < gridSize; z++) {
-					double dx = x - centre;
-					double dy = y - centre;
-					double dz = z - centre;
-					double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-					if (distance <= bodyRadius) {
-						if (distance < bodyRadius * 0.3) {
-							grid.set(x, y, z, core);
-							continue;
-						}
-						double ny = dy / bodyRadius;
-						int bandIndex = (int) Math.floor(ny * 4.5 + 4.5);
-						int bandHash = VoxelNoise.hash(bandIndex, 0, 0, seed) & 0x3;
-						int bandBlock = switch (bandHash) {
-							case 0 -> paleBand;
-							case 1 -> goldBand;
-							default -> lightBand;
-						};
-						grid.set(x, y, z, bandBlock);
-						continue;
-					}
-					// Ring: flat annulus in the Y = centre plane, one block tall.
-					if (Math.abs(dy) < 0.6) {
-						double planar = Math.sqrt(dx * dx + dz * dz);
-						if (planar >= ringInner && planar <= ringOuter) {
-							boolean edge = planar < ringInner + 1.1 || planar > ringOuter - 1.1;
-							grid.set(x, y, z, edge ? ringEdge : ringMain);
-						}
+		double ringInner  = bodyRadius * 1.25;
+		double ringOuter  = bodyRadius * 1.9;
+		return new Blueprint(AstronomyClass.SATURN,
+			(x, y, z) -> {
+				double dist2 = (double) x * x + (double) y * y + (double) z * z;
+				double dist = Math.sqrt(dist2);
+				if (inSphere(x, y, z, bodyRadius)) {
+					// Body bands keyed by latitude
+					double ny = y / bodyRadius;
+					double bandNoise = VoxelNoise.noise3(nx(x, bodyRadius) * 0.8, ny * 7.0,
+						nz(z, bodyRadius) * 0.8, seed);
+					double bpos = ny + bandNoise * 0.08;
+					int bi = (int) Math.floor((bpos + 1.0) * 8.0);
+					return switch (bi % 4) {
+						case 0 -> paleBand;
+						case 1 -> body;
+						case 2 -> goldBand;
+						default -> creamBand;
+					};
+				}
+				// Ring: flat annulus in the y ≈ 0 plane (|y| < 0.5)
+				if (Math.abs(y) < 0.6 && dist > bodyRadius) {
+					double planar = Math.sqrt((double) x * x + (double) z * z);
+					if (planar >= ringInner && planar <= ringOuter) {
+						// Cassini-like gap at ~1.55× body radius
+						if (planar > bodyRadius * 1.52 && planar < bodyRadius * 1.58) return ringGap;
+						boolean edge = planar < ringInner + 1.2 || planar > ringOuter - 1.2;
+						if (edge) return ringEdge;
+						double rn = VoxelNoise.noise3(x * 0.05, 0, z * 0.05, seed ^ 0x5A5A);
+						return rn > 0.55 ? ringBrt : ringMain;
 					}
 				}
-			}
-		}
-		return new Blueprint(AstronomyClass.SATURN, grid, palette, scale, diameter);
+				return 0;
+			},
+			palette, scale, diameter);
 	}
 
+	// ================================================================== NEPTUNE
+
+	/**
+	 * Neptune: deep blue with latitudinal streaks and a dark storm spot.
+	 */
+	static Blueprint neptune(MaterialPalette palette, int diameter, double scale, int seed) {
+		int bodyDeep   = palette.indexOf(Palette.LAPIS_BLOCK);
+		int bodyMain   = palette.indexOf(Palette.BLUE_CONCRETE);
+		int bodyLight  = palette.indexOf(Palette.CYAN_CONCRETE);
+		int streak     = palette.indexOf(Palette.LIGHT_BLUE_CONCRETE);
+		int haze       = palette.indexOf(Palette.LIGHT_BLUE_TERRACOTTA);
+		int storm      = palette.indexOf(Palette.RED_CONCRETE);
+		int cloudTop   = palette.indexOf(Palette.WHITE_CONCRETE);
+		double radius = diameter / 2.0;
+		double[] stormDir = VoxelNoise.unitVector(seed ^ 0x9E31);
+		double stormX = stormDir[0], stormY = stormDir[1], stormZ = stormDir[2];
+		return new Blueprint(AstronomyClass.NEPTUNE,
+			(x, y, z) -> {
+				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
+				if (dist > radius) return 0;
+				double nx = x / radius, ny = y / radius, nz = z / radius;
+				// Dark spot
+				double ds = nx * stormX + ny * stormY + nz * stormZ;
+				if (ds > 0.90) return storm;
+				// Cloud top band at the outer 5%
+				double norm = dist / radius;
+				double cn = VoxelNoise.noise3(nx * 5.0, ny * 5.0, nz * 5.0, seed ^ 0xAE00);
+				if (norm > 0.95 && cn > 0.60) return cloudTop;
+				// Latitudinal streaks
+				double streakN = VoxelNoise.noise3(nx * 1.0, ny * 9.0, nz * 1.0, seed ^ 0x1234);
+				if (streakN > 0.68) return streak;
+				if (streakN > 0.58) return haze;
+				// Depth noise
+				double depth = VoxelNoise.noise3(nx * 2.5, ny * 2.5, nz * 2.5, seed ^ 0x7777);
+				if (depth > 0.60) return bodyLight;
+				if (depth < 0.32) return bodyDeep;
+				return bodyMain;
+			},
+			palette, scale, diameter);
+	}
+
+	// ================================================================== URANUS
+
+	/**
+	 * Uranus: pale cyan with subtle shading and a near-vertical quartz ring.
+	 */
 	static Blueprint uranus(MaterialPalette palette, int diameter, double scale, int seed) {
-		int body = palette.indexOf(Palette.LIGHT_BLUE_CONCRETE);
-		int shading = palette.indexOf(Palette.GRAY_CONCRETE);
-		int core = palette.indexOf(Palette.DIAMOND_BLOCK);
-		int ringBlock = palette.indexOf(Palette.QUARTZ_BLOCK);
-
-		// Uranus spins on its side, so its ring is near-vertical (plan M2.3).
+		int body     = palette.indexOf(Palette.CYAN_CONCRETE);
+		int pale     = palette.indexOf(Palette.PACKED_ICE);
+		int teal     = palette.indexOf(Palette.OXIDIZED_COPPER);
+		int shading  = palette.indexOf(Palette.CYAN_TERRACOTTA);
+		int ringBlk  = palette.indexOf(Palette.QUARTZ_BLOCK);
 		double bodyRadius = diameter / 2.0;
-		double ringOuter = bodyRadius * 1.6;
-		double ringInner = bodyRadius * 1.2;
-		int gridSize = (int) Math.ceil(ringOuter * 2.0) + 1;
-		if ((gridSize & 1) == 0) {
-			gridSize++;
-		}
-		VoxelGrid grid = new VoxelGrid(gridSize, gridSize, gridSize);
-		double centre = (gridSize - 1) / 2.0;
-
-		for (int x = 0; x < gridSize; x++) {
-			for (int y = 0; y < gridSize; y++) {
-				for (int z = 0; z < gridSize; z++) {
-					double dx = x - centre;
-					double dy = y - centre;
-					double dz = z - centre;
-					double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-					if (distance <= bodyRadius) {
-						if (distance < bodyRadius * 0.3) {
-							grid.set(x, y, z, core);
-							continue;
-						}
-						double ny = dy / bodyRadius;
-						double nx = dx / bodyRadius;
-						double nz = dz / bodyRadius;
-						double tint = VoxelNoise.noise3(nx * 1.4, ny * 1.4, nz * 1.4, seed);
-						grid.set(x, y, z, tint > 0.7 ? shading : body);
-						continue;
-					}
-					// Near-vertical ring: thin in X, extends in Y and Z.
-					if (Math.abs(dx) < 0.6) {
-						double planar = Math.sqrt(dy * dy + dz * dz);
-						if (planar >= ringInner && planar <= ringOuter) {
-							grid.set(x, y, z, ringBlock);
-						}
-					}
+		double ringInner  = bodyRadius * 1.2;
+		double ringOuter  = bodyRadius * 1.6;
+		return new Blueprint(AstronomyClass.URANUS,
+			(x, y, z) -> {
+				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
+				if (inSphere(x, y, z, bodyRadius)) {
+					double nx = x / bodyRadius, ny = y / bodyRadius, nz = z / bodyRadius;
+					double tint = VoxelNoise.noise3(nx * 2.0, ny * 2.0, nz * 2.0, seed);
+					if (tint > 0.70) return shading;
+					if (tint > 0.58) return teal;
+					if (tint < 0.28) return pale;
+					return body;
 				}
-			}
-		}
-		return new Blueprint(AstronomyClass.URANUS, grid, palette, scale, diameter);
+				// Near-vertical ring: thin in X, extends in Y and Z
+				if (Math.abs(x) < 0.6) {
+					double planar = Math.sqrt((double) y * y + (double) z * z);
+					if (planar >= ringInner && planar <= ringOuter) return ringBlk;
+				}
+				return 0;
+			},
+			palette, scale, diameter);
 	}
+
+	// ================================================================== MERCURY
+
+	/**
+	 * Mercury: heavily cratered grey silicate world with dark volcanic lowlands.
+	 * No atmosphere — the most cratered planet in the inner solar system.
+	 */
+	static Blueprint mercury(MaterialPalette palette, int diameter, double scale, int seed) {
+		int surface  = palette.indexOf(Palette.STONE);
+		int dusty    = palette.indexOf(Palette.LIGHT_GRAY_TERRACOTTA);
+		int dark     = palette.indexOf(Palette.BROWN_CONCRETE);
+		int darkCr   = palette.indexOf(Palette.DEEPSLATE);
+		int rimBlock = palette.indexOf(Palette.LIGHT_GRAY_CONCRETE);
+		double radius = diameter / 2.0;
+		int craterCount = 24;
+		return new Blueprint(AstronomyClass.MERCURY,
+			(x, y, z) -> {
+				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
+				if (dist > radius) return 0;
+				double nx = x / radius, ny = y / radius, nz = z / radius;
+				// Craters
+				int ce = craterEffect(x, y, z, craterCount, seed, radius, 0.06, rimBlock);
+				if (ce == 0) return 0;
+				if (ce > 0) return ce;
+				// Dark volcanic lowlands
+				double base = VoxelNoise.noise3(nx * 2.6, ny * 2.6, nz * 2.6, seed);
+				if (base > 0.65) return darkCr;
+				if (base > 0.52) return dark;
+				double tex = VoxelNoise.noise3(nx * 6.0, ny * 6.0, nz * 6.0, seed ^ 0x4E4E);
+				return tex > 0.55 ? dusty : surface;
+			},
+			palette, scale, diameter);
+	}
+
+	// ------------------------------------------------------------------ private coord helpers
+
+	private static double nx(int x, double r) { return x / r; }
+	private static double nz(int z, double r) { return z / r; }
 }
