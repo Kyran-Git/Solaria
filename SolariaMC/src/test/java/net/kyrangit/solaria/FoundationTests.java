@@ -26,12 +26,12 @@ public final class FoundationTests {
 			{"service_url":"https://[::1]:8443/", "connect_timeout_ms":100,
 			 "request_timeout_ms":200, "teacher_permission_level":4,
 			 "allow_manual_label_on_low_confidence":false, "blocks_per_tick":64,
-			 "build_anchor_offset":{"x":-2,"y":3,"z":8}, "max_size_blocks":4096,
+			 "build_anchor_offset":{"x":-2,"y":3,"z":8}, "max_extent_blocks":4096,
 			 "blocks_per_unit":0.5,"scan_from_file_enabled":true}
 			""");
 		check(custom.connectTimeoutMs() == 100 && custom.requestTimeoutMs() == 200
 			&& custom.teacherPermissionLevel() == 4 && !custom.allowManualLabelOnLowConfidence()
-			&& custom.blocksPerTick() == 64 && custom.maxSizeBlocks() == 4096
+			&& custom.blocksPerTick() == 64 && custom.maxExtentBlocks() == 4096
 			&& custom.blocksPerUnit() == 0.5 && custom.scanFromFileEnabled()
 			&& custom.buildAnchorOffset().equals(new SolariaConfig.AnchorOffset(-2, 3, 8)), "All custom fields parsed");
 		check(ConfigCodec.parse(ConfigCodec.encode(custom)).equals(custom), "Custom round trip");
@@ -44,13 +44,13 @@ public final class FoundationTests {
 			reject(json);
 		}
 		for (String field : new String[]{"connect_timeout_ms", "request_timeout_ms", "teacher_permission_level",
-			"blocks_per_tick", "max_size_blocks", "blocks_per_unit", "build_anchor_offset", "service_url",
+			"blocks_per_tick", "max_extent_blocks", "blocks_per_unit", "build_anchor_offset", "service_url",
 			"allow_manual_label_on_low_confidence", "scan_from_file_enabled"}) {
 			reject("{\"" + field + "\":null}");
 			reject("{\"" + field + "\":[]}");
 		}
 		for (String field : new String[]{"connect_timeout_ms", "request_timeout_ms", "teacher_permission_level",
-			"blocks_per_tick", "max_size_blocks"}) {
+			"blocks_per_tick", "max_extent_blocks"}) {
 			for (String invalid : new String[]{"-1", "1.5", "2147483648", "1e100", "true", "\"2\""}) {
 				reject("{\"" + field + "\":" + invalid + "}");
 			}
@@ -58,7 +58,7 @@ public final class FoundationTests {
 		for (String json : new String[]{"{\"connect_timeout_ms\":0}", "{\"connect_timeout_ms\":300001}",
 			"{\"request_timeout_ms\":300001}", "{\"request_timeout_ms\":1}",
 			"{\"teacher_permission_level\":5}", "{\"blocks_per_tick\":0}", "{\"blocks_per_tick\":4097}",
-			"{\"max_size_blocks\":0}", "{\"max_size_blocks\":1000001}", "{\"blocks_per_unit\":0}",
+			"{\"max_extent_blocks\":0}", "{\"max_extent_blocks\":1000001}", "{\"blocks_per_unit\":0}",
 			"{\"blocks_per_unit\":64.1}", "{\"blocks_per_unit\":1e999}", "{\"blocks_per_unit\":NaN}",
 			"{\"blocks_per_unit\":\"1\"}", "{\"scan_from_file_enabled\":\"false\"}",
 			"{\"allow_manual_label_on_low_confidence\":1}", "{\"build_anchor_offset\":{\"x\":1025}}",
@@ -68,13 +68,13 @@ public final class FoundationTests {
 		}
 		check(ConfigCodec.parse("""
 			{"connect_timeout_ms":1,"request_timeout_ms":1,"teacher_permission_level":0,
-			 "blocks_per_tick":1,"max_size_blocks":1,"blocks_per_unit":0.01,
+			 "blocks_per_tick":1,"max_extent_blocks":1,"blocks_per_unit":0.01,
 			 "build_anchor_offset":{"x":-1024,"y":1024}}
 			""").blocksPerUnit() == 0.01, "Lower bounds accepted");
 		check(ConfigCodec.parse("""
 			{"connect_timeout_ms":300000,"request_timeout_ms":300000,"teacher_permission_level":4,
-			 "blocks_per_tick":4096,"max_size_blocks":1000000,"blocks_per_unit":64}
-			""").maxSizeBlocks() == 1000000, "Upper bounds accepted");
+			 "blocks_per_tick":4096,"max_extent_blocks":1000000,"blocks_per_unit":64}
+			""").maxExtentBlocks() == 1000000, "Upper bounds accepted");
 		for (String url : new String[]{"file:///private", "http://example.org", "http://localhost", "http://127.0.0.1:0",
 			"http://127.0.0.1:65536", "http://127.0.0.1/api", "http://127.0.0.1?secret=x",
 			"http://127.0.0.1#private", "http://person:password@127.0.0.1", "not a url"}) {

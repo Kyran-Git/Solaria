@@ -19,7 +19,7 @@ public final class ConfigCodec {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 	private static final Set<String> FIELDS = Set.of("service_url", "connect_timeout_ms", "request_timeout_ms",
 		"teacher_permission_level", "allow_manual_label_on_low_confidence", "blocks_per_tick",
-		"build_anchor_offset", "max_size_blocks", "blocks_per_unit", "scan_from_file_enabled");
+		"build_anchor_offset", "max_extent_blocks", "blocks_per_unit", "scan_from_file_enabled");
 
 	private ConfigCodec() {
 	}
@@ -59,7 +59,7 @@ public final class ConfigCodec {
 			integer(object, "teacher_permission_level", defaults.teacherPermissionLevel(), 0, 4),
 			bool(object, "allow_manual_label_on_low_confidence", defaults.allowManualLabelOnLowConfidence()),
 			integer(object, "blocks_per_tick", defaults.blocksPerTick(), 1, 4096), anchor,
-			integer(object, "max_size_blocks", defaults.maxSizeBlocks(), 1, 1000000),
+			integer(object, "max_extent_blocks", defaults.maxExtentBlocks(), 1, 1000000),
 			number(object, "blocks_per_unit", defaults.blocksPerUnit(), 0.01, 64),
 			bool(object, "scan_from_file_enabled", defaults.scanFromFileEnabled()));
 	}
@@ -163,7 +163,7 @@ public final class ConfigCodec {
 		anchor.addProperty("y", config.buildAnchorOffset().y());
 		anchor.addProperty("z", config.buildAnchorOffset().z());
 		object.add("build_anchor_offset", anchor);
-		object.addProperty("max_size_blocks", config.maxSizeBlocks());
+		object.addProperty("max_extent_blocks", config.maxExtentBlocks());
 		object.addProperty("blocks_per_unit", config.blocksPerUnit());
 		object.addProperty("scan_from_file_enabled", config.scanFromFileEnabled());
 		return GSON.toJson(object) + "\n";
