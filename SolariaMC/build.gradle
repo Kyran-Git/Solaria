@@ -151,8 +151,35 @@ tasks.register('blueprintPreview', JavaExec) {
 	}
 }
 
+// Phase 4 scanner state machine checks. Keeps the client UI pure-logic
+// decisions testable without a Minecraft runtime.
+tasks.register('scanStateTest', JavaExec) {
+	group = 'verification'
+	description = 'Validates the Phase 4 scanner state machine (synthetic).'
+	dependsOn testClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'net.kyrangit.solaria.ScanStateTests'
+	javaLauncher = javaToolchains.launcherFor {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+// Phase 2/data regression: decodes the shipped dimension JSON with Minecraft's
+// real DimensionType codec. Guards against the pre-26 schema drift that made
+// registry load fail (No key has_ender_dragon_fight) and blocked every world.
+tasks.register('dimensionDataTest', JavaExec) {
+	group = 'verification'
+	description = 'Decodes shipped dimension data with Minecraft codecs (synthetic).'
+	dependsOn testClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'net.kyrangit.solaria.DimensionDataTests'
+	javaLauncher = javaToolchains.launcherFor {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
 tasks.named('test') {
-	dependsOn foundationTest, wikiStructureTest, blueprintTest
+	dependsOn foundationTest, wikiStructureTest, blueprintTest, scanStateTest, dimensionDataTest
 	// Tests use a Java main runner rather than a JUnit engine.
 	exclude '**/*'
 }

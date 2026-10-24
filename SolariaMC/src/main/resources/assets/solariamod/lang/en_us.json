@@ -1,3 +1,47 @@
 {
-  "oracle_index.title.solariamod": "Solaria"
+  "oracle_index.title.solariamod": "Solaria",
+
+  "dimension.solariamod.sun": "The Sun",
+  "dimension.solariamod.earth": "Earth",
+  "dimension.solariamod.moon": "The Moon",
+  "dimension.solariamod.mars": "Mars",
+  "dimension.solariamod.jupiter": "Jupiter",
+  "dimension.solariamod.venus": "Venus",
+  "dimension.solariamod.saturn": "Saturn",
+  "dimension.solariamod.uranus": "Uranus",
+  "dimension.solariamod.neptune": "Neptune",
+  "dimension.solariamod.mercury": "Mercury",
+
+  "solaria.command.visit.entering": "Entering the %s dimension. Bodies are not to scale. Use /solaria return to go back.",
+  "solaria.command.return.success": "Returned to the overworld.",
+  "solaria.command.return.already_overworld": "You are already in the overworld.",
+  "solaria.command.visit.unknown_planet": "Unknown planet '%s'. Valid planets: %s.",
+  "solaria.command.visit.dim_not_loaded": "Dimension solariamod:%s is not loaded. Check mod installation.",
+  "solaria.command.player_only": "This command must be run by a player.",
+
+  "item.solariamod.scanner": "Solaria Scanner",
+  "item.solariamod.scanner.tooltip.line1": "Right-click to open the camera.",
+  "item.solariamod.scanner.tooltip.line2": "Hold a drawing in front of the webcam.",
+
+  "solaria.scan.title": "Solaria Scanner",
+  "solaria.scan.button.capture": "Capture",
+  "solaria.scan.button.build": "Build this",
+  "solaria.scan.button.retry": "Retry",
+  "solaria.scan.button.close": "Close",
+  "solaria.scan.status.idle": "Ready. Line up your drawing and press Capture.",
+  "solaria.scan.status.uploading": "Sending your drawing to the teacher's computer...",
+  "solaria.scan.status.classifying": "The classifier is deciding...",
+  "solaria.scan.status.confirm": "I think this is %s (confidence %s%%).",
+  "solaria.scan.status.building": "Building %s...",
+  "solaria.scan.status.done": "Finished building %s. Use /solaria visit to explore.",
+  "solaria.scan.status.unavailable": "Scan unavailable: %s",
+  "solaria.scan.help.hold_drawing": "- Hold the paper flat in front of the webcam.",
+  "solaria.scan.help.good_light": "- Make sure the room is well-lit and the drawing fills the view.",
+  "solaria.scan.help.press_capture": "- Press Capture when ready.",
+  "solaria.scan.help.unavailable_detail": "Webcam capture and the classifier upload are not wired up yet (Phase 4 in progress).",
+  "solaria.scan.help.ask_teacher": "Ask your teacher to continue setting up Solaria.",
+  "solaria.scan.help.confirm_detail": "Press Build this to travel to the planet, or Retry to scan again.",
+  "solaria.scan.command.opening": "Opening Solaria scanner..."
 }
+
+

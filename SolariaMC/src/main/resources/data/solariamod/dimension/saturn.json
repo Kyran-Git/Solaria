@@ -1,0 +1,12 @@
+{
+  "type": "solariamod:planet_space",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "layers": [],
+      "biome": "minecraft:the_void",
+      "lakes": false,
+      "features": false
+    }
+  }
+}
