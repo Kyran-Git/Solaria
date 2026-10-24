@@ -63,7 +63,7 @@ public final class BlueprintTests {
 		}
 		check(AstronomyClass.fromId("Venus") == null, "fromId is case-sensitive: title-case 'Venus' is rejected");
 		check(AstronomyClass.fromId("Earth") == null, "fromId is case-sensitive: title-case 'Earth' is rejected");
-		check(AstronomyClass.fromId("pluto") == null, "fromId rejects retired id 'pluto'");
+		check(AstronomyClass.fromId("asteroid") == null, "fromId rejects unknown id 'asteroid'");
 		check(AstronomyClass.fromId("mercury") != null, "fromId resolves v2 id 'mercury'");
 	}
 

@@ -37,7 +37,7 @@ def test_required_class_set_has_ten_unique_ids() -> None:
 
 
 def test_retired_classes_are_rejected() -> None:
-    for retired in ("satellite", "solar_system", "lunar_eclipse", "solar_eclipse", "pluto"):
+    for retired in ("satellite", "solar_system", "lunar_eclipse", "solar_eclipse", "asteroid"):
         with pytest.raises(ValueError, match="unsupported class folders"):
             check_class_set([retired], "Test split")
 
@@ -48,7 +48,7 @@ def test_mercury_is_a_valid_class() -> None:
 
 def test_dataset_with_retired_class_folder_fails(tmp_path: Path) -> None:
     _write_dataset(tmp_path)
-    retired = tmp_path / "train" / "pluto"
+    retired = tmp_path / "train" / "asteroid"
     retired.mkdir()
     Image.new("RGB", (24, 24), (0, 0, 255)).save(retired / "one.png")
 
@@ -72,6 +72,7 @@ def test_backbone_head() -> None:
 def test_onnx_export_matches_pytorch(tmp_path: Path) -> None:
     pytest.importorskip("onnx")
     pytest.importorskip("onnxruntime")
+    pytest.importorskip("onnxscript")
     import torch.optim
 
     from solaria_classifier.config import TrainConfig

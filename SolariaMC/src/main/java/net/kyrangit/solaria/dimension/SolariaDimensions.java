@@ -13,7 +13,7 @@ import java.util.Map;
  * ResourceKey constants for the ten Solaria planet dimensions.
  *
  * <p>Each class in {@link AstronomyClass} gets its own dedicated dimension
- * {@code solaria:<class-id>} (e.g. {@code solaria:earth}, {@code solaria:pluto}).
+ * {@code solaria:<class-id>} (e.g. {@code solaria:earth}, {@code solaria:mercury}).
  * The dimension data files are at
  * {@code data/solariamod/dimension/<class-id>.json}.
  *

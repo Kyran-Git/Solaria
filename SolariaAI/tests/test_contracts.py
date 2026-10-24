@@ -2,7 +2,8 @@ import json
 from pathlib import Path
 
 import pytest
-from jsonschema import Draft202012Validator
+
+Draft202012Validator = pytest.importorskip("jsonschema").Draft202012Validator
 
 SCHEMA_DIR = Path(__file__).parents[1] / "docs" / "schemas"
 

@@ -10,8 +10,8 @@ Two rules that must not drift:
    labels, so they must match byte-for-byte across the Python service, the
    exported metadata, and the mod. Display names (``Venus``, ``Saturn``, ...)
    are presentation only and never appear on the wire.
-2. **Pluto is not in the class set.** The ten required bodies are listed
-   below. Do not add a Pluto folder or label.
+2. **The class set is fixed at ten.** The ten required bodies are listed
+   below. Do not add any other folder or label.
 
 The order below is the documented curriculum order. It is *not* the model's
 class index order: ``torchvision.datasets.ImageFolder`` sorts directory names
