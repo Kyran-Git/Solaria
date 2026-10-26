@@ -102,3 +102,7 @@ SolariaMC/run/.fabric/
 # Note: *.md does not match *.mdx, so the Oracle Index wiki sources under
 # SolariaMC/wiki/ and SolariaMC/Astronomy-wiki/ remain tracked.
 *.md
+/SolariaAI/DOCKER_TESTING.txt
+/SolariaAI/DOCKER_SERVICE.txt
+/SolariaAI/Dockerfile.service
+/SolariaAI/requirements-service.txt
