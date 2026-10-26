@@ -4,47 +4,41 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>Solaria · AI dashboard</title>
+  <title>Solaria · Teacher console</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/assets/dashboard.css">
   <script src="/assets/dashboard.js" defer></script>
 </head>
 <body>
 <header class="shell masthead">
-  <a class="brand" href="/" aria-label="Solaria dashboard"><span class="sun" aria-hidden="true">✺</span> SOLARIA <span class="brand-sub">AI WORKSPACE</span></a>
+  <a class="brand" href="/">✺ SOLARIA <span class="brand-sub">TEACHER CONSOLE</span></a>
   <span class="badge" id="connection-badge">Disconnected</span>
 </header>
 <main class="shell">
   <section class="intro">
-    <p class="eyebrow">LOCAL INFERENCE · TEACHER CONSOLE</p>
-    <h1>A little space for<br>your next discovery.</h1>
-    <p class="muted">Connect to your AI service, check its status, and try a drawing.<br>No command-line API requests needed.</p>
+    <p class="eyebrow">CLASSROOM MONITORING · TEACHER REVIEW</p>
+    <h1>Follow each discovery.<br>Guide the next step.</h1>
+    <p class="muted">Students scan their drawings in Minecraft. Monitor AI results here and correct a classification when needed.</p>
   </section>
-  <noscript><p class="notice warning">Enable JavaScript to connect and classify. The API still requires your startup token.</p></noscript>
-  <p id="notice" class="notice" role="status" aria-live="polite">Enter your startup token to connect. The dashboard itself is public; your API is protected.</p>
+  <noscript><p class="notice warning">Enable JavaScript to monitor and review scans.</p></noscript>
+  <p id="notice" class="notice" role="status" aria-live="polite">Connect with your private startup token to view classroom results.</p>
   <div class="workspace">
     <aside>
       <section class="card">
-        <div class="section-heading"><span class="step">01</span><h2>Connect your service</h2></div>
+        <div class="section-heading"><h2>Connect to your service</h2></div>
         <p class="muted small">Endpoint <code id="endpoint"></code></p>
         <form id="connect-form">
           <label for="token">Startup bearer token</label>
-          <input id="token" type="password" maxlength="256" placeholder="Paste token, without 'Bearer'" autocomplete="off" spellcheck="false" required aria-describedby="token-note">
-          <p class="muted small" id="token-note">Kept only in this page's memory. Refreshing or disconnecting clears it. Never sent anywhere except this service.</p>
+          <input id="token" type="password" maxlength="256" autocomplete="off" spellcheck="false" required>
+          <p class="muted small">Kept in page memory only. Disconnecting or refreshing clears it. Do not share it with students.</p>
           <div class="actions"><button type="submit" id="connect">Connect</button><button class="secondary" type="button" id="disconnect" disabled>Disconnect</button></div>
         </form>
         <details class="help"><summary>Where do I get a token?</summary>
-          <p>A token is a private password you create when starting the service. It must exactly match <code>SOLARIA_STARTUP_TOKEN</code> in the running container. It is not issued by a website.</p>
-          <p>In PowerShell, run these commands in the same terminal:</p>
-          <pre>$env:SOLARIA_STARTUP_TOKEN = [guid]::NewGuid().ToString('N')
-docker compose -f D:/Solaria/SolariaAI/compose.yaml up -d --build --wait
-$env:SOLARIA_STARTUP_TOKEN</pre>
-          <p>Copy the last command's output here. This replaces the container's previous token. Keep it private; do not paste tokens into URLs or screenshots.</p>
-          <p>If you already started it in this terminal, just run <code>$env:SOLARIA_STARTUP_TOKEN</code>. Native Python mode prints an automatically generated token in the startup terminal when none is configured.</p>
-          <p><strong>UNAUTHORIZED</strong> means the token is missing or doesn't match. Opening <code>/v1/health</code> directly in a browser sends no bearer header; use Connect here instead.</p>
+          <p>Use the value of <code>SOLARIA_STARTUP_TOKEN</code> from the terminal where you started the service. Native mode prints a generated token if none was configured.</p>
+          <p><strong>UNAUTHORIZED</strong> means the token does not match. The page is public; all API calls require authentication. Do not put tokens in URLs.</p>
         </details>
       </section>
-      <section class="card service-card">
+      <section class="card">
         <div class="section-heading"><h2>Service overview</h2><button class="text-button" id="refresh" type="button" disabled>Refresh</button></div>
         <dl class="metrics">
           <div><dt>Mode</dt><dd id="mode">Not connected</dd></div>
@@ -53,36 +47,39 @@ $env:SOLARIA_STARTUP_TOKEN</pre>
           <div><dt>In flight / pending</dt><dd id="queue">—</dd></div>
         </dl>
         <p class="muted small" id="classes">Connect to load supported classes.</p>
+        <p class="notice warning" id="mock-warning" hidden>MOCK MODE · Predictions are synthetic, not drawing recognition.</p>
       </section>
     </aside>
     <div>
       <section class="card">
-        <div class="section-heading"><span class="step">02</span><h2>Try a drawing</h2></div>
-        <p class="notice warning" id="mock-warning" hidden>MOCK MODE · Synthetic predictions, not drawing recognition. The selected label is simulated; image quality checks still apply.</p>
-        <label class="dropzone" for="image-file"><span class="upload-icon" aria-hidden="true">↑</span><strong>Choose a drawing</strong><span class="muted small">PNG or JPEG · up to 2 MiB · 4 megapixels</span><input id="image-file" type="file" accept="image/png,image/jpeg"></label>
-        <p id="file-note" class="muted small">No drawing selected.</p>
-        <div class="preview" id="preview-box" hidden><img id="preview" alt="Selected drawing preview"></div>
-
-        <fieldset id="mock-controls" hidden disabled><legend>Mock testing only</legend><div class="mock-grid">
-          <div><label for="mock-label">Simulated class</label><select id="mock-label"></select></div>
-          <div><label for="scenario">Scenario</label><select id="scenario"><option value="success">Success / normal quality check</option><option value="low_confidence">Low confidence</option><option value="quality_blur">Blurry image</option><option value="quality_no_page">No drawing found</option><option value="model_unavailable">Model unavailable</option><option value="slow">Timeout</option></select></div>
-        </div></fieldset>
-        <div class="actions"><button id="classify" type="button" disabled>Classify drawing <span aria-hidden="true">↗</span></button><button class="secondary" id="sample" type="button">Use sample drawing</button><button class="text-button" id="clear" type="button">Clear</button></div>
-        <p class="muted small">Your image is processed in memory, not saved by the service.</p>
+        <div class="section-heading"><h2>Student scan results</h2><span id="scan-count" class="badge">0 scans</span></div>
+        <p class="muted small" id="retention">Auto-refreshes every 3 seconds while connected. No scans are created by this page.</p>
+        <p id="feed-empty" class="muted">Connect to monitor scans. No sample or student results are fabricated.</p>
+        <div id="review-feed" aria-label="Student scan results"></div>
       </section>
-      <section class="card" id="results-card">
-        <div class="section-heading"><span class="step">03</span><h2>Classification result</h2></div>
-        <p id="result-empty" class="muted">Your result will appear here. Connect and select a drawing to begin.</p>
-        <div id="result" hidden>
-          <div class="result-heading"><div><p class="eyebrow" id="result-mode"></p><h3 id="result-label"></h3><p id="result-summary"></p></div><img id="thumbnail" alt="Cleaned drawing thumbnail" hidden></div>
-          <p id="quality-hint" class="muted"></p>
-          <ul class="predictions" id="top3"></ul>
-          <details><summary>API response</summary><pre id="raw-result"></pre></details>
-        </div>
+      <section class="card" id="review-panel" hidden>
+        <h2>Review classification</h2>
+        <p id="review-student"></p>
+        <img id="thumbnail" alt="Cleaned drawing from the in-game scan" hidden>
+        <dl class="metrics">
+          <div><dt>Original AI result</dt><dd id="ai-result"></dd></div>
+          <div><dt>Quality / reason</dt><dd id="quality"></dd></div>
+          <div><dt>Effective classification</dt><dd id="final-result"></dd></div>
+        </dl>
+        <p id="quality-hint" class="muted"></p>
+        <ul id="top3" class="predictions"></ul>
+        <form id="override-form">
+          <label for="override-label">Correct classification</label><select id="override-label" required></select>
+          <label for="override-note">Teacher note (optional, up to 500 characters)</label>
+          <input id="override-note" maxlength="500" autocomplete="off">
+          <p class="muted small">Preserves the AI prediction. Failed image-quality checks require a rescan. Saving does not itself change a Minecraft dimension.</p>
+          <button id="save-override" type="submit" disabled>Save teacher override</button>
+        </form>
+        <h2>Teacher override history</h2><ul id="history"></ul>
       </section>
     </div>
   </div>
-  <footer><strong>One step at a time.</strong> This dashboard tests the AI service. Minecraft capture/upload and planet-placement integration are not wired yet. Model selection and Docker start/stop remain terminal operations.</footer>
+  <footer>Scanning belongs in Minecraft. Training uses the offline dataset's per-class folders, not this console. Review records and thumbnails stay in bounded memory and disappear on service restart or expiry. Minecraft scan submission and override application are not wired yet.</footer>
 </main>
 </body>
 </html>

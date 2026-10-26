@@ -1,220 +1,173 @@
 "use strict";
 (() => {
   const el = (id) => document.getElementById(id);
-  let token = "";
-  let health = null;
-  let file = null;
-  let previewURL = null;
-  let busy = false;
-  let selection = 0;
-
+  let token = "", health = null, records = [], selected = null;
+  let busy = false, generation = 0, timer = null;
+  const text = (id, value) => { el(id).textContent = value; };
   function notice(message, kind = "") {
-    el("notice").textContent = message;
+    text("notice", message);
     el("notice").className = `notice ${kind}`;
   }
   function controls() {
     const connected = Boolean(token && health);
     el("token").disabled = busy;
     el("connect").disabled = busy;
+    el("disconnect").disabled = !token;
     el("refresh").disabled = busy || !connected;
-    el("disconnect").disabled = busy || !connected;
-    el("classify").disabled = busy || !connected || !file;
-    el("image-file").disabled = busy;
-    el("sample").disabled = busy;
-    el("clear").disabled = busy;
-    el("mock-controls").disabled = busy || !connected || !(health && health.mock);
-    el("connection-badge").textContent = connected ? "Connected" : "Disconnected";
+    el("save-override").disabled = busy || !connected || !selected || selected.prediction.quality.status !== "pass" || selected.revision >= 20;
+    text("connection-badge", connected ? "Connected" : "Disconnected");
     el("connection-badge").className = `badge${connected ? " connected" : ""}`;
   }
-  function resetResult() {
-    el("result").hidden = true;
-    el("result-empty").hidden = false;
-    el("thumbnail").hidden = true;
-    el("thumbnail").removeAttribute("src");
-    el("top3").replaceChildren();
-    el("raw-result").textContent = "";
-  }
   function disconnect() {
-    token = "";
-    health = null;
+    generation++;
+    clearTimeout(timer);
+    token = ""; health = null; records = []; selected = null;
     el("token").value = "";
-    el("mode").textContent = "Not connected";
-    for (const id of ["model", "threshold", "queue"]) el(id).textContent = "—";
-    el("classes").textContent = "Connect to load supported classes.";
-    el("mock-controls").hidden = true;
+    el("override-note").value = "";
+    el("override-label").replaceChildren();
+    el("review-feed").replaceChildren();
+    el("history").replaceChildren();
+    el("top3").replaceChildren();
+    for (const id of ["review-student", "ai-result", "quality", "final-result", "quality-hint"]) text(id, "");
+    el("thumbnail").removeAttribute("src");
+    el("review-panel").hidden = true;
     el("mock-warning").hidden = true;
-    el("mock-label").replaceChildren();
-    resetResult();
+    text("mode", "Not connected");
+    for (const id of ["model", "threshold", "queue"]) text(id, "—");
+    text("classes", "Connect to load supported classes.");
+    text("scan-count", "0 scans");
+    text("feed-empty", "Connect to monitor scans.");
+    el("feed-empty").hidden = false;
     controls();
   }
   async function api(path, options = {}) {
+    const session = generation;
     const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), 20000);
+    const timeout = setTimeout(() => abort.abort(), 20000);
     try {
       const response = await fetch(path, {
-        ...options,
-        headers: { ...options.headers, Authorization: `Bearer ${token}` },
+        ...options, headers: { ...options.headers, Authorization: `Bearer ${token}` },
         credentials: "omit", cache: "no-store", redirect: "error", signal: abort.signal,
       });
       const payload = await response.json();
-      if (response.status === 401) {
-        disconnect();
-        throw new Error("UNAUTHORIZED: paste the exact startup token used by this service. Open 'Where do I get a token?' for instructions.");
-      }
+      if (session !== generation) throw new Error("Connection changed; reconnect to refresh.");
+      if (response.status === 401) disconnect();
       if (!response.ok) throw new Error(`${payload.reason_code || response.status}: ${payload.message || "Request failed."}`);
       return payload;
-    } catch (error) {
-      if (error.name === "AbortError") throw new Error("The service took too long to respond. Refresh health and retry.");
-      if (error instanceof TypeError) throw new Error("Cannot reach the service. Check Docker is running, then refresh health.");
-      throw error;
-    } finally {
-      clearTimeout(timer);
+    } finally { clearTimeout(timeout); }
+  }
+  function renderDetail(record, reset = false) {
+    selected = record;
+    el("review-panel").hidden = !record;
+    if (!record) {
+      el("thumbnail").removeAttribute("src");
+      el("override-note").value = "";
+      controls(); return;
     }
-  }
-  async function loadHealth() {
-    health = await api("/v1/health");
-    el("mode").textContent = health.mock ? "MOCK · synthetic" : "ONNX · real inference";
-    el("model").textContent = health.model;
-    el("threshold").textContent = `${(health.threshold * 100).toFixed(0)}%`;
-    el("queue").textContent = `${health.queue.in_flight} / ${health.queue.pending}`;
-    el("classes").textContent = `Supported classes: ${health.classes.join(", ")}`;
-    el("mock-warning").hidden = !health.mock;
-    el("mock-controls").hidden = !health.mock;
-    const previous = el("mock-label").value || "earth";
-    el("mock-label").replaceChildren(...health.classes.map((label) => {
-      const option = document.createElement("option");
-      option.value = label;
-      option.textContent = label;
-      return option;
-    }));
-    if (health.classes.includes(previous)) el("mock-label").value = previous;
-  }
-  async function action(work) {
-    if (busy) return;
-    busy = true;
-    controls();
-    try { await work(); }
-    catch (error) { notice(error.message || "Request failed. Please retry.", "error"); }
-    finally { busy = false; controls(); }
-  }
-  function clearFile() {
-    selection += 1;
-    file = null;
-    el("image-file").value = "";
-    if (previewURL) URL.revokeObjectURL(previewURL);
-    previewURL = null;
-    el("preview").removeAttribute("src");
-    el("preview-box").hidden = true;
-    el("file-note").textContent = "No drawing selected.";
-    resetResult();
-    controls();
-  }
-
-  async function selectFile(candidate) {
-    clearFile();
-    if (!candidate) return;
-    const current = selection;
-    try {
-      if (!["image/png", "image/jpeg"].includes(candidate.type)) throw new Error("Choose a PNG or JPEG image.");
-      if (candidate.size === 0 || candidate.size > 2 * 1024 * 1024) throw new Error("Choose a nonempty image no larger than 2 MiB.");
-      const image = await createImageBitmap(candidate);
-      const pixels = image.width * image.height;
-      image.close();
-      if (pixels > 4000000) throw new Error("The image exceeds 4 megapixels. Resize it before uploading.");
-      if (current !== selection) return;
-      file = candidate;
-      previewURL = URL.createObjectURL(candidate);
-      el("preview").src = previewURL;
-      el("preview-box").hidden = false;
-      el("file-note").textContent = `${candidate.name} · ${(candidate.size / 1024).toFixed(1)} KiB`;
-      notice("Drawing ready. Connect and choose Classify drawing.");
-    } catch (error) {
-      if (current === selection) notice(error.message || "Cannot decode this image.", "error");
-    }
-    controls();
-  }
-  function renderResult(result) {
-    el("result-empty").hidden = true;
-    el("result").hidden = false;
-    el("result-mode").textContent = result.mock ? "SYNTHETIC MOCK RESULT" : "ONNX INFERENCE RESULT";
-    el("result-label").textContent = result.label;
-    el("result-summary").textContent = `${result.accepted ? "Accepted" : "Not accepted"} · ${(result.confidence * 100).toFixed(1)}% confidence · ${result.elapsed_ms} ms`;
-    el("quality-hint").textContent = `Quality: ${result.quality.status}. ${result.quality.hint || ""} ${result.reason_code || ""}`;
-    el("thumbnail").hidden = !result.thumbnail;
-    if (result.thumbnail && result.thumbnail.content_type === "image/png") {
-      el("thumbnail").src = `data:image/png;base64,${result.thumbnail.base64}`;
-    }
-    el("top3").replaceChildren(...result.top3.map((prediction) => {
+    const p = record.prediction;
+    text("review-student", `${record.student_id || "Unidentified student"} · request ${p.request_id} · ${new Date(record.received_at).toLocaleString()}`);
+    text("ai-result", `${p.label} · ${(p.confidence * 100).toFixed(1)}%${p.mock ? " · MOCK" : ""}`);
+    text("quality", `${p.quality.status}${p.reason_code ? ` · ${p.reason_code}` : ""}`);
+    text("quality-hint", p.quality.hint);
+    text("final-result", `${record.final_label} · ${record.accepted ? "accepted" : "not accepted"} · ${record.decider} · revision ${record.revision}`);
+    el("thumbnail").hidden = !p.thumbnail;
+    el("thumbnail").removeAttribute("src");
+    if (p.thumbnail && p.thumbnail.content_type === "image/png") el("thumbnail").src = `data:image/png;base64,${p.thumbnail.base64}`;
+    el("top3").replaceChildren(...p.top3.map((prediction) => {
       const item = document.createElement("li");
-      const name = document.createElement("span");
-      name.textContent = prediction.label;
-      const value = document.createElement("span");
-      value.textContent = `${(prediction.confidence * 100).toFixed(1)}%`;
-      const bar = document.createElement("progress");
-      bar.max = 1;
-      bar.value = prediction.confidence;
-      bar.setAttribute("aria-label", `${prediction.label} confidence`);
-      item.append(name, bar, value);
+      item.textContent = `${prediction.label}: ${(prediction.confidence * 100).toFixed(1)}%`;
       return item;
     }));
-    const raw = { ...result, thumbnail: result.thumbnail ? { ...result.thumbnail, base64: "(displayed above)" } : null };
-    el("raw-result").textContent = JSON.stringify(raw, null, 2);
+    if (reset) {
+      el("override-note").value = "";
+      el("override-label").value = health.classes.includes(record.final_label) ? record.final_label : health.classes[0];
+    }
+    el("history").replaceChildren(...record.overrides.map((entry) => {
+      const item = document.createElement("li");
+      item.textContent = `${new Date(entry.at).toLocaleString()} · ${entry.label} · ${entry.note || "No note"}`;
+      return item;
+    }));
+    controls();
   }
-  el("endpoint").textContent = window.location.origin;
+  function renderFeed() {
+    text("scan-count", `${records.length} scans`);
+    el("feed-empty").hidden = records.length > 0;
+    text("feed-empty", "Waiting for in-game scan submissions. Minecraft integration is not wired yet.");
+    el("review-feed").replaceChildren(...records.map((record) => {
+      const button = document.createElement("button");
+      button.type = "button"; button.className = "scan-row secondary";
+      button.setAttribute("aria-pressed", String(selected?.scan_id === record.scan_id));
+      const p = record.prediction;
+      button.textContent = `${record.student_id || "Unidentified student"} · ${p.label} (${(p.confidence * 100).toFixed(1)}%) → ${record.final_label} · ${record.decider} · ${record.accepted ? "accepted" : (p.reason_code || "not accepted")}${p.mock ? " · MOCK" : ""} · ${p.request_id}`;
+      button.addEventListener("click", () => { if (!busy) { renderDetail(record, true); renderFeed(); } });
+      return button;
+    }));
+  }
+  async function refresh() {
+    const nextHealth = await api("/v1/health");
+    const feed = await api("/v1/reviews");
+    health = nextHealth; records = feed.reviews;
+    text("mode", health.mock ? "MOCK · synthetic" : "ONNX · inference");
+    text("model", health.model);
+    text("threshold", `${(health.threshold * 100).toFixed(0)}%`);
+    text("queue", `${health.queue.in_flight} / ${health.queue.pending}`);
+    text("classes", `Classes: ${health.classes.join(", ")}`);
+    el("mock-warning").hidden = !health.mock;
+    if (!el("override-label").options.length) el("override-label").replaceChildren(...health.classes.map((label) => {
+      const option = document.createElement("option"); option.value = label; option.textContent = label; return option;
+    }));
+    text("retention", `Refresh every 3 seconds · newest ${feed.retention.capacity} scans · ${feed.retention.ttl_seconds / 3600} hour expiry · memory only`);
+    if (selected) {
+      const next = records.find((record) => record.scan_id === selected.scan_id);
+      // Do not silently replace a revision while the teacher is composing an override.
+      // The server will reject stale submissions; selecting the row reloads it.
+      if (!next) renderDetail(null);
+      else if (next.revision !== selected.revision) {
+        notice("This review changed in another console. Select its row again before overriding.", "warning");
+      }
+    }
+    renderFeed(); controls();
+  }
+  function schedule() {
+    clearTimeout(timer);
+    if (token && health) timer = setTimeout(() => action(refresh), 3000);
+  }
+  async function action(fn) {
+    if (busy) return;
+    busy = true; clearTimeout(timer); controls();
+    try { await fn(); }
+    catch (error) { notice(error.name === "AbortError" ? "Service timed out; retry." : error.message, "error"); }
+    finally { busy = false; controls(); schedule(); }
+  }
+  text("endpoint", window.location.origin);
   el("token").value = "";
   el("connect-form").addEventListener("submit", (event) => {
     event.preventDefault();
     const entered = el("token").value;
     action(async () => {
       disconnect();
-      if (!entered || entered.length > 256 || !/^[\x20-\x7e]+$/.test(entered)) {
-        throw new Error("Enter the printable startup token exactly, without the Bearer prefix.");
-      }
+      if (!entered || entered.length > 256 || !/^[\x20-\x7e]+$/.test(entered)) throw new Error("Enter the exact printable startup token, without Bearer.");
       token = entered;
-      try { await loadHealth(); }
-      catch (error) { disconnect(); throw error; }
-      notice("Connected. Choose a drawing or use the sample to test the service.", "success");
+      try { await refresh(); } catch (error) { disconnect(); throw error; }
+      notice("Connected. Monitoring in-game classifications.", "success");
     });
   });
-  el("disconnect").addEventListener("click", () => {
-    disconnect();
-    notice("Disconnected. Startup token cleared from this page.");
+  el("disconnect").addEventListener("click", () => { disconnect(); notice("Disconnected. Token and classroom results cleared from this page."); });
+  el("refresh").addEventListener("click", () => action(refresh));
+  el("override-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!selected) return;
+    const record = selected;
+    const payload = { label: el("override-label").value, note: el("override-note").value, revision: record.revision };
+    action(async () => {
+      const result = await api(`/v1/reviews/${record.scan_id}/override`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      });
+      renderDetail(result.review, true);
+      await refresh();
+      notice("Teacher override saved. Minecraft must retrieve and apply this decision; this is not a build confirmation.", "success");
+    });
   });
-  el("refresh").addEventListener("click", () => action(async () => {
-    await loadHealth();
-    notice("Service status refreshed.", "success");
-  }));
-  el("image-file").addEventListener("change", (event) => selectFile(event.target.files[0]));
-  el("clear").addEventListener("click", () => { clearFile(); notice("Drawing and result cleared."); });
-  el("sample").addEventListener("click", () => action(async () => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 640;
-    canvas.height = 480;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "white";
-    ctx.fillRect(0, 0, 640, 480);
-    ctx.strokeStyle = "black";
-    ctx.lineWidth = 8;
-    ctx.beginPath();
-    ctx.ellipse(320, 240, 120, 120, 0, 0, 2 * Math.PI);
-    ctx.stroke();
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-    if (!blob) throw new Error("Could not create sample drawing.");
-    await selectFile(new File([blob], "sample-circle.png", { type: "image/png" }));
-  }));
-  el("classify").addEventListener("click", () => action(async () => {
-    if (!file || !health) return;
-    resetResult();
-    notice("Processing drawing…");
-    const headers = { "Content-Type": file.type, "X-Request-ID": crypto.randomUUID() };
-    if (health.mock) {
-      headers["X-Solaria-Label"] = el("mock-label").value;
-      headers["X-Solaria-Scenario"] = el("scenario").value;
-    }
-    const result = await api("/v1/classify", { method: "POST", headers, body: file });
-    renderResult(result);
-    notice(result.accepted ? "Classification complete." : "Scan completed but was not accepted. See the quality or confidence reason below.", result.accepted ? "success" : "warning");
-  }));
-  window.addEventListener("pagehide", () => { disconnect(); clearFile(); });
+  window.addEventListener("pagehide", disconnect);
   controls();
 })();
