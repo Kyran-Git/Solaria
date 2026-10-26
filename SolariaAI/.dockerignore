@@ -1,0 +1,18 @@
+# Allow only service/test source and schemas; never send local datasets/models/secrets.
+**
+!Dockerfile
+!Dockerfile.service
+!requirements-service.txt
+!pyproject.toml
+!solaria_classifier/
+!solaria_classifier/**
+!solaria_vision/
+!solaria_vision/**
+!tests/
+!tests/**
+!docs/
+!docs/schemas/
+!docs/schemas/**
+**/__pycache__/
+**/*.pyc
+**/*.pyo

@@ -1,0 +1,21 @@
+services:
+  ai-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.service
+    image: solaria-ai-service:local
+    init: true
+    restart: unless-stopped
+    environment:
+      SOLARIA_STARTUP_TOKEN: ${SOLARIA_STARTUP_TOKEN:?Set SOLARIA_STARTUP_TOKEN before starting the AI service}
+    ports:
+      - "127.0.0.1:8000:8000"
+    command: ["--mock"]
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s

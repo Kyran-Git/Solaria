@@ -1,0 +1,12 @@
+services:
+  ai-tests:
+    build:
+      context: .
+    image: solaria-ai-tests:local
+    init: true
+    network_mode: none
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 15s

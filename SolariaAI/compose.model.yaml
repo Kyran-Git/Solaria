@@ -1,0 +1,11 @@
+# Real inference override: supply a folder containing model.onnx and its sidecar.
+services:
+  ai-service:
+    command: ["--model", "/models/model.onnx", "--metadata", "/models/model.onnx.metadata.json"]
+    volumes:
+      - type: bind
+        source: ${SOLARIA_MODEL_DIR:?Set SOLARIA_MODEL_DIR to the exported model folder}
+        target: /models
+        read_only: true
+        bind:
+          create_host_path: false
