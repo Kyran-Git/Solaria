@@ -1,4 +1,6 @@
-# Allow only service/test source and schemas; never send local datasets/models/secrets.
+# Allow only service/test source, teacher web assets and schemas.
+# TrainingDataset/ (per-class training images), models and secrets are excluded
+# by the default deny rule. Never bake classroom drawings or reviews into images.
 **
 !Dockerfile
 !Dockerfile.service

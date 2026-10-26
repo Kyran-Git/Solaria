@@ -1,5 +1,10 @@
+# One service serves both the inference/review API and teacher web console.
+# Student capture stays in Minecraft. No training-dataset or review-data volumes:
+# reviews/thumbnails are volatile (200 records, 2-hour expiry on access).
 services:
   ai-service:
+    labels:
+      org.solaria.role: teacher-inference-review
     build:
       context: .
       dockerfile: Dockerfile.service

@@ -1,7 +1,9 @@
+# Synthetic API + teacher-console/review validation only; no classroom ports/data.
 services:
   ai-tests:
     build:
       context: .
+      dockerfile: Dockerfile
     image: solaria-ai-tests:local
     init: true
     network_mode: none

@@ -1,4 +1,5 @@
-# Real inference override: supply a folder containing model.onnx and its sidecar.
+# Real inference override: supply exported model.onnx and its metadata sidecar.
+# Teacher monitoring/overrides remain available; mount artifacts, not TrainingDataset.
 services:
   ai-service:
     command: ["--model", "/models/model.onnx", "--metadata", "/models/model.onnx.metadata.json"]

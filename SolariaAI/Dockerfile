@@ -1,5 +1,8 @@
-# CPU-only synthetic validation; no dataset, camera or trained model required.
+# CPU-only inference + teacher-console validation, not a classroom service.
+# Includes review/override tests; no student dataset, camera or real model required.
 FROM python:3.12-slim-bookworm
+LABEL org.opencontainers.image.title="SolariaAI synthetic test runner" \
+      org.opencontainers.image.description="Lint, schema, inference, teacher review and override validation; no classroom UI port"
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
