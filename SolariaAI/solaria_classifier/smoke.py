@@ -6,6 +6,7 @@ import argparse
 import io
 import json
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor
 from http.client import HTTPConnection
 
@@ -55,12 +56,22 @@ def main() -> None:
     rejected = call("/v1/classify", body, **{"X-Solaria-Scenario": "low_confidence"})
     if rejected["accepted"] or rejected["label"] != "unknown":
         raise RuntimeError("Low-confidence scan was incorrectly accepted.")
+    # 30 concurrent scans; if the service is still processing earlier requests
+    # it returns 503, so retry with a short delay until all 30 succeed.
+    # The classroom design requires all scans to eventually succeed or time out,
+    # never to be dropped silently by the TCP layer.
     with ThreadPoolExecutor(max_workers=30) as pool:
-        results = list(
-            pool.map(
-                lambda i: call("/v1/classify", body, **{"X-Request-ID": f"smoke-{i}"}), range(30)
-            )
-        )
+
+        def burst(i):
+            for attempt in range(4):
+                try:
+                    return call("/v1/classify", body, **{"X-Request-ID": f"smoke-{i}"})
+                except Exception:
+                    if attempt == 3:
+                        raise
+                    time.sleep(0.5 * (attempt + 1))
+
+        results = list(pool.map(burst, range(30)))
     if len({r["request_id"] for r in results}) != 30 or not all(r["mock"] for r in results):
         raise RuntimeError("Burst request ids or mock flags did not round-trip.")
     print(

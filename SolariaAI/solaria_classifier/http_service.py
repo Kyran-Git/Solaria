@@ -14,6 +14,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from dataclasses import asdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 from solaria_vision.quality import QualityConfig
 
@@ -22,6 +23,11 @@ from .inference import MockClassifier, OnnxClassifier
 from .scan_processor import SCENARIOS, ServiceError, process_scan
 
 MAX_BODY_BYTES = 2 * 1024 * 1024
+WEB_ASSETS = {
+    "/": ("index.html", "text/html; charset=utf-8"),
+    "/assets/dashboard.css": ("dashboard.css", "text/css; charset=utf-8"),
+    "/assets/dashboard.js": ("dashboard.js", "text/javascript; charset=utf-8"),
+}
 
 
 class ScanRuntime:
@@ -137,6 +143,10 @@ class ScanRuntime:
 
 class SolariaHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
+    # Large enough for 30-student classrooms plus headroom; the OS backlog
+    # is set separately and capped by the kernel, but this value is passed to
+    # socket.listen() and must be ≥ the expected burst connection count.
+    request_queue_size = 64
 
     def __init__(self, runtime: ScanRuntime, port: int = 8000, host: str = "127.0.0.1"):
         if host not in {"127.0.0.1", "0.0.0.0"}:
@@ -226,8 +236,32 @@ class ScanHandler(BaseHTTPRequestHandler):
             raise ServiceError(400, "INPUT_INVALID", "Incomplete image body.")
         return runtime.classify(body, request_id, scenario, label)
 
+    def _dashboard(self):
+        # Only these public, fixed assets bypass API authentication. Never serve
+        # arbitrary filesystem paths or inject the private runtime token.
+        filename, content_type = WEB_ASSETS[self.path]
+        data = (Path(__file__).with_name("web") / filename).read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'none'; script-src 'self'; style-src 'self'; "
+            "img-src 'self' blob: data:; connect-src 'self'; "
+            "base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+        )
+        self.end_headers()
+        self.wfile.write(data)
+
     def _handle(self):
         try:
+            if self.command == "GET" and self.path in WEB_ASSETS:
+                self._dashboard()
+                return
             self._json(200, self._dispatch())
         except ServiceError as exc:
             payload = {"api_version": "api_v1", "reason_code": exc.code, "message": exc.message}

@@ -28,6 +28,9 @@ solaria-clean = "solaria_vision.cli:main"
 [tool.setuptools.packages.find]
 include = ["solaria_classifier*", "solaria_vision*", "solaria_pipeline*"]
 
+[tool.setuptools.package-data]
+solaria_classifier = ["web/*.html", "web/*.css", "web/*.js"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
