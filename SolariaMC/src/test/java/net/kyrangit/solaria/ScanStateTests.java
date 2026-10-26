@@ -15,7 +15,7 @@ public final class ScanStateTests {
 
 	public static void main(String[] args) {
 		testIdleIsClean();
-		testCaptureIsHonestlyUnavailable();
+		testLocalCaptureLifecycle();
 		testRetryFromUnavailableGoesIdle();
 		testCloseAlwaysReturnsIdle();
 		testAcceptOnlyFromAwaitingConfirm();
@@ -38,16 +38,25 @@ public final class ScanStateTests {
 		check(!s.isTerminal(), "idle is not terminal");
 	}
 
-	private static void testCaptureIsHonestlyUnavailable() {
+	private static void testLocalCaptureLifecycle() {
 		ScanState after = ScanState.idle().transition(ScanAction.START_CAPTURE);
-		check(after.status() == ScanState.Status.UNAVAILABLE,
-			"START_CAPTURE lands in UNAVAILABLE while capture is unimplemented");
-		check(after.reasonCode() == ReasonCode.CAPTURE_UNAVAILABLE, "reason is CAPTURE_UNAVAILABLE");
-		check(after.isTerminal(), "UNAVAILABLE is terminal");
+		check(after.status() == ScanState.Status.CAPTURING, "explicit camera request enters CAPTURING");
+		check(after.reasonCode() == null, "opening is not a fabricated failure");
+		check(!after.isTerminal(), "preview is not terminal");
+		ScanState captured = after.withCapturedFrame();
+		check(captured.status() == ScanState.Status.CAPTURED, "real frame remains local");
+		check(captured.predictedClass() == null, "capture does not invent a prediction");
+		check(captured.reasonCode() == null, "capture does not invent upload failure");
+		check(captured.transition(ScanAction.RETRY).status() == ScanState.Status.IDLE, "retake resets to idle");
+		expectIllegal(() -> captured.transition(ScanAction.ACCEPT), "photo is not prediction consent");
+		expectIllegal(() -> captured.withPrediction(AstronomyClass.EARTH, 0.9f), "photo is not an upload");
+		expectIllegal(captured::withCapturedFrame, "duplicate capture rejected");
+		expectIllegal(() -> ScanState.idle().withCapturedFrame(), "capture from idle rejected");
+		expectIllegal(() -> after.transition(ScanAction.START_CAPTURE), "duplicate open rejected");
 	}
 
 	private static void testRetryFromUnavailableGoesIdle() {
-		ScanState unavailable = ScanState.idle().transition(ScanAction.START_CAPTURE);
+		ScanState unavailable = ScanState.idle().withFailure(ReasonCode.CAPTURE_UNAVAILABLE);
 		ScanState retried = unavailable.transition(ScanAction.RETRY);
 		check(retried.status() == ScanState.Status.IDLE, "RETRY from UNAVAILABLE returns to IDLE");
 		check(retried.reasonCode() == null, "RETRY clears the reason code");
@@ -56,7 +65,8 @@ public final class ScanStateTests {
 	private static void testCloseAlwaysReturnsIdle() {
 		for (ScanState start : new ScanState[]{
 			ScanState.idle(),
-			ScanState.idle().transition(ScanAction.START_CAPTURE)
+			ScanState.idle().transition(ScanAction.START_CAPTURE),
+			ScanState.idle().transition(ScanAction.START_CAPTURE).withCapturedFrame()
 		}) {
 			check(start.transition(ScanAction.CLOSE).status() == ScanState.Status.IDLE,
 				"CLOSE always returns to IDLE");
@@ -67,7 +77,7 @@ public final class ScanStateTests {
 		expectIllegal(() -> ScanState.idle().transition(ScanAction.ACCEPT), "ACCEPT rejected from IDLE");
 		expectIllegal(
 			() -> ScanState.idle().transition(ScanAction.START_CAPTURE).transition(ScanAction.ACCEPT),
-			"ACCEPT rejected from UNAVAILABLE");
+			"ACCEPT rejected from CAPTURING");
 	}
 
 	private static void testRejectOnlyFromAwaitingConfirm() {

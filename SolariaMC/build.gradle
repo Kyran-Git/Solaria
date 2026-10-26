@@ -98,6 +98,33 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 // Dependency-free unit tests: failures throw AssertionError and fail test/build.
+sourceSets {
+	test {
+		compileClasspath += sourceSets.client.output
+		runtimeClasspath += sourceSets.client.output
+	}
+}
+
+tasks.register('webcamTest', JavaExec) {
+	group = 'verification'
+	description = 'Synthetic local camera frame, protocol and lifecycle tests; never opens a webcam.'
+	dependsOn testClasses, clientClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'net.kyrangit.solaria.client.camera.WebcamTests'
+	systemProperty 'java.awt.headless', 'true'
+}
+
+// Explicit opt-in only: opens the local webcam, discards all images, then checks reopening.
+tasks.register('webcamSmoke', JavaExec) {
+	group = 'verification'
+	description = 'Opens the Windows camera twice without saving, displaying or uploading any image.'
+	dependsOn testClasses, clientClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'net.kyrangit.solaria.client.camera.WebcamTests'
+	args '--live'
+	systemProperty 'java.awt.headless', 'true'
+}
+
 tasks.register('foundationTest', JavaExec) {
 	group = 'verification'
 	description = 'Runs M1 plumbing checks (synthetic), without a new test library.'
@@ -164,6 +191,18 @@ tasks.register('scanStateTest', JavaExec) {
 	}
 }
 
+// Windows camera privacy detection, without opening a camera or changing OS settings.
+tasks.register('cameraAccessTest', JavaExec) {
+	group = 'verification'
+	description = 'Checks Windows desktop camera permission detection with read-only synthetic fixtures.'
+	dependsOn testClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'net.kyrangit.solaria.WindowsCameraAccessTests'
+	javaLauncher = javaToolchains.launcherFor {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
 // Phase 2/data regression: decodes the shipped dimension JSON with Minecraft's
 // real DimensionType codec. Guards against the pre-26 schema drift that made
 // registry load fail (No key has_ender_dragon_fight) and blocked every world.
@@ -173,13 +212,41 @@ tasks.register('dimensionDataTest', JavaExec) {
 	dependsOn testClasses
 	classpath = sourceSets.test.runtimeClasspath
 	mainClass = 'net.kyrangit.solaria.DimensionDataTests'
+	// Minecraft's JOML 1.10.8 uses sun.misc.Unsafe; Java 25 warns by default (JEP 498).
+	// Explicitly allow it for this test JVM only to silence that third-party warning.
+	jvmArgs '--sun-misc-unsafe-memory-access=allow'
+	javaLauncher = javaToolchains.launcherFor {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+tasks.register('serviceClientTest', JavaExec) {
+	group = 'verification'
+	description = 'Checks the authenticated host HTTP client against bounded loopback fixtures.'
+	dependsOn testClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'net.kyrangit.solaria.ServiceClientTests'
+	javaLauncher = javaToolchains.launcherFor {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+// Opt-in: requires a separate Python mock service and the host startup token in the environment.
+tasks.register('serviceClientSmoke', JavaExec) {
+	group = 'verification'
+	description = 'Round-trips a synthetic drawing and teacher review through the live Python mock service.'
+	dependsOn testClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'net.kyrangit.solaria.ServiceClientTests'
+	args '--live'
+	systemProperty 'java.awt.headless', 'true'
 	javaLauncher = javaToolchains.launcherFor {
 		languageVersion = JavaLanguageVersion.of(25)
 	}
 }
 
 tasks.named('test') {
-	dependsOn foundationTest, wikiStructureTest, blueprintTest, scanStateTest, dimensionDataTest
+	dependsOn foundationTest, wikiStructureTest, blueprintTest, scanStateTest, cameraAccessTest, webcamTest, dimensionDataTest, serviceClientTest
 	// Tests use a Java main runner rather than a JUnit engine.
 	exclude '**/*'
 }

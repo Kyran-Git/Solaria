@@ -10,15 +10,11 @@ import java.util.Objects;
  *
  * <p>Lives in the common source set so it can be unit-tested without a
  * Minecraft runtime. Rendering code (see {@code client.ScannerScreen}) only
- * reads these states and dispatches {@link ScanAction}s; it owns no mutable
- * state of its own.
+ * reads these states and dispatches {@link ScanAction}s. Camera resources
+ * remain client-owned and never enter this common state object.
  *
- * <p>Phase 4 scope note: capture, chunked upload, and the HTTP /v1/classify
- * call are not implemented yet. The {@link ScanAction#START_CAPTURE} action
- * therefore always transitions to {@link Status#UNAVAILABLE} with
- * {@link ReasonCode#CAPTURE_UNAVAILABLE}. This keeps the UI honest instead of
- * faking a success path, and leaves the state machine ready for the real
- * capture, upload, and classification results that later phases will plug in.
+ * <p>Capture stays local. CAPTURED does not imply upload, student agreement
+ * with a prediction, teacher approval, generation, or teleport permission.
  */
 public final class ScanState {
 
@@ -26,6 +22,10 @@ public final class ScanState {
 	public enum Status {
 		/** Student just opened the camera; nothing has been captured. */
 		IDLE,
+		/** Client is opening the camera or showing a live, local preview. */
+		CAPTURING,
+		/** A still image is held locally. Upload/classification is not connected yet. */
+		CAPTURED,
 		/** A frame has been captured and is being uploaded to the host. Not reachable yet (Phase 4). */
 		UPLOADING,
 		/** The AI service is deciding. Not reachable yet (Phase 4). */
@@ -92,10 +92,7 @@ public final class ScanState {
 				if (status != Status.IDLE) {
 					throw new IllegalStateException("START_CAPTURE only valid in IDLE");
 				}
-				// Phase 4 interim: no capture backend. Make the dead-end visible,
-				// never silently succeed. Later phases replace this with a real
-				// transition into UPLOADING.
-				yield new ScanState(Status.UNAVAILABLE, null, 0.0f, ReasonCode.CAPTURE_UNAVAILABLE);
+				yield new ScanState(Status.CAPTURING, null, 0.0f, null);
 			}
 			case ACCEPT -> {
 				if (status != Status.AWAITING_STUDENT_CONFIRM) {
@@ -104,7 +101,7 @@ public final class ScanState {
 				yield new ScanState(Status.BUILDING, predictedClass, confidence, null);
 			}
 			case RETRY -> {
-				if (status != Status.UNAVAILABLE && status != Status.AWAITING_STUDENT_CONFIRM) {
+				if (status != Status.UNAVAILABLE && status != Status.AWAITING_STUDENT_CONFIRM && status != Status.CAPTURED) {
 					throw new IllegalStateException("Cannot RETRY from " + status);
 				}
 				yield idle();
@@ -117,6 +114,12 @@ public final class ScanState {
 			}
 			case CLOSE -> idle();
 		};
+	}
+
+	/** A real camera frame was frozen locally; never pretends that upload occurred. */
+	public ScanState withCapturedFrame() {
+		if (status != Status.CAPTURING) throw new IllegalStateException("Capture only valid while camera is open");
+		return new ScanState(Status.CAPTURED, null, 0.0f, null);
 	}
 
 	/**

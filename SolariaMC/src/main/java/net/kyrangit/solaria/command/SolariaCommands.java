@@ -8,6 +8,8 @@ import net.kyrangit.solaria.config.ConfigManager;
 import net.kyrangit.solaria.dimension.SolariaDimensions;
 import net.kyrangit.solaria.logging.PrivacyLog;
 import net.kyrangit.solaria.logging.ReasonCode;
+import net.kyrangit.solaria.service.AiServiceClient;
+import net.kyrangit.solaria.service.ServiceException;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -22,9 +24,11 @@ import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Arrays;
+import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 
 public final class SolariaCommands {
+	private static final Semaphore HEALTH_CHECK = new Semaphore(1);
 	private SolariaCommands() {
 	}
 
@@ -34,6 +38,8 @@ public final class SolariaCommands {
 		dispatcher.register(Commands.literal("solaria")
 			.executes(context -> status(context.getSource(), config))
 			.then(Commands.literal("status").executes(context -> status(context.getSource(), config)))
+			.then(Commands.literal("service").then(Commands.literal("health")
+				.executes(context -> serviceHealth(context.getSource(), config))))
 			.then(Commands.literal("config").then(Commands.literal("reload")
 				.executes(context -> reload(context.getSource(), config))))
 			.then(Commands.literal("visit")
@@ -62,7 +68,7 @@ public final class SolariaCommands {
 		if (!authorized(source, config)) {
 			return 0;
 		}
-		source.sendSuccess(() -> Component.literal("SolariaMC loaded. Service health not checked yet (Phase 3)."), false);
+		source.sendSuccess(() -> Component.literal("SolariaMC loaded. Use /solaria service health to check the host AI service."), false);
 		ConfigException error = config.lastError();
 		if (error != null) {
 			source.sendFailure(Component.literal("[INPUT_INVALID] " + error.getMessage()
@@ -87,6 +93,36 @@ public final class SolariaCommands {
 			return 0;
 		}
 		source.sendSuccess(() -> Component.literal("Solaria configuration reloaded."), false);
+		return 1;
+	}
+
+	private static int serviceHealth(CommandSourceStack source, ConfigManager config) {
+		if (!authorized(source, config)) return 0;
+		if (!HEALTH_CHECK.tryAcquire()) {
+			source.sendFailure(Component.literal("[QUEUE_FULL] A service health check is already running."));
+			return 0;
+		}
+		var snapshot = config.current();
+		source.sendSuccess(() -> Component.literal("Checking host AI service..."), false);
+		Thread.ofVirtual().name("solaria-health").start(() -> {
+			try (AiServiceClient client = AiServiceClient.fromEnvironment(snapshot)) {
+				var health = client.health();
+				source.getServer().execute(() -> {
+					if (authorized(source, config)) source.sendSuccess(() -> Component.literal(
+						"AI service ready: api_v1, ten matching classes, threshold=" + health.threshold()
+							+ (health.mock() ? ". MOCK: synthetic predictions, not drawing recognition." : ". Model loaded.")
+							+ " Scanner capture/relay and planet generation are not wired yet."), false);
+				});
+			} catch (ServiceException error) {
+				PrivacyLog.failure(error.reasonCode());
+				source.getServer().execute(() -> {
+					if (authorized(source, config)) source.sendFailure(Component.literal("[" + error.reasonCode()
+						+ "] Check host service, startup token and class contract. No scan was submitted."));
+				});
+			} finally {
+				HEALTH_CHECK.release();
+			}
+		});
 		return 1;
 	}
 

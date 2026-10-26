@@ -10,7 +10,7 @@ package net.kyrangit.solaria.scan;
  * not from a button press.
  */
 public enum ScanAction {
-	/** Student pressed Capture on an IDLE scanner. */
+	/** Student explicitly requested opening the camera on an IDLE scanner. */
 	START_CAPTURE,
 	/** Student accepted a prediction and wants the build to start. */
 	ACCEPT,
