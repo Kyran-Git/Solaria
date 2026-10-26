@@ -20,6 +20,7 @@ from solaria_vision.quality import QualityConfig
 
 from . import __version__
 from .inference import MockClassifier, OnnxClassifier
+from .reviews import ReviewStore
 from .scan_processor import SCENARIOS, ServiceError, process_scan
 
 MAX_BODY_BYTES = 2 * 1024 * 1024
@@ -63,6 +64,7 @@ class ScanRuntime:
         self.lock = threading.Lock()
         self.pending = self.active = self.timed_out = 0
         self.closed = False
+        self.reviews = ReviewStore(classifier.classes)
 
     def health(self) -> dict:
         with self.lock:
@@ -204,21 +206,32 @@ class ScanHandler(BaseHTTPRequestHandler):
             raise ServiceError(401, "UNAUTHORIZED", "A valid startup bearer token is required.")
         if self.command == "GET" and self.path == "/v1/health":
             return runtime.health()
+        if self.command == "GET" and self.path == "/v1/reviews":
+            return runtime.reviews.feed()
+        review_path = re.fullmatch(r"/v1/reviews/([a-f0-9]{32})(/override)?", self.path)
+        if review_path:
+            scan_id, action = review_path.groups()
+            if self.command == "GET" and action is None:
+                return {"api_version": "api_v1", "review": runtime.reviews.get(scan_id)}
+            if self.command == "POST" and action == "/override":
+                if self.headers.get_content_type() != "application/json":
+                    raise ServiceError(415, "INPUT_INVALID", "Use Content-Type application/json.")
+                body = self._body(4096)
+                try:
+                    payload = json.loads(body)
+                except (ValueError, UnicodeError):
+                    raise ServiceError(400, "INPUT_INVALID", "Supply valid JSON.") from None
+                return {
+                    "api_version": "api_v1",
+                    "review": runtime.reviews.override(scan_id, payload),
+                }
         if self.command != "POST" or self.path != "/v1/classify":
-            raise ServiceError(404, "NOT_FOUND", "Use /v1/health or /v1/classify.")
+            raise ServiceError(404, "NOT_FOUND", "Unknown runtime route.")
         request_id = self.headers.get("X-Request-ID", "")
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", request_id):
             raise ServiceError(
                 400, "INPUT_INVALID", "Supply X-Request-ID (1-64 letters, digits, _ or -)."
             )
-        if self.headers.get("Transfer-Encoding"):
-            raise ServiceError(400, "INPUT_INVALID", "Chunked HTTP bodies are not supported.")
-        lengths = self.headers.get_all("Content-Length", [])
-        if len(lengths) != 1 or not lengths[0].isdigit():
-            raise ServiceError(411, "INPUT_INVALID", "Supply one Content-Length header.")
-        length = int(lengths[0])
-        if not 0 < length <= MAX_BODY_BYTES:
-            raise ServiceError(413, "INPUT_TOO_LARGE", "Supply an image of at most 2 MiB.")
         if self.headers.get_content_type() not in {"image/png", "image/jpeg"}:
             raise ServiceError(415, "INPUT_INVALID", "Use Content-Type image/png or image/jpeg.")
         scenario = self.headers.get("X-Solaria-Scenario")
@@ -231,10 +244,29 @@ class ScanHandler(BaseHTTPRequestHandler):
             raise ServiceError(400, "INPUT_INVALID", "Unknown mock scenario.")
         if label is not None and label not in runtime.classifier.classes:
             raise ServiceError(422, "LABEL_NOT_IN_CLASSES", "Use a class advertised by health.")
+        student_id = self.headers.get("X-Solaria-Student-ID")
+        if student_id is not None and not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", student_id):
+            raise ServiceError(
+                400, "INPUT_INVALID", "Use a pseudonymous student id (1-64 ASCII id characters)."
+            )
+        body = self._body(MAX_BODY_BYTES)
+        result = runtime.classify(body, request_id, scenario, label)
+        result["scan_id"] = runtime.reviews.add(result, student_id)
+        return result
+
+    def _body(self, limit):
+        if self.headers.get("Transfer-Encoding"):
+            raise ServiceError(400, "INPUT_INVALID", "Chunked HTTP bodies are not supported.")
+        lengths = self.headers.get_all("Content-Length", [])
+        if len(lengths) != 1 or not lengths[0].isdigit():
+            raise ServiceError(411, "INPUT_INVALID", "Supply one Content-Length header.")
+        length = int(lengths[0])
+        if not 0 < length <= limit:
+            raise ServiceError(413, "INPUT_TOO_LARGE", "Request body exceeds the route limit.")
         body = self.rfile.read(length)
         if len(body) != length:
-            raise ServiceError(400, "INPUT_INVALID", "Incomplete image body.")
-        return runtime.classify(body, request_id, scenario, label)
+            raise ServiceError(400, "INPUT_INVALID", "Incomplete request body.")
+        return body
 
     def _dashboard(self):
         # Only these public, fixed assets bypass API authentication. Never serve

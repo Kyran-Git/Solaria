@@ -113,7 +113,7 @@ def main() -> int:
         print("\n=== 5/6: Start authenticated loopback mock service ===", flush=True)
         with mock_service(args.port, args.startup_timeout) as env:
             run_step(
-                "6/6: Live smoke (ten classes, rejection, 30 concurrent scans)",
+                "6/6: Live smoke (inference, teacher console, review/override, 30 concurrent scans)",
                 "-m",
                 "solaria_classifier.smoke",
                 "--port",

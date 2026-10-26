@@ -1,5 +1,7 @@
+import re
 from html.parser import HTMLParser
 from http.client import HTTPConnection
+from pathlib import Path
 
 import pytest
 from test_http_service import running_service
@@ -37,6 +39,9 @@ def test_public_dashboard_assets_never_contain_private_token(path):
     [
         ("GET", "/v1/health"),
         ("POST", "/v1/classify"),
+        ("GET", "/v1/reviews"),
+        ("GET", "/v1/reviews/" + "a" * 32),
+        ("POST", "/v1/reviews/" + "a" * 32 + "/override"),
         ("POST", "/"),
         ("GET", "/assets/../http_service.py"),
         ("GET", "/assets/missing.js"),
@@ -73,9 +78,29 @@ def test_dashboard_contains_help_controls_and_local_assets():
         parser = PageParser()
         parser.feed(body.decode("utf-8"))
         assert len(parser.ids) == len(set(parser.ids))
-        assert {"token", "connect-form", "image-file", "classify", "scenario", "result"} <= set(
-            parser.ids
-        )
+        assert {
+            "token",
+            "connect-form",
+            "review-feed",
+            "override-form",
+            "override-label",
+            "history",
+        } <= set(parser.ids)
+        assert not {"image-file", "classify", "sample", "scenario"} & set(parser.ids)
+        assert b'type="file"' not in body
+        assert b"Students scan their drawings in Minecraft" in body
         assert set(parser.assets) == {"/assets/dashboard.js", "/assets/dashboard.css"}
         assert b"SOLARIA_STARTUP_TOKEN" in body
         assert b"UNAUTHORIZED" in body
+
+
+def test_teacher_script_matches_markup_and_never_submits_images():
+    web = Path(__file__).parents[1] / "solaria_classifier" / "web"
+    parser = PageParser()
+    parser.feed((web / "index.html").read_text(encoding="utf-8"))
+    script = (web / "dashboard.js").read_text(encoding="utf-8")
+    assert set(re.findall(r'el\("([\w-]+)"\)', script)) <= set(parser.ids)
+    assert "/v1/reviews" in script and "/override" in script
+    assert "/v1/classify" not in script
+    assert "innerHTML" not in script
+    assert "localStorage" not in script and "sessionStorage" not in script
