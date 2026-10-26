@@ -19,6 +19,7 @@ dependencies = [
 export = ["onnx>=1.14", "onnxruntime>=1.16", "onnxscript>=0.1"]
 dev = ["pytest>=7.4", "ruff>=0.5", "jsonschema>=4.21"]
 vision = ["opencv-python-headless>=4.8"]
+service = ["opencv-python-headless>=4.8", "onnxruntime>=1.16"]
 
 [project.scripts]
 solaria-classifier = "solaria_classifier.cli:main"

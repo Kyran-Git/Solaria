@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://solaria.local/schemas/runtime_v1.schema.json",
+  "title": "Solaria v2 stateless HTTP responses (api_v1)",
+  "oneOf": [
+    {"$ref": "#/$defs/health"},
+    {"$ref": "#/$defs/classification"},
+    {"$ref": "#/$defs/error"}
+  ],
+  "$defs": {
+    "probability": {"type": "number", "minimum": 0, "maximum": 1},
+    "class": {"enum": ["sun", "earth", "moon", "mars", "jupiter", "venus", "saturn", "uranus", "neptune", "mercury"]},
+    "qualityCode": {"enum": ["no_drawing_found", "too_blurry", "too_dark", "too_bright", "low_contrast", "drawing_too_small", "drawing_off_centre"]},
+    "health": {
+      "type": "object",
+      "required": ["api_version", "status", "version", "service_version", "model", "model_loaded", "mock", "classes", "threshold", "thresholds", "camera_available", "queue"],
+      "properties": {
+        "api_version": {"const": "api_v1"},
+        "status": {"enum": ["ok", "degraded"]},
+        "version": {"type": "string"},
+        "service_version": {"type": "string"},
+        "model": {"type": "string"},
+        "model_loaded": {"type": "boolean"},
+        "mock": {"type": "boolean"},
+        "classes": {"type": "array", "minItems": 10, "maxItems": 10, "uniqueItems": true, "items": {"$ref": "#/$defs/class"}},
+        "threshold": {"$ref": "#/$defs/probability"},
+        "thresholds": {"type": "object", "required": ["confidence", "quality"], "properties": {"confidence": {"$ref": "#/$defs/probability"}, "quality": {"type": "object"}}},
+        "camera_available": {"const": false},
+        "queue": {"type": "object", "required": ["pending", "in_flight", "capacity", "workers", "timed_out"], "properties": {
+          "pending": {"type": "integer", "minimum": 0},
+          "in_flight": {"type": "integer", "minimum": 0},
+          "capacity": {"type": "integer", "minimum": 0},
+          "workers": {"type": "integer", "minimum": 1},
+          "timed_out": {"type": "integer", "minimum": 0}
+        }}
+      }
+    },
+    "classification": {
+      "type": "object",
+      "required": ["api_version", "request_id", "mock", "quality", "label", "confidence", "accepted", "threshold", "reason_code", "top3", "thumbnail", "elapsed_ms"],
+      "properties": {
+        "api_version": {"const": "api_v1"},
+        "request_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"},
+        "mock": {"type": "boolean"},
+        "quality": {"type": "object", "required": ["status", "reason_code", "hint"], "properties": {
+          "status": {"enum": ["pass", "fail"]},
+          "reason_code": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/qualityCode"}]},
+          "hint": {"type": "string", "minLength": 1}
+        }},
+        "label": {"anyOf": [{"$ref": "#/$defs/class"}, {"const": "unknown"}]},
+        "confidence": {"$ref": "#/$defs/probability"},
+        "accepted": {"type": "boolean"},
+        "threshold": {"$ref": "#/$defs/probability"},
+        "reason_code": {"anyOf": [{"type": "null"}, {"const": "CONF_BELOW_THRESHOLD"}, {"$ref": "#/$defs/qualityCode"}]},
+        "top3": {"type": "array", "maxItems": 3, "items": {"type": "object", "required": ["label", "confidence"], "properties": {"label": {"$ref": "#/$defs/class"}, "confidence": {"$ref": "#/$defs/probability"}}}},
+        "thumbnail": {"anyOf": [{"type": "null"}, {"type": "object", "required": ["content_type", "base64"], "properties": {"content_type": {"const": "image/png"}, "base64": {"type": "string", "minLength": 1}}}]},
+        "elapsed_ms": {"type": "number", "minimum": 0}
+      },
+      "allOf": [{"if": {"properties": {"accepted": {"const": true}}}, "then": {"properties": {"label": {"$ref": "#/$defs/class"}, "reason_code": {"type": "null"}, "quality": {"properties": {"status": {"const": "pass"}}}}}, "else": {"properties": {"label": {"const": "unknown"}}}}]
+    },
+    "error": {
+      "type": "object",
+      "required": ["api_version", "reason_code", "message"],
+      "properties": {
+        "api_version": {"const": "api_v1"},
+        "reason_code": {"enum": ["UNAUTHORIZED", "NOT_FOUND", "INPUT_INVALID", "INPUT_TOO_LARGE", "LABEL_NOT_IN_CLASSES", "QUEUE_FULL", "SERVICE_UNAVAILABLE", "MODEL_UNAVAILABLE", "SCAN_TIMEOUT", "INTERNAL_ERROR"]},
+        "message": {"type": "string", "minLength": 1},
+        "retry_after_ms": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}

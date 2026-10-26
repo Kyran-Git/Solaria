@@ -13,13 +13,13 @@ from .service import (
 __version__ = "0.1.0"
 
 __all__ = [
-    "ApiV1Envelope",
-    "BuildResultRecord",
     "CLASS_IDS",
     "DISPLAY_NAMES",
+    "VALID_CLASSES",
+    "ApiV1Envelope",
+    "BuildResultRecord",
     "PredictionRecord",
     "ReviewRecord",
-    "VALID_CLASSES",
     "display_name",
     "is_valid_class",
     "mock_service_response",
