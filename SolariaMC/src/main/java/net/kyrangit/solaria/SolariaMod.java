@@ -26,6 +26,8 @@ public class SolariaMod implements ModInitializer {
 		// vanilla item registry is frozen, and wires the Tools and Utilities
 		// creative tab entry via Fabric's CreativeModeTabEvents hook.
 		SolariaItems.register();
+		net.kyrangit.solaria.scan.ScanPackets.register();
+		new net.kyrangit.solaria.scan.HostScanSessions(config).install();
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
 			SolariaCommands.register(dispatcher, config));
 	}

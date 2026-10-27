@@ -14,6 +14,10 @@ public final class SolariaClient implements ClientModInitializer {
 		// Install the scanner request/open bridge. The bridge is thread-safe
 		// and only touches Minecraft.setScreen on the client tick thread.
 		ScannerClientBridge.install();
+		net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.registerGlobalReceiver(
+			net.kyrangit.solaria.scan.ScanPackets.Result.TYPE, (packet, context) -> {
+				if (context.client().screen instanceof ScannerScreen scanner) scanner.receiveResult(packet);
+			});
 		// Client-side /solariascan command: lets students open the camera UI
 		// without having the item in hand. Registered on the client so each
 		// player's own client opens their own screen (not the host's).

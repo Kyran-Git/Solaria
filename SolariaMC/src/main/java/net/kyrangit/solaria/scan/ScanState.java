@@ -116,6 +116,12 @@ public final class ScanState {
 		};
 	}
 
+	/** Explicit submission is separate from local capture and prediction consent. */
+	public ScanState submit() {
+		if (status != Status.CAPTURED) throw new IllegalStateException("Submission requires a captured photo");
+		return new ScanState(Status.UPLOADING, null, 0, null);
+	}
+
 	/** A real camera frame was frozen locally; never pretends that upload occurred. */
 	public ScanState withCapturedFrame() {
 		if (status != Status.CAPTURING) throw new IllegalStateException("Capture only valid while camera is open");
@@ -137,6 +143,13 @@ public final class ScanState {
 			throw new IllegalStateException("withPrediction not valid from " + status);
 		}
 		return new ScanState(Status.AWAITING_STUDENT_CONFIRM, predicted, conf, null);
+	}
+
+	/** Validated host correction can replace any prior result; student must confirm again. */
+	public ScanState withTeacherLabel(AstronomyClass label, float confidence) {
+		if (label == null || !Float.isFinite(confidence) || confidence < 0 || confidence > 1)
+			throw new IllegalArgumentException("Invalid teacher result");
+		return new ScanState(Status.AWAITING_STUDENT_CONFIRM, label, confidence, null);
 	}
 
 	/** Server-side injection: a classifier/transport error happened. */

@@ -32,10 +32,10 @@ import java.util.Map;
 public final class BlueprintGenerator {
 
 	/**
-	 * Maximum bounding-box edge length in blocks. Matches the dimension height (1536).
+	 * Maximum bounding-box edge length in blocks, including rings. Fits the 512-block dimension height.
 	 * A shape whose bounding box exceeds this in any axis is rejected with CAP_EXCEEDED.
 	 */
-	public static final int MAX_EXTENT_BLOCKS = 1536;
+	public static final int MAX_EXTENT_BLOCKS = 500;
 
 	/**
 	 * Base diameters for each class at {@code blocks_per_unit = 1.0}.
@@ -48,16 +48,16 @@ public final class BlueprintGenerator {
 	private static final Map<AstronomyClass, Integer> SEEDS = new EnumMap<>(AstronomyClass.class);
 
 	static {
-		BASE_DIAMETERS.put(AstronomyClass.SUN,     1001);
-		BASE_DIAMETERS.put(AstronomyClass.EARTH,    571);
-		BASE_DIAMETERS.put(AstronomyClass.MOON,     351);
-		BASE_DIAMETERS.put(AstronomyClass.MARS,     421);
-		BASE_DIAMETERS.put(AstronomyClass.JUPITER,  951);
-		BASE_DIAMETERS.put(AstronomyClass.VENUS,    561);
-		BASE_DIAMETERS.put(AstronomyClass.SATURN,   861); // + equatorial ring
-		BASE_DIAMETERS.put(AstronomyClass.URANUS,   721); // + near-vertical ring
-		BASE_DIAMETERS.put(AstronomyClass.NEPTUNE,  701);
-		BASE_DIAMETERS.put(AstronomyClass.MERCURY,  301);
+		BASE_DIAMETERS.put(AstronomyClass.SUN,     499);
+		BASE_DIAMETERS.put(AstronomyClass.EARTH,   285);
+		BASE_DIAMETERS.put(AstronomyClass.MOON,    175);
+		BASE_DIAMETERS.put(AstronomyClass.MARS,    211);
+		BASE_DIAMETERS.put(AstronomyClass.JUPITER, 475);
+		BASE_DIAMETERS.put(AstronomyClass.VENUS,   281);
+		BASE_DIAMETERS.put(AstronomyClass.SATURN,  261); // including rings: ceil(261 * 1.9) = 496
+		BASE_DIAMETERS.put(AstronomyClass.URANUS,  311); // including rings: ceil(311 * 1.6) = 498
+		BASE_DIAMETERS.put(AstronomyClass.NEPTUNE, 351);
+		BASE_DIAMETERS.put(AstronomyClass.MERCURY, 151);
 
 		SEEDS.put(AstronomyClass.SUN,     0x50170001);
 		SEEDS.put(AstronomyClass.EARTH,   0xEA270002);
