@@ -245,7 +245,15 @@ tasks.register('serviceClientSmoke', JavaExec) {
 	}
 }
 
+tasks.register('reviewGateTest', JavaExec) {
+	group = 'verification'
+	dependsOn testClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'net.kyrangit.solaria.ReviewGateTests'
+}
+
 tasks.named('test') {
+	dependsOn reviewGateTest
 	dependsOn foundationTest, wikiStructureTest, blueprintTest, scanStateTest, cameraAccessTest, webcamTest, dimensionDataTest, serviceClientTest
 	// Tests use a Java main runner rather than a JUnit engine.
 	exclude '**/*'
