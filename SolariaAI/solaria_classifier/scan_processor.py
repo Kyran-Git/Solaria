@@ -38,6 +38,8 @@ def process_scan(
     scenario: str,
     label: str | None,
     deadline: float,
+    *,
+    max_image_pixels: int = 4_000_000,
 ) -> dict:
     started = time.monotonic()
     if started >= deadline:
@@ -46,7 +48,7 @@ def process_scan(
         with warnings.catch_warnings():
             warnings.simplefilter("error", Image.DecompressionBombWarning)
             with Image.open(io.BytesIO(body)) as image:
-                if image.format not in {"PNG", "JPEG"} or image.width * image.height > 4_000_000:
+                if image.format not in {"PNG", "JPEG"} or image.width * image.height > max_image_pixels:
                     raise ValueError("Unsupported image or dimensions.")
                 image.load()
                 rgb = image.convert("RGB")
@@ -58,7 +60,7 @@ def process_scan(
         Image.DecompressionBombError,
     ) as exc:
         raise ServiceError(
-            422, "INPUT_INVALID", "Supply a PNG or JPEG of at most 4 megapixels."
+            422, "INPUT_INVALID", "Supply a PNG or JPEG within the configured pixel limit."
         ) from exc
     if classifier.mock and scenario == "model_unavailable":
         raise ServiceError(503, "MODEL_UNAVAILABLE", "Ask your teacher to start the model service.")

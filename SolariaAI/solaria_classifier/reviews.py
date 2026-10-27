@@ -41,6 +41,7 @@ class ReviewStore:
             "accepted": result["accepted"],
             "decider": "ai",
             "overrides": [],
+            "application": None,
         }
         with self.lock:
             self._expire()
@@ -70,9 +71,14 @@ class ReviewStore:
         }
 
     def override(self, scan_id, payload):
-        if not isinstance(payload, dict) or set(payload) != {"label", "revision", "note"}:
+        if not isinstance(payload, dict) or set(payload) not in (
+            {"label", "revision", "note"}, {"label", "revision", "note", "accepted"}
+        ):
             raise ServiceError(400, "INPUT_INVALID", "Supply label, revision and note only.")
         label, revision, note = payload["label"], payload["revision"], payload["note"]
+        accepted = payload.get("accepted", True)
+        if type(accepted) is not bool:
+            raise ServiceError(400, "INPUT_INVALID", "Accepted must be a boolean.")
         if not isinstance(label, str) or label not in self.classes:
             raise ServiceError(422, "LABEL_NOT_IN_CLASSES", "Use a class advertised by health.")
         if type(revision) is not int or revision < 0:
@@ -96,14 +102,40 @@ class ReviewStore:
                     409, "REVIEW_CONFLICT", "Override limit reached; start a new scan."
                 )
             record["revision"] += 1
-            record["final_label"], record["accepted"], record["decider"] = label, True, "teacher"
+            record["final_label"], record["accepted"], record["decider"] = label, accepted, "teacher"
+            record["application"] = None
             record["overrides"].append(
                 {
                     "label": label,
+                    "accepted": accepted,
                     "note": note.strip(),
                     "at": timestamp(),
                     "revision": record["revision"],
                     "decider": "teacher",
                 }
             )
+            return copy.deepcopy(record)
+
+    def acknowledge(self, scan_id, payload):
+        if not isinstance(payload, dict) or set(payload) != {
+            "revision", "request_id", "student_id", "status"
+        }:
+            raise ServiceError(400, "INPUT_INVALID", "Supply revision, identity and status.")
+        if (type(payload["revision"]) is not int or not isinstance(payload["status"], str)
+                or payload["status"] not in
+                {"waiting_student", "ready", "rejected"}):
+            raise ServiceError(400, "INPUT_INVALID", "Invalid application status.")
+        with self.lock:
+            record = self._get(scan_id)
+            if (payload["revision"] != record["revision"] or record["revision"] == 0
+                    or payload["request_id"] != record["prediction"]["request_id"]
+                    or payload["student_id"] != record["student_id"]):
+                raise ServiceError(409, "REVIEW_CONFLICT", "Review or host session changed.")
+            status = payload["status"]
+            if (status == "rejected") == record["accepted"]:
+                raise ServiceError(409, "REVIEW_CONFLICT", "Status contradicts decision.")
+            previous = record["application"]
+            if previous and previous["status"] == "ready" and status != "ready":
+                raise ServiceError(409, "REVIEW_CONFLICT", "Application cannot regress.")
+            record["application"] = {"revision": record["revision"], "status": status}
             return copy.deepcopy(record)

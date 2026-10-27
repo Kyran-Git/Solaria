@@ -112,6 +112,66 @@ def main() -> None:
     )
     if conflict.get("reason_code") != "REVIEW_CONFLICT":
         raise RuntimeError("Stale override did not produce a revision conflict.")
+    def acknowledge(revision, status, *, expected_status=200, **identity):
+        payload = {
+            "revision": revision,
+            "request_id": "smoke-teacher-review",
+            "student_id": "synthetic-smoke-student",
+            "status": status,
+            **identity,
+        }
+        return call(
+            path + "/ack",
+            json.dumps(payload).encode(),
+            expected_status=expected_status,
+            **{"Content-Type": "application/json"},
+        )
+
+    def application(revision, status):
+        acknowledged = acknowledge(revision, status)["review"]
+        expected = {"revision": revision, "status": status}
+        if (
+            acknowledged["application"] != expected
+            or call(path)["review"]["application"] != expected
+        ):
+            raise RuntimeError("Host acknowledgement did not round-trip through review polling.")
+
+    acknowledge(1, "ready", expected_status=409, student_id="other-student")
+    acknowledge(1, "ready", expected_status=409, request_id="other-request")
+    application(1, "waiting_student")
+    application(1, "ready")
+    application(1, "ready")  # A retry is idempotent, not evidence of travel.
+    acknowledge(1, "waiting_student", expected_status=409)
+
+    # A new rejection invalidates prior acknowledgements, including delayed host writes.
+    rejected = call(
+        path + "/override",
+        json.dumps({"label": "mars", "revision": 1, "note": "Rescan", "accepted": False}),
+        **{"Content-Type": "application/json"},
+    )["review"]
+    if rejected["accepted"] or rejected["application"] is not None or rejected["revision"] != 2:
+        raise RuntimeError("Teacher rejection did not clear the previous acknowledgement.")
+    acknowledge(1, "ready", expected_status=409)
+    acknowledge(2, "ready", expected_status=409)
+    application(2, "rejected")
+
+    approved = call(
+        path + "/override",
+        json.dumps({"label": "mars", "revision": 2, "note": "Approved", "accepted": True}),
+        **{"Content-Type": "application/json"},
+    )["review"]
+    if (
+        not approved["accepted"]
+        or approved["revision"] != 3
+        or approved["application"] is not None
+        or approved["prediction"] != original
+    ):
+        raise RuntimeError("Teacher reapproval did not start a clean application revision.")
+    acknowledge(2, "rejected", expected_status=409)
+    application(3, "waiting_student")
+    application(3, "ready")
+    # These synthetic host writes test the API, not Minecraft consent, builds or travel.
+
     # 30 concurrent scans; if the service is still processing earlier requests
     # it returns 503, so retry with a short delay until all 30 succeed.
     # The classroom design requires all scans to eventually succeed or time out,
@@ -132,7 +192,8 @@ def main() -> None:
         raise RuntimeError("Burst request ids or mock flags did not round-trip.")
     print(
         "synthetic-validated: health, teacher console, authenticated review feed, "
-        "teacher override, preserved AI prediction, host decision lookup, revision conflict, "
+        "teacher correction/rejection/reapproval, preserved AI prediction, host polling, "
+        "identity-bound acknowledgements, stale revision conflicts, acknowledgement resets, "
         "ten class round-trips, low confidence, 30 concurrent scans."
     )
 

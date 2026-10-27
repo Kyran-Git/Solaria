@@ -37,6 +37,8 @@ def main() -> None:
     s.add_argument("--workers", type=int, default=2)
     s.add_argument("--queue-size", type=int, default=30)
     s.add_argument("--timeout", type=float, default=15.0)
+    s.add_argument("--max-upload-bytes", type=int, default=2 * 1024 * 1024)
+    s.add_argument("--max-image-pixels", type=int, default=4_000_000)
     s.add_argument(
         "--scenario",
         choices=[

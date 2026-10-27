@@ -5,7 +5,6 @@ from __future__ import annotations
 import hmac
 import json
 import math
-import os
 import re
 import secrets
 import signal
@@ -22,6 +21,7 @@ from . import __version__
 from .inference import MockClassifier, OnnxClassifier
 from .reviews import ReviewStore
 from .scan_processor import SCENARIOS, ServiceError, process_scan
+from .startup_token import load_token
 
 MAX_BODY_BYTES = 2 * 1024 * 1024
 WEB_ASSETS = {
@@ -42,6 +42,8 @@ class ScanRuntime:
         queue_size: int = 30,
         timeout: float = 15.0,
         scenario: str = "success",
+        max_body_bytes: int = MAX_BODY_BYTES,
+        max_image_pixels: int = 4_000_000,
     ) -> None:
         if not token or len(token) > 256 or not token.isascii() or not token.isprintable():
             raise ValueError(
@@ -56,6 +58,10 @@ class ScanRuntime:
             or scenario not in SCENARIOS
         ):
             raise ValueError("Invalid threshold, queue, worker, timeout or scenario setting.")
+        if (type(max_body_bytes) is not int or not 65536 <= max_body_bytes <= 16 * 1024 * 1024
+                or type(max_image_pixels) is not int or not 65536 <= max_image_pixels <= 16_000_000):
+            raise ValueError("Invalid upload byte or decoded pixel limit.")
+        self.max_body_bytes, self.max_image_pixels = max_body_bytes, max_image_pixels
         self.classifier, self.token = classifier, token
         self.threshold, self.timeout, self.scenario = threshold, timeout, scenario
         self.workers, self.queue_size = workers, queue_size
@@ -96,7 +102,8 @@ class ScanRuntime:
             self.active += 1
         try:
             return process_scan(
-                self.classifier, body, request_id, self.threshold, scenario, label, deadline
+                self.classifier, body, request_id, self.threshold, scenario, label, deadline,
+                max_image_pixels=self.max_image_pixels,
             )
         finally:
             with self.lock:
@@ -208,12 +215,12 @@ class ScanHandler(BaseHTTPRequestHandler):
             return runtime.health()
         if self.command == "GET" and self.path == "/v1/reviews":
             return runtime.reviews.feed()
-        review_path = re.fullmatch(r"/v1/reviews/([a-f0-9]{32})(/override)?", self.path)
+        review_path = re.fullmatch(r"/v1/reviews/([a-f0-9]{32})(/override|/ack)?", self.path)
         if review_path:
             scan_id, action = review_path.groups()
             if self.command == "GET" and action is None:
                 return {"api_version": "api_v1", "review": runtime.reviews.get(scan_id)}
-            if self.command == "POST" and action == "/override":
+            if self.command == "POST" and action in {"/override", "/ack"}:
                 if self.headers.get_content_type() != "application/json":
                     raise ServiceError(415, "INPUT_INVALID", "Use Content-Type application/json.")
                 body = self._body(4096)
@@ -223,7 +230,8 @@ class ScanHandler(BaseHTTPRequestHandler):
                     raise ServiceError(400, "INPUT_INVALID", "Supply valid JSON.") from None
                 return {
                     "api_version": "api_v1",
-                    "review": runtime.reviews.override(scan_id, payload),
+                    "review": (runtime.reviews.override(scan_id, payload) if action == "/override"
+                               else runtime.reviews.acknowledge(scan_id, payload)),
                 }
         if self.command != "POST" or self.path != "/v1/classify":
             raise ServiceError(404, "NOT_FOUND", "Unknown runtime route.")
@@ -249,7 +257,7 @@ class ScanHandler(BaseHTTPRequestHandler):
             raise ServiceError(
                 400, "INPUT_INVALID", "Use a pseudonymous student id (1-64 ASCII id characters)."
             )
-        body = self._body(MAX_BODY_BYTES)
+        body = self._body(runtime.max_body_bytes)
         result = runtime.classify(body, request_id, scenario, label)
         result["scan_id"] = runtime.reviews.add(result, student_id)
         return result
@@ -318,7 +326,7 @@ class ScanHandler(BaseHTTPRequestHandler):
 
 def serve(args) -> None:
     host = args.host
-    configured_token = os.environ.get("SOLARIA_STARTUP_TOKEN")
+    configured_token = load_token(create=True)
     if host != "127.0.0.1" and not configured_token:
         raise ValueError("SOLARIA_STARTUP_TOKEN is required for a non-loopback Docker bind.")
     token = configured_token or secrets.token_urlsafe(32)
@@ -331,6 +339,8 @@ def serve(args) -> None:
         queue_size=args.queue_size,
         timeout=args.timeout,
         scenario=args.scenario,
+        max_body_bytes=args.max_upload_bytes,
+        max_image_pixels=args.max_image_pixels,
     )
 
     def stop(signum, frame):

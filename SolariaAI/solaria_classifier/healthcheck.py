@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import json
-import os
 from http.client import HTTPConnection
+
+from .startup_token import load_token
 
 
 def main() -> int:
-    token = os.environ.get("SOLARIA_STARTUP_TOKEN")
+    try:
+        token = load_token()
+    except (OSError, ValueError):
+        return 1
     if not token:
         return 1
     connection = HTTPConnection("127.0.0.1", 8000, timeout=3)
