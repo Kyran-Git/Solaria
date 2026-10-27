@@ -17,11 +17,11 @@ This directory holds two repositories that must stay in step:
 ## Current plan (Solaria v2)
 
 The authoritative plan is the "Solaria end-to-end build prompt" (see
-`SOLARIA_AGENT_PROMPT.md` in the human's working copy). The important fixed
+`SOLARIA_AGENT_PROMPT.md`). The important fixed
 decisions it carries:
 
 - **Platform.** Minecraft Java Edition 26.1.2 with Fabric, Java 25, LAN hosted
-  by the teacher. No Bedrock or Education Edition.
+  by the teacher.
 - **Ten classes.** `sun`, `earth`, `moon`, `mars`, `jupiter`, `venus`,
   `saturn`, `uranus`, `neptune`, `mercury`. All ids are lowercase and must
   match the model metadata byte for byte.
@@ -36,17 +36,6 @@ decisions it carries:
 - **Teacher authority.** A teacher decision always beats the model.
 - **Privacy.** Everything runs locally. No cloud, no uploads, no student
   usernames in logs. Participant codes only.
-
-For detail, see:
-
-- `SolariaAI/README.md`, `SolariaAI/PROJECT_SPECIFICATION.md`,
-  `SolariaAI/docs/PIPELINE_SPECIFICATION.md`,
-  `SolariaAI/docs/IMPLEMENTATION_PLAN.md`, and
-  `SolariaAI/docs/RECONCILIATION_REPORT.md`.
-- `SolariaMC/docs/STATUS.md`, `SolariaMC/docs/BLUEPRINTS.md`,
-  `SolariaMC/docs/CONFIGURATION.md`, and
-  `SolariaMC/docs/RECONCILIATION_REPORT.md`.
-- Shared contract requests: `docs/CONTRACT_REQUESTS.md`.
 
 ## Phases (both repos share the numbering)
 
