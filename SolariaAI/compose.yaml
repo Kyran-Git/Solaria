@@ -1,6 +1,11 @@
 # One service serves both the inference/review API and teacher web console.
 # Student capture stays in Minecraft. No training-dataset or review-data volumes:
-# reviews/thumbnails are volatile (200 records, 2-hour expiry on access).
+# Reviews/thumbnails and revision-bound host acknowledgements are volatile
+# (200 records, 2-hour expiry on access); restarting discards all pending reviews.
+# Approve/correct/reject, host polling and /ack share port 8000 and the startup token.
+# Keep one service instance: review state is in-process, not shared across replicas.
+# ready means both approvals recorded, not planet generation or travel.
+# Minecraft's LAN host calls this service; students do not need direct API access.
 services:
   ai-service:
     labels:
@@ -12,7 +17,10 @@ services:
     init: true
     restart: unless-stopped
     environment:
-      SOLARIA_STARTUP_TOKEN: ${SOLARIA_STARTUP_TOKEN:?Set SOLARIA_STARTUP_TOKEN before starting the AI service}
+      SOLARIA_STARTUP_TOKEN_FILE: /var/lib/solaria/startup-token.txt
+    # Generated once, private to the service user; survives container replacement.
+    volumes:
+      - service-credentials:/var/lib/solaria
     ports:
       - "127.0.0.1:8000:8000"
     command: ["--mock"]
@@ -24,3 +32,8 @@ services:
     security_opt:
       - no-new-privileges:true
     stop_grace_period: 30s
+
+# Credential only: reviews and drawings are never persisted here.
+# Do not use `docker compose down --volumes` unless intentionally resetting pairing.
+volumes:
+  service-credentials:

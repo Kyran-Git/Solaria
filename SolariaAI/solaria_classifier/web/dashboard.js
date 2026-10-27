@@ -30,6 +30,8 @@
     el("top3").replaceChildren();
     for (const id of ["review-student", "ai-result", "quality", "final-result", "quality-hint"]) text(id, "");
     el("thumbnail").removeAttribute("src");
+    text("application-status", "");
+    el("decision").value = "approve";
     el("review-panel").hidden = true;
     el("mock-warning").hidden = true;
     text("mode", "Not connected");
@@ -64,6 +66,7 @@
       el("override-note").value = "";
       controls(); return;
     }
+    text("application-status", record.application ? `Minecraft: ${record.application.status} · revision ${record.application.revision} (not a travel confirmation)` : "Minecraft has not acknowledged this decision.");
     const p = record.prediction;
     text("review-student", `${record.student_id || "Unidentified student"} · request ${p.request_id} · ${new Date(record.received_at).toLocaleString()}`);
     text("ai-result", `${p.label} · ${(p.confidence * 100).toFixed(1)}%${p.mock ? " · MOCK" : ""}`);
@@ -121,6 +124,10 @@
       const next = records.find((record) => record.scan_id === selected.scan_id);
       // Do not silently replace a revision while the teacher is composing an override.
       // The server will reject stale submissions; selecting the row reloads it.
+      if (next && next.revision === selected.revision) {
+        selected = next;
+        text("application-status", next.application ? `Minecraft: ${next.application.status} · revision ${next.application.revision} (not a travel confirmation)` : "Minecraft has not acknowledged this decision.");
+      }
       if (!next) renderDetail(null);
       else if (next.revision !== selected.revision) {
         notice("This review changed in another console. Select its row again before overriding.", "warning");
@@ -158,14 +165,14 @@
     event.preventDefault();
     if (!selected) return;
     const record = selected;
-    const payload = { label: el("override-label").value, note: el("override-note").value, revision: record.revision };
+    const payload = { label: el("override-label").value, note: el("override-note").value, revision: record.revision, accepted: el("decision").value === "approve" };
     action(async () => {
       const result = await api(`/v1/reviews/${record.scan_id}/override`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
       renderDetail(result.review, true);
       await refresh();
-      notice("Teacher override saved. Minecraft must retrieve and apply this decision; this is not a build confirmation.", "success");
+      notice("Teacher decision saved. Wait for Minecraft acknowledgement below; this is not a build or travel confirmation.", "success");
     });
   });
   window.addEventListener("pagehide", disconnect);

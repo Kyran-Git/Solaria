@@ -1,4 +1,6 @@
-# Synthetic API + teacher-console/review validation only; no classroom ports/data.
+# Synthetic API + teacher-console validation; no classroom ports/data.
+# Full pytest and live smoke cover approve/correct/reject, identity-bound /ack,
+# stale revision conflicts and acknowledgement resets. Not Minecraft travel tests.
 services:
   ai-tests:
     build:

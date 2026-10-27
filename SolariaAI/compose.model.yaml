@@ -1,5 +1,6 @@
 # Real inference override: supply exported model.onnx and its metadata sidecar.
-# Teacher monitoring/overrides remain available; mount artifacts, not TrainingDataset.
+# Teacher approve/correct/reject and host acknowledgements remain available.
+# Review state is still volatile; mount model artifacts, not TrainingDataset.
 services:
   ai-service:
     command: ["--model", "/models/model.onnx", "--metadata", "/models/model.onnx.metadata.json"]

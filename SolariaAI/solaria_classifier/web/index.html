@@ -73,13 +73,16 @@
           <label for="override-note">Teacher note (optional, up to 500 characters)</label>
           <input id="override-note" maxlength="500" autocomplete="off">
           <p class="muted small">Preserves the AI prediction. Failed image-quality checks require a rescan. Saving does not itself change a Minecraft dimension.</p>
-          <button id="save-override" type="submit" disabled>Save teacher override</button>
+          <label for="decision">Teacher decision</label>
+          <select id="decision"><option value="approve">Approve / correct</option><option value="reject">Reject — request rescan</option></select>
+          <button id="save-override" type="submit" disabled>Save teacher decision</button>
+          <p id="application-status" class="muted small"></p>
         </form>
         <h2>Teacher override history</h2><ul id="history"></ul>
       </section>
     </div>
   </div>
-  <footer>Scanning belongs in Minecraft. Training uses the offline dataset's per-class folders, not this console. Review records and thumbnails stay in bounded memory and disappear on service restart or expiry. Minecraft scan submission and override application are not wired yet.</footer>
+  <footer>Scanning belongs in Minecraft. Training uses the offline dataset's per-class folders, not this console. Review records and thumbnails stay in bounded memory and disappear on service restart or expiry. Minecraft polls teacher decisions and reports consent status. Generation and travel are not enabled yet.</footer>
 </main>
 </body>
 </html>

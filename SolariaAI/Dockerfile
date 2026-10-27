@@ -1,8 +1,9 @@
 # CPU-only inference + teacher-console validation, not a classroom service.
-# Includes review/override tests; no student dataset, camera or real model required.
+# Includes revision-safe approve/correct/reject and host acknowledgement validation.
+# No student dataset, camera or real model required; does not validate Minecraft travel.
 FROM python:3.12-slim-bookworm
 LABEL org.opencontainers.image.title="SolariaAI synthetic test runner" \
-      org.opencontainers.image.description="Lint, schema, inference, teacher review and override validation; no classroom UI port"
+      org.opencontainers.image.description="Lint, schema, inference, revision-safe teacher decisions and host acknowledgements; synthetic only"
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
