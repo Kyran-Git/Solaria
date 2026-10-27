@@ -18,7 +18,8 @@ import net.minecraft.network.chat.Component;
 /**
  * Explicit opt-in local webcam preview and still capture. Camera I/O is isolated
  * from the client thread; only texture updates and UI changes happen here.
- * No frames are saved or sent. Host relay/classification remains a separate step.
+ * Preview is local. Only explicit Submit sends the frozen JPEG through the LAN host.
+ * No frames are saved. Student agreement does not bypass teacher approval.
  */
 public final class ScannerScreen extends Screen {
 	private static final int BUTTON_WIDTH = 150;
@@ -27,6 +28,12 @@ public final class ScannerScreen extends Screen {
 	private static final int LINE_HEIGHT = 12;
 
 	private ScanState state = ScanState.idle();
+	private String submissionId;
+	private int reviewRevision;
+	private Component serviceStatus;
+	private boolean awaitingTeacher;
+	private byte[] pendingUpload;
+	private int uploadOffset, uploadSequence;
 	private boolean checkingCamera;
 	private boolean cameraPermissionRequired;
 	private boolean settingsLaunchFailed;
@@ -46,6 +53,10 @@ public final class ScannerScreen extends Screen {
 	protected void init() {
 		int centreX = this.width / 2;
 		int buttonsY = this.height - 40;
+		if (awaitingTeacher) {
+			addRenderableWidget(closeBtn(centreX - BUTTON_WIDTH / 2, buttonsY));
+			return;
+		}
 		if (checkingCamera && !cameraPermissionRequired) {
 			addRenderableWidget(closeBtn(centreX - BUTTON_WIDTH / 2, buttonsY));
 			return;
@@ -71,13 +82,15 @@ public final class ScannerScreen extends Screen {
 				addRenderableWidget(closeBtn(centreX + BUTTON_GAP / 2, buttonsY));
 			}
 			case CAPTURED -> {
+				addRenderableWidget(primary(centreX - BUTTON_WIDTH - BUTTON_GAP / 2, buttonsY - 28,
+					Component.literal("Submit drawing"), b -> submitDrawing()));
 				addRenderableWidget(primary(centreX - BUTTON_WIDTH - BUTTON_GAP / 2, buttonsY,
 					Component.translatable("solaria.scan.button.retake"), b -> advance(ScanAction.RETRY)));
 				addRenderableWidget(closeBtn(centreX + BUTTON_GAP / 2, buttonsY));
 			}
 			case AWAITING_STUDENT_CONFIRM -> {
 				addRenderableWidget(primary(centreX - BUTTON_WIDTH - BUTTON_GAP / 2, buttonsY,
-					Component.translatable("solaria.scan.button.build"),
+					Component.literal("Yes, this is correct"),
 					b -> advance(ScanAction.ACCEPT)));
 				addRenderableWidget(primary(centreX + BUTTON_GAP / 2, buttonsY,
 					Component.translatable("solaria.scan.button.retry"),
@@ -105,6 +118,18 @@ public final class ScannerScreen extends Screen {
 	}
 
 	private void advance(ScanAction action) {
+		if (action == ScanAction.ACCEPT && submissionId != null) {
+			net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
+				new net.kyrangit.solaria.scan.ScanPackets.Decision(submissionId, reviewRevision, true));
+			awaitingTeacher = true;
+			serviceStatus = Component.literal("Waiting for teacher approval. Closing cancels this scan.");
+			rebuildWidgets();
+			return;
+		}
+		if (action == ScanAction.RETRY || action == ScanAction.REJECT || action == ScanAction.CLOSE) {
+			cancelSubmission();
+			serviceStatus = null;
+		}
 		if (action == ScanAction.RETRY || action == ScanAction.REJECT) {
 			stopCamera();
 			clearFrame();
@@ -171,6 +196,14 @@ public final class ScannerScreen extends Screen {
 			this.onClose();
 			return;
 		}
+		if (pendingUpload != null) {
+			int end = Math.min(pendingUpload.length, uploadOffset + net.kyrangit.solaria.scan.ScanUpload.CHUNK_BYTES);
+			net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
+				new net.kyrangit.solaria.scan.ScanPackets.Upload(submissionId, pendingUpload.length, uploadSequence++,
+					java.util.Arrays.copyOfRange(pendingUpload, uploadOffset, end)));
+			uploadOffset = end;
+			if (end == pendingUpload.length) pendingUpload = null;
+		}
 		if (camera != null) {
 			WindowsCamera.Failure failure = camera.failure();
 			if (failure != null) {
@@ -203,6 +236,79 @@ public final class ScannerScreen extends Screen {
 		stopCamera();
 		state = state.withCapturedFrame();
 		rebuildWidgets();
+	}
+
+	private void submitDrawing() {
+		if (frame == null || state.status() != ScanState.Status.CAPTURED) return;
+		if (!net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.canSend(
+			net.kyrangit.solaria.scan.ScanPackets.Upload.TYPE)) {
+			state = state.withFailure(ReasonCode.SCAN_UPLOAD_UNAVAILABLE);
+			rebuildWidgets(); return;
+		}
+		submissionId = java.util.UUID.randomUUID().toString().replace("-", "");
+		pendingUpload = frame.jpeg(); uploadOffset = uploadSequence = 0;
+		state = state.submit();
+		serviceStatus = Component.literal("Uploading drawing to the LAN host...");
+		rebuildWidgets();
+	}
+
+	private void cancelSubmission() {
+		pendingUpload = null;
+		if (submissionId != null && this.minecraft.getConnection() != null
+			&& net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.canSend(
+				net.kyrangit.solaria.scan.ScanPackets.Decision.TYPE)) {
+			net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
+				new net.kyrangit.solaria.scan.ScanPackets.Decision(submissionId, reviewRevision, false));
+		}
+		submissionId = null; reviewRevision = 0; awaitingTeacher = false;
+	}
+
+	public void receiveResult(net.kyrangit.solaria.scan.ScanPackets.Result packet) {
+		if (!packet.id().equals(submissionId)) return;
+		try {
+			var data = com.google.gson.JsonParser.parseString(packet.json()).getAsJsonObject();
+			String status = data.get("status").getAsString();
+			if (status.equals("classifying")) serviceStatus = Component.literal("Cleaning and classifying drawing...");
+			else if (status.equals("waiting_teacher")) serviceStatus = Component.literal("Student agreement recorded; waiting for teacher approval.");
+			else if (status.equals("correction")) {
+				reviewRevision = data.get("revision").getAsInt();
+				awaitingTeacher = false;
+				state = state.withTeacherLabel(net.kyrangit.solaria.blueprint.AstronomyClass.fromId(data.get("label").getAsString()),
+					data.get("confidence").getAsFloat());
+				serviceStatus = Component.literal((data.get("mock").getAsBoolean() ? "MOCK (synthetic): " : "")
+					+ "Teacher selected " + planetName() + ". Do you agree?");
+			} else if (status.equals("ready")) {
+				reviewRevision = data.get("revision").getAsInt();
+				awaitingTeacher = true;
+				serviceStatus = Component.literal("Both approvals recorded. Generation/travel not enabled yet.");
+			} else if (status.equals("rejected")) {
+				reviewRevision = data.get("revision").getAsInt();
+				awaitingTeacher = false;
+				state = state.withFailure(ReasonCode.QUALITY_REJECTED);
+				serviceStatus = Component.literal("Teacher requested a new scan.");
+			}
+			else if (status.equals("error")) {
+				pendingUpload = null; awaitingTeacher = false;
+				state = state.withFailure(ReasonCode.valueOf(data.get("reason").getAsString()));
+				serviceStatus = Component.literal("Scan failed: " + data.get("reason").getAsString());
+			} else if (status.equals("prediction")) {
+				boolean mock = data.get("mock").getAsBoolean();
+				if (data.get("accepted").getAsBoolean()) {
+					state = state.withPrediction(net.kyrangit.solaria.blueprint.AstronomyClass.fromId(data.get("label").getAsString()),
+						data.get("confidence").getAsFloat());
+					serviceStatus = mock ? Component.literal("MOCK (synthetic): " + planetName() + " — is this correct?") : null;
+				} else {
+					state = state.withFailure(ReasonCode.QUALITY_REJECTED);
+					serviceStatus = Component.literal((mock ? "MOCK (synthetic): " : "") + "Please retake: "
+						+ (data.get("quality").isJsonNull() ? "confidence below threshold" : data.get("quality").getAsString()));
+				}
+			}
+			rebuildWidgets();
+		} catch (RuntimeException e) {
+			pendingUpload = null; awaitingTeacher = false;
+			state = state.withFailure(ReasonCode.SERVICE_PROTOCOL_ERROR);
+			serviceStatus = null; rebuildWidgets();
+		}
 	}
 
 	private void stopCamera() {
@@ -239,6 +345,7 @@ public final class ScannerScreen extends Screen {
 
 	@Override
 	public void removed() {
+		cancelSubmission();
 		++checkGeneration;
 		stopCamera();
 		clearFrame();
@@ -272,6 +379,7 @@ public final class ScannerScreen extends Screen {
 	}
 
 	private Component statusLine() {
+		if (serviceStatus != null) return serviceStatus;
 		if (cameraPermissionRequired) return Component.translatable("solaria.scan.status.camera_permission");
 		if (checkingCamera) return Component.translatable("solaria.scan.status.camera_check");
 		return switch (state.status()) {
