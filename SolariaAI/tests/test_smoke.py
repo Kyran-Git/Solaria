@@ -12,7 +12,12 @@ def test_live_smoke_covers_teacher_review_workflow(monkeypatch, capsys):
         record = next(r for r in feed if r["prediction"]["request_id"] == "smoke-teacher-review")
         assert record["student_id"] == "synthetic-smoke-student"
         assert record["prediction"]["label"] == "earth"
-        assert record["final_label"] == "mars" and record["revision"] == 1
+        assert record["final_label"] == "mars" and record["revision"] == 3
+        assert record["accepted"] is True
+        assert record["application"] == {"revision": 3, "status": "ready"}
+        assert [entry["accepted"] for entry in record["overrides"]] == [True, False, True]
         output = capsys.readouterr().out
-        assert "teacher override" in output and "host decision lookup" in output
+        assert "teacher correction/rejection/reapproval" in output
+        assert "identity-bound acknowledgements" in output
+        assert "acknowledgement resets" in output
         assert "test-private-token" not in output

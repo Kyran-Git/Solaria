@@ -20,6 +20,18 @@ from solaria_classifier.inference import MockClassifier
 from solaria_classifier.scan_processor import ServiceError
 
 
+def test_configurable_upload_limits():
+    with running_service(max_body_bytes=65536, max_image_pixels=65536) as server:
+        status, payload = request(server, "POST", "/v1/classify", drawing_bytes())
+        assert status == 422 and payload["reason_code"] == "INPUT_INVALID"
+        status, payload = request(server, "POST", "/v1/classify", b"x" * 65537)
+        assert status == 413 and payload["reason_code"] == "INPUT_TOO_LARGE"
+    for setting in ({"max_body_bytes": 0}, {"max_image_pixels": 16_000_001}):
+        with pytest.raises(ValueError):
+            ScanRuntime(MockClassifier(), "test-token", **setting)
+
+
+
 def drawing_bytes(format="PNG"):
     image = Image.new("RGB", (640, 480), "white")
     ImageDraw.Draw(image).ellipse((200, 120, 440, 360), outline="black", width=8)
@@ -157,7 +169,7 @@ def test_runtime_queue_full_and_timeout_recovery(monkeypatch):
 
     entered, release = threading.Event(), threading.Event()
 
-    def blocked(*args):
+    def blocked(*args, **kwargs):
         entered.set()
         release.wait(2)
         return {}

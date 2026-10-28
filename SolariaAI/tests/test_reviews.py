@@ -76,7 +76,7 @@ def test_low_confidence_can_be_overridden_but_quality_failure_cannot():
         {"label": "mars", "revision": -1, "note": ""},
         {"label": "mars", "revision": 0, "note": "x" * 501},
         {"label": "mars", "revision": 0, "note": "bad\nnote"},
-        {"label": "mars", "revision": 0, "note": "", "accepted": True},
+        {"label": "mars", "revision": 0, "note": "", "accepted": 1},
         {"label": ["mars"], "revision": 0, "note": ""},
         {"label": "asteroid", "revision": 0, "note": ""},
     ],
@@ -150,3 +150,39 @@ def test_store_bounds_expiry_copy_isolation_and_concurrent_override(monkeypatch)
     assert store.feed()["reviews"] == []
     with pytest.raises(ServiceError):
         store.get(third)
+
+
+def test_revision_safe_host_acknowledgement_and_rejection():
+    with running_service() as server:
+        prediction = submit(server, **{"X-Solaria-Student-ID": "host-participant"})
+        scan_id = prediction["scan_id"]
+        path = f"/v1/reviews/{scan_id}/ack"
+
+        def ack(revision, status, **identity):
+            payload = {"revision": revision, "status": status,
+                       "request_id": prediction["request_id"], "student_id": "host-participant"}
+            payload.update(identity)
+            return request(server, "POST", path, json.dumps(payload),
+                           **{"Content-Type": "application/json"})
+
+        assert ack(0, "ready")[0] == 409
+        assert override(server, scan_id, {"label": "mars", "revision": 0, "note": ""})[0] == 200
+        assert ack(1, "ready", student_id="other")[0] == 409
+        assert ack(1, "ready", request_id="other")[0] == 409
+        assert ack(1, "waiting_student")[0] == 200
+        assert ack(1, "ready")[0] == 200
+        assert ack(1, "ready")[0] == 200  # idempotent retry
+        assert ack(1, "waiting_student")[0] == 409
+        status, decision = override(server, scan_id, {
+            "label": "moon", "revision": 1, "note": "Rescan", "accepted": False
+        })
+        assert status == 200
+        assert decision["review"]["application"] is None
+        assert not decision["review"]["accepted"]
+        assert ack(1, "ready")[0] == 409  # old host result cannot acknowledge a newer decision
+        assert ack(2, "ready")[0] == 409
+        assert ack(2, "rejected")[1]["review"]["application"] == {
+            "revision": 2, "status": "rejected"
+        }
+        assert ack(True, "ready")[0] == 400
+        assert ack(2, "teleported")[0] == 400

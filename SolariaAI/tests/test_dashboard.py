@@ -42,6 +42,7 @@ def test_public_dashboard_assets_never_contain_private_token(path):
         ("GET", "/v1/reviews"),
         ("GET", "/v1/reviews/" + "a" * 32),
         ("POST", "/v1/reviews/" + "a" * 32 + "/override"),
+        ("POST", "/v1/reviews/" + "a" * 32 + "/ack"),
         ("POST", "/"),
         ("GET", "/assets/../http_service.py"),
         ("GET", "/assets/missing.js"),
