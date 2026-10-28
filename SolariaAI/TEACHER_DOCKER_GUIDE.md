@@ -44,17 +44,30 @@ The default mode is **MOCK**: predictions are synthetic and normally return Eart
 
 Current Compose generates a token inside the container at `/var/lib/solaria/startup-token.txt`. A named Docker credentials volume retains it across ordinary container replacement.
 
-Read it into this PowerShell session:
+Export the service's existing credential to a private **host-side file**, outside the checkout. Minecraft cannot read the container's `/var/lib/solaria/...` path directly. Run this after the service is healthy:
 
 ```powershell
-$env:SOLARIA_STARTUP_TOKEN = (docker compose -f D:/Solaria/SolariaAI/compose.yaml exec -T ai-service cat /var/lib/solaria/startup-token.txt).Trim()
+$privateDir = Join-Path $env:LOCALAPPDATA 'Solaria'
+New-Item -ItemType Directory -Force -Path $privateDir | Out-Null
+$owner = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+icacls $privateDir /inheritance:r /grant:r "${owner}:(OI)(CI)F"
+if ($LASTEXITCODE -ne 0) { throw 'Could not restrict credential directory permissions' }
+$container = docker compose -f D:/Solaria/SolariaAI/compose.yaml ps -q ai-service
+if ($LASTEXITCODE -ne 0 -or -not $container) { throw 'AI service is not running' }
+$tokenFile = Join-Path $privateDir 'startup-token.txt'
+docker cp "${container}:/var/lib/solaria/startup-token.txt" $tokenFile
+if ($LASTEXITCODE -ne 0) { throw 'Credential export failed' }
+Remove-Item Env:SOLARIA_STARTUP_TOKEN -ErrorAction SilentlyContinue
+$env:SOLARIA_STARTUP_TOKEN_FILE = $tokenFile
 ```
 
-Display it privately when ready to paste into the console:
+The copy is needed initially and after intentional credential rotation, not on every ordinary container restart. Protect the exported file too. Read it privately only when ready to paste into the teacher console:
 
 ```powershell
-$env:SOLARIA_STARTUP_TOKEN
+Get-Content -LiteralPath $env:SOLARIA_STARTUP_TOKEN_FILE -Raw
 ```
+
+A nonempty `SOLARIA_STARTUP_TOKEN` **overrides** `SOLARIA_STARTUP_TOKEN_FILE`, even when stale. Clearing it above selects file-based authentication. Missing or invalid files fail closed; automatic Docker-to-Minecraft pairing is not implemented.
 
 **Treat it as a password.** Do not share it with students, put it in URLs, commit it, or reveal it during screen sharing. Docker administrators can access it. Teacher and trusted host share this credential; there are no separate named reviewer accounts.
 
@@ -63,7 +76,12 @@ Do not generate an unrelated host token. Setting a PowerShell environment variab
 Optional authenticated health check:
 
 ```powershell
-Invoke-RestMethod -Uri 'http://127.0.0.1:8000/v1/health' -Headers @{ Authorization = "Bearer $env:SOLARIA_STARTUP_TOKEN" }
+$token = (Get-Content -LiteralPath $env:SOLARIA_STARTUP_TOKEN_FILE -Raw).Trim()
+try {
+    Invoke-RestMethod -Uri 'http://127.0.0.1:8000/v1/health' -Headers @{ Authorization = "Bearer $token" }
+} finally {
+    Remove-Variable token -ErrorAction SilentlyContinue
+}
 ```
 
 ## 4. Connect the teacher console
@@ -85,10 +103,24 @@ Intended flow:
 **Student camera in Minecraft → trusted host → SolariaAI → teacher review → host polling and student agreement.**
 
 - Students use the in-game scanner, not the teacher web page.
-- Only the trusted host sends authenticated API requests. Never give students the token.
+- Only the trusted host sends authenticated API requests. Never give students the token or the exported token file.
 - The host supplies pseudonymous participant IDs and binds scans to active sessions.
-- The host HTTP client reads `SOLARIA_STARTUP_TOKEN` from its process environment. Launch through a process inheriting the retrieved token; an already-running game cannot acquire later environment changes.
+- The host HTTP client reads the credential from its **own process environment**: a nonempty `SOLARIA_STARTUP_TOKEN`, otherwise the file named by `SOLARIA_STARTUP_TOKEN_FILE`. Launch Minecraft from a shell that has those values set; an already-running game or IDE cannot pick up later environment changes.
+- Minecraft 26.1.2 requires **Java 25**. Set `JAVA_HOME` to an installed Java 25 JDK before launching, or the Gradle toolchain fails.
 - Verify the mod configuration and launcher separately. Starting Docker does not configure Minecraft or prove live camera/LAN integration works.
+
+Launch the host from the same PowerShell session that exported the credential, adjusting the JDK path to one installed on the machine:
+
+```powershell
+$env:JAVA_HOME = 'C:/Users/nikla/.jdks/temurin-25.0.4.1'
+$env:Path = "$env:JAVA_HOME/bin;$env:Path"
+Remove-Item Env:SOLARIA_STARTUP_TOKEN -ErrorAction SilentlyContinue
+$env:SOLARIA_STARTUP_TOKEN_FILE = Join-Path $env:LOCALAPPDATA 'Solaria/startup-token.txt'
+if (-not (Test-Path -LiteralPath $env:SOLARIA_STARTUP_TOKEN_FILE)) { throw 'Export the service credential first (section 3)' }
+& D:/Solaria/SolariaMC/gradlew.bat -p D:/Solaria/SolariaMC runClient
+```
+
+In the host world run `/solaria service health` before students scan. It requires the configured teacher permission level (default 2). A missing credential reports `SERVICE_TOKEN_MISSING`; a wrong one reports `UNAUTHORIZED`. For a LAN lesson configure only the computer hosting the world.
 
 Another machine's or container's `127.0.0.1` is not this Windows host. Remote/dedicated-server networking requires separate review.
 
@@ -142,6 +174,7 @@ If another console changed the record, select its row again, inspect the latest 
 ```powershell
 docker compose -f D:/Solaria/SolariaAI/compose.yaml down
 Remove-Item Env:SOLARIA_STARTUP_TOKEN -ErrorAction SilentlyContinue
+Remove-Item Env:SOLARIA_STARTUP_TOKEN_FILE -ErrorAction SilentlyContinue
 ```
 
 **Retention rules:** the newest **200 scans**, thumbnails, decisions, and acknowledgements are memory-only. Records expire after **2 hours**, enforced on access. Restart, recreation, or shutdown discards all reviews. This is not a permanent audit system or dataset collector.
@@ -161,7 +194,10 @@ docker compose -f D:/Solaria/SolariaAI/compose.yaml ps
 | --- | --- |
 | Docker engine/pipe unavailable | Start Docker Desktop and wait for its Linux engine |
 | Port 8000 already in use | Identify and stop the conflicting service; do not expose a LAN binding as a workaround |
-| `UNAUTHORIZED` | Retrieve the current stored token again and reconnect; check that the host inherited the same value |
+| `SERVICE_TOKEN_MISSING` | On the Minecraft host, export the Docker credential, check the private file exists and is readable, set `SOLARIA_STARTUP_TOKEN_FILE`, and relaunch from that environment. Browser sign-in does not pair Minecraft |
+| `UNAUTHORIZED` | Re-export the current service token and reconnect the console; remove any stale `SOLARIA_STARTUP_TOKEN` because it overrides the file |
+| Java / Gradle launch fails | Set `JAVA_HOME` and `Path` to an installed Java 25 JDK; use the repository wrapper and inspect `gradlew.bat --version` output before retrying |
+| Scanner controls or preview clipped | Enlarge the window or lower GUI Scale, then reopen the scanner; responsive preview sizing still needs in-game testing |
 | Empty feed | Check actual game submission and host connectivity; the page never fabricates scans |
 | Original AI label differs from effective label | Expected after a teacher correction; inspect history |
 | `QUALITY_REJECTED` | Improve the capture according to its hint and rescan |
@@ -239,10 +275,12 @@ Minecraft owns camera capture, game networking, session/identity validation, stu
 
 ## 12. Quick teacher checklist
 
-**Before:** Docker running → service healthy → correct mode verified → private token retrieved → console connected → host integration checked.
+**Before:** Docker running → service healthy → correct mode verified → credential exported privately → console connected → Minecraft launched with Java 25 and host token-file environment → `/solaria service health` succeeds → trial capture/submission/review checked.
+
+Share the separate [student guide](STUDENT_GUIDE.md) (`D:/Solaria/SolariaAI/STUDENT_GUIDE.md`), not these administrator credential commands. The scanner now uses a dim background, rounded panels, and an aspect-preserving responsive preview; test it at classroom window sizes and GUI scales. Check that Close/Esc cancels the session and releases the camera.
 
 **During:** verify participant → inspect quality and predictions → approve/correct/reject → check acknowledgement → obtain rescan/student agreement when needed.
 
 **After:** resolve pending cases → disconnect → close the console → shut down deliberately, knowing reviews are lost but pairing credentials remain.
 
-**Repository note:** the existing `D:/Solaria/.gitignore` excludes Markdown files. This guide exists locally but will not appear in normal Git changes unless the repository's documentation tracking policy is changed.
+**Repository note:** `D:/Solaria/.gitignore` ignores new Markdown files. This teacher guide is already tracked, but the new student guide needs an explicit tracking exception or `git add -f` when a maintainer chooses to commit it. No credentials should ever be staged.

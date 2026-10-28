@@ -31,7 +31,7 @@
   "solaria.scan.status.camera_live": "Camera is on. Line up your drawing, then Capture.",
   "solaria.scan.status.captured": "Photo captured locally. Camera is off.",
   "solaria.scan.help.local_preview": "Local preview only. No audio, saving or upload. Close turns off the camera.",
-  "solaria.scan.help.captured": "This photo has not been sent. Classification is not connected yet. Retake discards it.",
+  "solaria.scan.help.captured": "This photo has not been sent. Submit sends it to the teacher's service; Retake discards it.",
   "solaria.scan.help.camera_failed": "Connect a webcam, close other camera apps and Retry. Check Windows camera settings if needed.",
   "solaria.scan.help.camera_unsupported": "The bundled webcam backend currently supports Windows 10/11 only.",
   "solaria.scan.button.camera_settings": "Camera settings",
@@ -56,6 +56,8 @@
   "solaria.scan.help.good_light": "- Make sure the room is well-lit and the drawing fills the view.",
   "solaria.scan.help.press_capture": "- Open camera enables video only. Nothing is saved or sent.",
   "solaria.scan.help.unavailable_detail": "The camera or scanner service is unavailable.",
+  "solaria.scan.help.service_token": "The Minecraft host needs the AI service credential. Signing into the teacher console does not pair Minecraft. Ask the teacher to check /solaria service health.",
+  "solaria.scan.help.service_failed": "The host could not complete this scan. Ask the teacher to check /solaria service health and the review console.",
   "solaria.scan.help.ask_teacher": "Ask your teacher to continue setting up Solaria.",
   "solaria.scan.help.confirm_detail": "Press Build this to travel to the planet, or Retry to scan again.",
   "solaria.scan.command.opening": "Opening Solaria scanner..."

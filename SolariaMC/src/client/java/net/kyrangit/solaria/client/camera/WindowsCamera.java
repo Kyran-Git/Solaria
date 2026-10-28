@@ -134,6 +134,7 @@ public final class WindowsCamera implements AutoCloseable {
 			.redirectError(ProcessBuilder.Redirect.DISCARD);
 		// The camera needs no service credentials. Do not pass the host token to a helper process.
 		builder.environment().remove("SOLARIA_STARTUP_TOKEN");
+		builder.environment().remove("SOLARIA_STARTUP_TOKEN_FILE");
 		return builder.start();
 	}
 

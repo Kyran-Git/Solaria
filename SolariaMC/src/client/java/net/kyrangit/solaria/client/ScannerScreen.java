@@ -354,27 +354,53 @@ public final class ScannerScreen extends Screen {
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
 		int centreX = this.width / 2;
-		int y = 36;
+		int panelWidth = Math.min(660, this.width - 16);
+		int left = centreX - panelWidth / 2;
+		graphics.fill(0, 0, this.width, this.height, 0xB509101D);
+		roundedPanel(graphics, left + 2, 14, panelWidth, this.height - 24, 12, 0x70000000);
+		roundedPanel(graphics, left, 10, panelWidth, this.height - 24, 12, 0xF018263B);
+		roundedPanel(graphics, left + 1, 11, panelWidth - 2, 55, 11, 0xFF203650);
+		graphics.fill(left + 20, 64, left + panelWidth - 20, 65, 0xFF50D6C2);
+		roundedPanel(graphics, left + 8, this.height - 78, panelWidth - 16, 56, 8, 0xFF101C2F);
+		int y = 25;
 		graphics.centeredText(this.font, this.getTitle(), centreX, y, 0xFFFFFFFF);
 		y += LINE_HEIGHT * 2;
-		graphics.centeredText(this.font, statusLine(), centreX, y, 0xFFFFC640);
+		for (var line : this.font.split(statusLine(), Math.max(1, panelWidth - 40))) {
+			graphics.centeredText(this.font, line, centreX, y, 0xFF80E8D7);
+			y += LINE_HEIGHT;
+		}
 		y += LINE_HEIGHT * 2;
 		for (Component bullet : bulletLines()) {
-			for (var line : this.font.split(bullet, Math.max(1, this.width - 32))) {
+			for (var line : this.font.split(bullet, Math.max(1, panelWidth - 40))) {
 				graphics.centeredText(this.font, line, centreX, y, 0xFFCFCFCF);
 				y += LINE_HEIGHT;
 			}
 		}
 		if (preview != null && frame != null) {
-			int availableHeight = this.height - 52 - y;
+			int availableHeight = this.height - 88 - y;
 			if (availableHeight > 16) {
-				double scale = Math.min((this.width - 32.0) / frame.width(), (double) availableHeight / frame.height());
+				double scale = Math.min((panelWidth - 48.0) / frame.width(), (double) availableHeight / frame.height());
 				int w = Math.max(1, (int) (frame.width() * scale));
 				int h = Math.max(1, (int) (frame.height() * scale));
+				roundedPanel(graphics, centreX - w / 2 - 5, y - 5, w + 10, h + 10, 7, 0xFF50D6C2);
 				graphics.blit(PREVIEW_ID, centreX - w / 2, y, centreX - w / 2 + w, y + h, 0, 1, 0, 1);
 			}
+		}
+		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+	}
+
+	/** Scanline-rounded panels, using the game's GUI primitives without extra dependencies. */
+	private static void roundedPanel(GuiGraphicsExtractor graphics, int x, int y, int width, int height,
+		int radius, int color) {
+		if (width <= 0 || height <= 0) return;
+		int r = Math.min(radius, Math.min(width, height) / 2);
+		graphics.fill(x, y + r, x + width, y + height - r, color);
+		for (int row = 0; row < r; row++) {
+			double dy = r - row - 0.5;
+			int inset = (int) Math.ceil(r - Math.sqrt(r * r - dy * dy));
+			graphics.fill(x + inset, y + row, x + width - inset, y + row + 1, color);
+			graphics.fill(x + inset, y + height - row - 1, x + width - inset, y + height - row, color);
 		}
 	}
 
@@ -414,7 +440,12 @@ public final class ScannerScreen extends Screen {
 				Component.translatable("solaria.scan.help.good_light"),
 				Component.translatable("solaria.scan.help.press_capture")
 			};
-			case UNAVAILABLE -> new Component[]{
+			case UNAVAILABLE -> cameraFailure == null ? new Component[]{
+				Component.translatable(state.reasonCode() == ReasonCode.SERVICE_TOKEN_MISSING
+					|| state.reasonCode() == ReasonCode.UNAUTHORIZED
+					? "solaria.scan.help.service_token" : "solaria.scan.help.service_failed"),
+				Component.translatable("solaria.scan.help.ask_teacher")
+			} : new Component[]{
 				Component.translatable(cameraFailure == WindowsCamera.Failure.UNSUPPORTED
 					? "solaria.scan.help.camera_unsupported" : "solaria.scan.help.camera_failed").withStyle(ChatFormatting.GRAY),
 				Component.translatable("solaria.scan.help.ask_teacher")

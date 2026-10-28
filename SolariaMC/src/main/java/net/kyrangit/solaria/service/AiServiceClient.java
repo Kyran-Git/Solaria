@@ -70,7 +70,7 @@ public final class AiServiceClient implements AutoCloseable {
 
 	/** Environment read only on host-side command/session creation, never from a client payload. */
 	public static AiServiceClient fromEnvironment(SolariaConfig config) throws ServiceException {
-		return new AiServiceClient(config, System.getenv("SOLARIA_STARTUP_TOKEN"));
+		return new AiServiceClient(config, HostServiceToken.load(System.getenv()));
 	}
 
 	public RuntimeResponses.Health health() throws ServiceException {
