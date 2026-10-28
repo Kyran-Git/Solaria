@@ -20,8 +20,10 @@ services:
     environment:
       SOLARIA_STARTUP_TOKEN_FILE: /var/lib/solaria/startup-token.txt
     # Generated once, private to the service user; survives container replacement.
+    # Host-bound so the token file is directly browsable at SolariaAI/.credentials/
+    # instead of only reachable through `docker cp` on a Docker-managed volume.
     volumes:
-      - service-credentials:/var/lib/solaria
+      - ./.credentials:/var/lib/solaria
     ports:
       - "127.0.0.1:8000:8000"
     command: ["--mock"]
@@ -35,6 +37,5 @@ services:
     stop_grace_period: 30s
 
 # Credential only: reviews and drawings are never persisted here.
-# Do not use `docker compose down --volumes` unless intentionally resetting pairing.
-volumes:
-  service-credentials:
+# The token lives on the host at SolariaAI/.credentials/startup-token.txt (bind
+# mount above), not in a Docker-managed volume. Deleting that folder resets pairing.
