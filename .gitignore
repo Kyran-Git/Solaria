@@ -64,7 +64,6 @@ dist/
 # SolariaAI
 # Private reusable API credentials (including manually exported copies).
 startup-token.txt
-SolariaAI/.credentials/
 SolariaAI/.pytest_cache/
 SolariaAI/.ruff_cache/
 SolariaAI/data/

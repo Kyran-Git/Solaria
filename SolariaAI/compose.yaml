@@ -1,4 +1,3 @@
-
 # One service serves both the inference/review API and teacher web console.
 # Student capture stays in Minecraft. No training-dataset or review-data volumes:
 # Reviews/thumbnails and revision-bound host acknowledgements are volatile
@@ -20,10 +19,8 @@ services:
     environment:
       SOLARIA_STARTUP_TOKEN_FILE: /var/lib/solaria/startup-token.txt
     # Generated once, private to the service user; survives container replacement.
-    # Host-bound so the token file is directly browsable at SolariaAI/.credentials/
-    # instead of only reachable through `docker cp` on a Docker-managed volume.
     volumes:
-      - ./.credentials:/var/lib/solaria
+      - service-credentials:/var/lib/solaria
     ports:
       - "127.0.0.1:8000:8000"
     command: ["--mock"]
@@ -37,5 +34,6 @@ services:
     stop_grace_period: 30s
 
 # Credential only: reviews and drawings are never persisted here.
-# The token lives on the host at SolariaAI/.credentials/startup-token.txt (bind
-# mount above), not in a Docker-managed volume. Deleting that folder resets pairing.
+# Do not use `docker compose down --volumes` unless intentionally resetting pairing.
+volumes:
+  service-credentials:
