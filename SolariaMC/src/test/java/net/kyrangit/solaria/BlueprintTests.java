@@ -38,6 +38,7 @@ public final class BlueprintTests {
 		testPaletteSafety();
 		testDeterminism();
 		testCapEnforced();
+		testScaledCapExamples();
 		testCapExceededWhenImpossible();
 		testInvalidInputs();
 		testAllClassesEmitVoxels();
@@ -113,33 +114,38 @@ public final class BlueprintTests {
 	// ------------------------------------------------------------------ Cap enforcement
 
 	private static void testCapEnforced() {
-		// At scale 0.001 the smallest class (mercury, base 301) gives diameter 1 → 3 (min clamp).
-		// At scale 1.0 sun (base 1001) gives extent 1001, well under 1536.
-		// Ring planets: Saturn at scale 1.0 gives extent ≈ ceil(861*1.9)=1636 > 1536 → CAP_EXCEEDED.
-		// Saturn at scale 0.9 gives base diameter 775, extent ≈ ceil(775*1.9)=1473 ≤ 1536 → ok.
+		for (AstronomyClass cls : AstronomyClass.values()) {
+			Blueprint bp = BlueprintGenerator.generate(cls, 1.0);
+			double factor = cls == AstronomyClass.SATURN ? 1.9 : cls == AstronomyClass.URANUS ? 1.6 : 1.0;
+			check(Math.ceil(bp.diameter() * factor) <= 500, "default including rings fits 500: " + cls.id());
+		}
+	}
+
+	private static void testScaledCapExamples() {
+		// Ringed bodies fit by default; explicitly enlarged requests must still reject.
 		Blueprint saturnOk = BlueprintGenerator.generate(AstronomyClass.SATURN, 0.9);
 		check(saturnOk != null, "saturn at 0.9 scale accepted");
 		check(saturnOk.diameter() > 0, "saturn diameter positive");
 
 		try {
-			BlueprintGenerator.generate(AstronomyClass.SATURN, 1.0);
-			throw new AssertionError("saturn at scale 1.0 should exceed cap");
+			BlueprintGenerator.generate(AstronomyClass.SATURN, 1.1);
+			throw new AssertionError("saturn at scale 1.1 should exceed cap");
 		} catch (BlueprintException e) {
-			check(e.reasonCode() == ReasonCode.CAP_EXCEEDED, "CAP_EXCEEDED for saturn at 1.0");
+			check(e.reasonCode() == ReasonCode.CAP_EXCEEDED, "CAP_EXCEEDED for saturn at 1.1");
 			check(e.getMessage().contains("saturn"), "error message names the class");
 		}
 
-		// Sun at scale 1.0 → extent 1001 ≤ 1536 → accepted.
+		// Sun at scale 1.0 has a 499-block diameter.
 		Blueprint sunOk = BlueprintGenerator.generate(AstronomyClass.SUN, 1.0);
-		check(sunOk != null && sunOk.diameter() == 1001, "sun at 1.0 accepted with correct diameter");
+		check(sunOk != null && sunOk.diameter() == 499, "sun at 1.0 accepted with correct diameter");
 
-		// Uranus at scale 1.0 → extent ≈ ceil(721*1.6)=1154 ≤ 1536 → accepted.
+		// Uranus including rings fits the default envelope.
 		Blueprint uranusOk = BlueprintGenerator.generate(AstronomyClass.URANUS, 1.0);
 		check(uranusOk != null, "uranus at 1.0 scale accepted");
 	}
 
 	private static void testCapExceededWhenImpossible() {
-		// Very large scale: Sun at 2.0 → diameter 2003, extent 2003 > 1536 → CAP_EXCEEDED.
+		// Doubling the Sun exceeds the 500-block envelope.
 		try {
 			BlueprintGenerator.generate(AstronomyClass.SUN, 2.0);
 			throw new AssertionError("expected CAP_EXCEEDED for sun at scale 2.0");

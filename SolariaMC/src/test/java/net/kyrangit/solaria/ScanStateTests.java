@@ -15,6 +15,7 @@ public final class ScanStateTests {
 
 	public static void main(String[] args) {
 		testIdleIsClean();
+		testUploadBounds();
 		testLocalCaptureLifecycle();
 		testRetryFromUnavailableGoesIdle();
 		testCloseAlwaysReturnsIdle();
@@ -27,6 +28,25 @@ public final class ScanStateTests {
 		testConfidenceBoundsRejected();
 		testStateImmutable();
 		System.out.println("Plumbing check (synthetic): " + assertions + " scanner assertions passed.");
+	}
+
+	private static void testUploadBounds() {
+		var upload = new net.kyrangit.solaria.scan.ScanUpload(4, 4, 2, 100);
+		check(!upload.append(0, new byte[]{1, 2}, 1), "partial upload");
+		expectIllegalArg(() -> upload.append(0, new byte[]{3}, 2), "duplicate chunk");
+		expectIllegalArg(() -> upload.append(1, new byte[]{3, 4, 5}, 2), "byte overflow");
+		check(upload.append(1, new byte[]{3, 4}, 2), "exact completion");
+		check(java.util.Arrays.equals(upload.finish(), new byte[]{1, 2, 3, 4}), "ordered bytes");
+		expectIllegalArg(() -> upload.append(2, new byte[]{5}, 3), "post completion");
+		expectIllegalArg(() -> new net.kyrangit.solaria.scan.ScanUpload(5, 4, 2, 100), "size policy");
+		var expired = new net.kyrangit.solaria.scan.ScanUpload(1, 4, 2, 10);
+		expectIllegalArg(() -> expired.append(0, new byte[]{1}, 10), "deadline");
+		var chunkCount = new net.kyrangit.solaria.scan.ScanUpload(2, 4, 1, 100);
+		chunkCount.append(0, new byte[]{1}, 1);
+		expectIllegalArg(() -> chunkCount.append(1, new byte[]{2}, 2), "chunk count policy");
+		ScanState captured = ScanState.idle().transition(ScanAction.START_CAPTURE).withCapturedFrame();
+		check(captured.submit().status() == ScanState.Status.UPLOADING, "explicit submission");
+		expectIllegal(() -> ScanState.idle().submit(), "no submission before capture");
 	}
 
 	private static void testIdleIsClean() {

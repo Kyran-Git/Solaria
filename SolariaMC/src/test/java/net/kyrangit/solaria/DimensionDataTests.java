@@ -101,7 +101,12 @@ public final class DimensionDataTests {
 		check(json.has("has_ender_dragon_fight"),
 			name + ": declares has_ender_dragon_fight (26.x required field)");
 
-		check(type.height() >= 16, name + ": height is at least 16");
+		check(type.height() == 512 && type.minY() == -256, name + ": centred 512-block vertical range");
+		for (var cls : net.kyrangit.solaria.blueprint.AstronomyClass.values()) {
+			var blueprint = net.kyrangit.solaria.blueprint.BlueprintGenerator.generate(cls, 1.0);
+			check(blueprint.diameter() / 2 < type.minY() + type.height()
+				&& -blueprint.diameter() / 2 >= type.minY(), name + ": default body fits: " + cls.id());
+		}
 		check(type.height() % 16 == 0, name + ": height is a multiple of 16");
 		check(type.minY() % 16 == 0, name + ": min_y is a multiple of 16");
 		check(type.logicalHeight() <= type.height(),
