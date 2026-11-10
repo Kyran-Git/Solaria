@@ -380,13 +380,38 @@ public final class ScannerScreen extends Screen {
 		int left = (this.width - panelWidth) / 2;
 		int bottom = this.height - 68;
 		graphics.fill(0, 0, this.width, this.height, 0xD509101D);
+		long now = System.currentTimeMillis();
+		for (int i = 0; i < 70; i++) {
+			int sx = Math.floorMod(i * 7919 + (int) (now / (90 + i % 3 * 70)), Math.max(1, this.width));
+			int sy = Math.floorMod(i * 104729, Math.max(1, this.height));
+			graphics.fill(sx, sy, sx + 1 + i % 2, sy + 1 + i % 2, i % 5 == 0 ? 0xFFFFF4C0 : 0xA0DDEBFF);
+		}
 		roundedPanel(graphics, left, 8, panelWidth, this.height - 16, 8, 0xF018263B);
+		frameBorder(graphics, left + 2, 10, panelWidth - 4, this.height - 20, 0xFF2D6E78);
 		graphics.centeredText(this.font, Component.literal("SOLARIA / OBSERVATORY"), this.width / 2, 16, 0xFF80E8D7);
 		int textWidth = Math.max(1, panelWidth - 24);
 		int y = 32;
-		for (var line : this.font.split(Component.literal("Capture > Analyze > Review > Build"), textWidth)) {
-			if (y + LINE_HEIGHT > bottom) break;
-			graphics.centeredText(this.font, line, this.width / 2, y, 0xFFCFCFCF); y += LINE_HEIGHT;
+		String[] stages = {"Captured", "Classified", "Approved", "Built"};
+		int reached = stageReached();
+		int chipGap = 4;
+		int chipsWidth = -chipGap;
+		for (String stage : stages) chipsWidth += this.font.width(stage) + 8 + chipGap;
+		if (chipsWidth <= textWidth && y + 12 <= bottom) {
+			int cx = (this.width - chipsWidth) / 2;
+			for (int i = 0; i < stages.length; i++) {
+				int cw = this.font.width(stages[i]) + 8;
+				int fill = i < reached ? 0xFF1F6B45 : i == reached ? 0xFF6B5A1F : 0xFF22303F;
+				graphics.fill(cx, y, cx + cw, y + 11, fill);
+				frameBorder(graphics, cx, y, cw, 11, i < reached ? 0xFF55D17A : 0xFF3F5468);
+				graphics.text(this.font, stages[i], cx + 4, y + 2, i <= reached ? 0xFFFFFFFF : 0xFF8CA0B4);
+				cx += cw + chipGap;
+			}
+			y += 14;
+		} else {
+			for (var line : this.font.split(Component.literal(String.join(" > ", stages)), textWidth)) {
+				if (y + LINE_HEIGHT > bottom) break;
+				graphics.centeredText(this.font, line, this.width / 2, y, 0xFFCFCFCF); y += LINE_HEIGHT;
+			}
 		}
 		String confidence = state.predictedClass() == null ? "Confidence: pending" :
 			planetName() + " / Confidence: " + Math.round(state.confidence() * 100) + "%";
@@ -400,6 +425,14 @@ public final class ScannerScreen extends Screen {
 			if (statusBudget-- <= 0) break;
 			graphics.centeredText(this.font, line, this.width / 2, y, 0xFFFFFFFF); y += LINE_HEIGHT;
 		}
+		if (state.predictedClass() != null && y + 8 < bottom) {
+			int meterWidth = Math.min(220, textWidth);
+			int mx = (this.width - meterWidth) / 2;
+			graphics.fill(mx, y + 1, mx + meterWidth, y + 6, 0xFF0C1420);
+			int filled = (int) (meterWidth * Math.max(0f, Math.min(1f, state.confidence())));
+			graphics.fill(mx, y + 1, mx + filled, y + 6, qualityAccepted ? 0xFF55D17A : 0xFFE3A33A);
+			y += 8;
+		}
 		y += 6;
 		if (preview != null && frame != null && bottom - y > 20) {
 			double scale = Math.min((panelWidth - 24.0) / frame.width(), (bottom - y - 6.0) / frame.height());
@@ -407,6 +440,16 @@ public final class ScannerScreen extends Screen {
 			int h = Math.max(1, (int) (frame.height() * scale));
 			int x = (this.width - w) / 2;
 			graphics.blit(PREVIEW_ID, x, y, x + w, y + h, 0, 1, 0, 1);
+			int corner = Math.max(6, Math.min(w, h) / 8);
+			int bracket = 0xFF80E8D7;
+			graphics.fill(x - 2, y - 2, x + corner, y, bracket); graphics.fill(x - 2, y - 2, x, y + corner, bracket);
+			graphics.fill(x + w - corner, y - 2, x + w + 2, y, bracket); graphics.fill(x + w, y - 2, x + w + 2, y + corner, bracket);
+			graphics.fill(x - 2, y + h, x + corner, y + h + 2, bracket); graphics.fill(x - 2, y + h - corner, x, y + h + 2, bracket);
+			graphics.fill(x + w - corner, y + h, x + w + 2, y + h + 2, bracket); graphics.fill(x + w, y + h - corner, x + w + 2, y + h + 2, bracket);
+			if (state.status() == ScanState.Status.CAPTURING || state.status() == ScanState.Status.CLASSIFYING) {
+				int sweep = y + (int) ((now / 12) % Math.max(1, h));
+				graphics.fill(x, sweep, x + w, Math.min(y + h, sweep + 2), 0x9080E8D7);
+			}
 		} else {
 			for (Component bullet : bulletLines()) {
 				for (var line : this.font.split(bullet, textWidth)) {
@@ -417,6 +460,25 @@ public final class ScannerScreen extends Screen {
 		}
 		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
 	}
+
+	private int stageReached() {
+		return switch (state.status()) {
+			case IDLE, CAPTURING, UNAVAILABLE -> 0;
+			case CAPTURED, UPLOADING, CLASSIFYING -> 1;
+			case AWAITING_STUDENT_CONFIRM -> studentAgreed && teacherApproved ? 3 : 2;
+			case BUILDING -> 3;
+			case DONE -> 4;
+		};
+	}
+
+	private static void frameBorder(GuiGraphicsExtractor graphics, int x, int y, int width, int height, int color) {
+		if (width <= 2 || height <= 2) return;
+		graphics.fill(x, y, x + width, y + 1, color);
+		graphics.fill(x, y + height - 1, x + width, y + height, color);
+		graphics.fill(x, y, x + 1, y + height, color);
+		graphics.fill(x + width - 1, y, x + width, y + height, color);
+	}
+
 	/** Scanline-rounded panels, using the game's GUI primitives without extra dependencies. */
 	private static void roundedPanel(GuiGraphicsExtractor graphics, int x, int y, int width, int height,
 		int radius, int color) {

@@ -111,7 +111,7 @@ public final class SolariaCommands {
 					if (authorized(source, config)) source.sendSuccess(() -> Component.literal(
 						"AI service ready: api_v1, ten matching classes, threshold=" + health.threshold()
 							+ (health.mock() ? ". MOCK: synthetic predictions, not drawing recognition." : ". Model loaded.")
-							+ " Scanner capture/relay and planet generation are not wired yet."), false);
+							+ " Approved scans can Build and travel to their body dimension."), false);
 				});
 			} catch (ServiceException error) {
 				PrivacyLog.failure(error.reasonCode());
