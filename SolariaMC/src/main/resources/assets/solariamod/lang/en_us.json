@@ -60,7 +60,10 @@
   "solaria.scan.help.service_failed": "The host could not complete this scan. Ask the teacher to check /solaria service health and the review console.",
   "solaria.scan.help.ask_teacher": "Ask your teacher to continue setting up Solaria.",
   "solaria.scan.help.confirm_detail": "Press Build this to travel to the planet, or Retry to scan again.",
-  "solaria.scan.command.opening": "Opening Solaria scanner..."
+  "solaria.scan.command.opening": "Opening Solaria scanner...",
+  "dimension.solariamod.intro_hub": "Solaria Academy",
+  "solaria.intro.scanner_locked": "Complete the Solaria Academy mission to unlock the scanner.",
+  "solaria.scan.help.intro_required": "Answer the three Academy stations, then try again. /solaria intro status shows your progress."
 }
 
 
