@@ -79,7 +79,9 @@ Do not generate an unrelated host token. Setting a PowerShell environment variab
 Optional authenticated health check:
 
 ```powershell
-$token = (Get-Content -LiteralPath $env:SOLARIA_STARTUP_TOKEN_FILE -Raw).Trim()
+# Uses the token loaded into this PowerShell session above.
+$token = $env:SOLARIA_STARTUP_TOKEN
+if ([string]::IsNullOrWhiteSpace($token)) { throw 'Load the current container token first (section 3)' }
 try {
     Invoke-RestMethod -Uri 'http://127.0.0.1:8000/v1/health' -Headers @{ Authorization = "Bearer $token" }
 } finally {
@@ -291,4 +293,4 @@ Share the separate [student guide](STUDENT_GUIDE.md) (`D:/Solaria/SolariaAI/STUD
 
 **After:** resolve pending cases â†’ disconnect â†’ close the console â†’ shut down deliberately, knowing reviews are lost but pairing credentials remain.
 
-**Repository note:** `D:/Solaria/.gitignore` ignores new Markdown files. This teacher guide is already tracked, but the new student guide needs an explicit tracking exception or `git add -f` when a maintainer chooses to commit it. No credentials should ever be staged.
+**Repository note:** both this teacher guide and `D:/Solaria/SolariaAI/STUDENT_GUIDE.md` are tracked. `D:/Solaria/.gitignore` ignores new Markdown files, so additional guides may need an explicit tracking exception. No credentials should ever be staged.
