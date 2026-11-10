@@ -203,6 +203,13 @@ public final class SolariaCommands {
 		arrived.getAbilities().flying = true;
 		arrived.onUpdateAbilities();
 		final String display = capitalize(cls.id());
+		arrived.connection.send(new net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket(
+			Component.literal("Creative flight • /solaria return to go back")));
+		if (!net.kyrangit.solaria.SolariaMod.config().current().lowEffects()) {
+			((ServerLevel) arrived.level()).sendParticles(arrived,
+				net.minecraft.core.particles.ParticleTypes.END_ROD, true, false,
+				arrived.getX(), arrived.getY() + 1, arrived.getZ(), 12, 1, 1, 1, 0.02);
+		}
         arrived.connection.send(new net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket(Component.literal(display)));
         arrived.level().playSound(null, arrived.blockPosition(), net.minecraft.sounds.SoundEvents.EXPERIENCE_ORB_PICKUP,
             net.minecraft.sounds.SoundSource.PLAYERS, 0.6f, 1.2f);

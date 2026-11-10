@@ -1,0 +1,23 @@
+﻿{
+    "criteria":  {
+                     "visit":  {
+                                   "trigger":  "minecraft:changed_dimension",
+                                   "conditions":  {
+                                                      "to":  "solariamod:sun"
+                                                  }
+                               }
+                 },
+    "display":  {
+                    "show_toast":  true,
+                    "icon":  {
+                                 "id":  "minecraft:spyglass"
+                             },
+                    "description":  {
+                                        "text":  "Explore sun in creative flight"
+                                    },
+                    "announce_to_chat":  false,
+                    "title":  {
+                                  "text":  "sun Explorer"
+                              }
+                }
+}

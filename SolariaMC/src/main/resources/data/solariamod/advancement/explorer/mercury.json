@@ -1,0 +1,23 @@
+﻿{
+    "criteria":  {
+                     "visit":  {
+                                   "trigger":  "minecraft:changed_dimension",
+                                   "conditions":  {
+                                                      "to":  "solariamod:mercury"
+                                                  }
+                               }
+                 },
+    "display":  {
+                    "show_toast":  true,
+                    "icon":  {
+                                 "id":  "minecraft:spyglass"
+                             },
+                    "description":  {
+                                        "text":  "Explore mercury in creative flight"
+                                    },
+                    "announce_to_chat":  false,
+                    "title":  {
+                                  "text":  "mercury Explorer"
+                              }
+                }
+}

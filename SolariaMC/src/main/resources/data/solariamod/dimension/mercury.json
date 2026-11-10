@@ -1,9 +1,9 @@
 ﻿{
-  "type": "solariamod:planet_space",
-  "generator": {
-    "type": "solariamod:planet",
-    "biome": "minecraft:the_void",
-    "planet": "mercury",
-    "scale": 1.0
-  }
+    "type":  "solariamod:mercury",
+    "generator":  {
+                      "type":  "solariamod:planet",
+                      "biome":  "solariamod:mercury",
+                      "planet":  "mercury",
+                      "scale":  1.0
+                  }
 }

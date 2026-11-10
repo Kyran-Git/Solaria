@@ -1,0 +1,35 @@
+{
+  "spawners": {},
+  "temperature": 0.5,
+  "carvers": [],
+  "has_precipitation": false,
+  "effects": {
+    "water_color": "#3f76e4"
+  },
+  "features": [
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [],
+    []
+  ],
+  "spawn_costs": {},
+  "attributes": {
+    "minecraft:visual/cloud_color": "#00000000",
+    "minecraft:visual/sky_color": "#030c29",
+    "minecraft:visual/sun_angle": 180,
+    "minecraft:visual/fog_end_distance": 100,
+    "minecraft:visual/fog_color": "#3159a1",
+    "minecraft:visual/star_brightness": 0.8,
+    "minecraft:audio/ambient_sounds": {
+      "loop": "minecraft:ambient.underwater.loop"
+    }
+  },
+  "downfall": 0
+}

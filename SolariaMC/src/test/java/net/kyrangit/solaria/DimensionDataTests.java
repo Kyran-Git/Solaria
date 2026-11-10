@@ -146,6 +146,13 @@ public final class DimensionDataTests {
 		check(planet.equals(strippedName(file)),
 			name + ": planet id matches the dimension file name (" + planet + ")");
 		check(generator.has("biome"), name + ": declares a fixed biome");
+		check(generator.get("biome").getAsString().equals("solariamod:" + planet), name + ": own biome");
+		var biomeFile = file.getParent().getParent().resolve("worldgen").resolve("biome").resolve(planet + ".json");
+		var biomeJson = readObject(biomeFile);
+		var biomeOps = net.minecraft.data.registries.VanillaRegistries.createLookup()
+			.createSerializationContext(JsonOps.INSTANCE);
+		check(net.minecraft.world.level.biome.Biome.DIRECT_CODEC.parse(biomeOps, biomeJson).error().isEmpty(),
+			name + ": biome accepted by Minecraft codec");
 
 		// Scale is optional in the codec, but when present it must be buildable: the
 		// generator rejects an over-cap scale with CAP_EXCEEDED at world load, not in game.

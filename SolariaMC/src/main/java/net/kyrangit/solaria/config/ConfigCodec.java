@@ -20,7 +20,7 @@ public final class ConfigCodec {
 	private static final Set<String> FIELDS = Set.of("service_url", "connect_timeout_ms", "request_timeout_ms",
 		"teacher_permission_level", "allow_manual_label_on_low_confidence", "blocks_per_tick",
 		"build_anchor_offset", "max_extent_blocks", "blocks_per_unit", "scan_from_file_enabled",
-		"max_scan_bytes", "max_scan_chunks", "scan_chunk_timeout_ms");
+		"max_scan_bytes", "max_scan_chunks", "scan_chunk_timeout_ms", "low_effects");
 
 	private ConfigCodec() {
 	}
@@ -65,7 +65,8 @@ public final class ConfigCodec {
 			bool(object, "scan_from_file_enabled", defaults.scanFromFileEnabled()),
 			integer(object, "max_scan_bytes", defaults.maxScanBytes(), 65536, 16 * 1024 * 1024),
 			integer(object, "max_scan_chunks", defaults.maxScanChunks(), 1, 2048),
-			integer(object, "scan_chunk_timeout_ms", defaults.scanChunkTimeoutMs(), 1000, 120000));
+			integer(object, "scan_chunk_timeout_ms", defaults.scanChunkTimeoutMs(), 1000, 120000),
+			bool(object, "low_effects", defaults.lowEffects()));
 	}
 
 	private static JsonObject readObject(JsonReader reader) throws IOException, ConfigException {
@@ -173,6 +174,7 @@ public final class ConfigCodec {
 		object.addProperty("max_scan_bytes", config.maxScanBytes());
 		object.addProperty("max_scan_chunks", config.maxScanChunks());
 		object.addProperty("scan_chunk_timeout_ms", config.scanChunkTimeoutMs());
+		object.addProperty("low_effects", config.lowEffects());
 		return GSON.toJson(object) + "\n";
 	}
 }

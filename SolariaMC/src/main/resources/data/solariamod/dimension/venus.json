@@ -1,9 +1,9 @@
 ﻿{
-  "type": "solariamod:planet_space",
-  "generator": {
-    "type": "solariamod:planet",
-    "biome": "minecraft:the_void",
-    "planet": "venus",
-    "scale": 1.0
-  }
+    "type":  "solariamod:venus",
+    "generator":  {
+                      "type":  "solariamod:planet",
+                      "biome":  "solariamod:venus",
+                      "planet":  "venus",
+                      "scale":  1.0
+                  }
 }

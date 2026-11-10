@@ -19,6 +19,10 @@ public final class FoundationTests {
 	public static void main(String[] args) throws Exception {
 		SolariaConfig defaults = SolariaConfig.defaults();
 		check(defaults.maxExtentBlocks() == 500, "500-block default envelope");
+		check(!defaults.lowEffects(), "Full effects default");
+		var reduced = ConfigCodec.parse("{\"low_effects\":true}");
+		check(reduced.lowEffects(), "Reduced effects configurable");
+		check(ConfigCodec.parse(ConfigCodec.encode(reduced)).equals(reduced), "Effects roundtrip");
 		var upload = ConfigCodec.parse("{\"max_scan_bytes\":65536,\"max_scan_chunks\":8,\"scan_chunk_timeout_ms\":2000}");
 		check(upload.maxScanBytes() == 65536 && upload.maxScanChunks() == 8 && upload.scanChunkTimeoutMs() == 2000,
 			"upload policy configurable");

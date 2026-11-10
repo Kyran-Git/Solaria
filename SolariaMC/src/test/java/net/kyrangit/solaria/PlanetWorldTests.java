@@ -74,6 +74,10 @@ public final class PlanetWorldTests {
         var file = Path.of("src/main/resources/data/solariamod/dimension/" + cls.id() + ".json");
         var generatorJson = JsonParser.parseString(Files.readString(file))
             .getAsJsonObject().get("generator");
+        check(generatorJson.getAsJsonObject().get("biome").getAsString().equals("solariamod:" + cls.id()),
+            cls.id() + ": own biome reference");
+        // This isolated generator test uses the vanilla registry, not the datapack loader.
+        generatorJson.getAsJsonObject().addProperty("biome", "minecraft:the_void");
         var shipped = PlanetChunkGenerator.CODEC.codec().parse(ops, generatorJson).getOrThrow();
         check(shipped.blueprint().astronomyClass() == cls,
             cls.id() + ".json decodes to its own class");

@@ -22,7 +22,8 @@ public record SolariaConfig(
 	boolean scanFromFileEnabled,
 	int maxScanBytes,
 	int maxScanChunks,
-	int scanChunkTimeoutMs
+	int scanChunkTimeoutMs,
+	boolean lowEffects
 ) {
 	/** Compatibility constructor for existing callers; upload policy is host configurable. */
 	public SolariaConfig(URI serviceUrl, int connectTimeoutMs, int requestTimeoutMs,
@@ -30,7 +31,17 @@ public record SolariaConfig(
 		AnchorOffset buildAnchorOffset, int maxExtentBlocks, double blocksPerUnit, boolean scanFromFileEnabled) {
 		this(serviceUrl, connectTimeoutMs, requestTimeoutMs, teacherPermissionLevel,
 			allowManualLabelOnLowConfidence, blocksPerTick, buildAnchorOffset, maxExtentBlocks,
-			blocksPerUnit, scanFromFileEnabled, 2 * 1024 * 1024, 256, 15000);
+			blocksPerUnit, scanFromFileEnabled, 2 * 1024 * 1024, 256, 15000, false);
+	}
+
+	/** Compatibility constructor for callers written before the effects switch existed. */
+	public SolariaConfig(URI serviceUrl, int connectTimeoutMs, int requestTimeoutMs,
+		int teacherPermissionLevel, boolean allowManualLabelOnLowConfidence, int blocksPerTick,
+		AnchorOffset buildAnchorOffset, int maxExtentBlocks, double blocksPerUnit, boolean scanFromFileEnabled,
+		int maxScanBytes, int maxScanChunks, int scanChunkTimeoutMs) {
+		this(serviceUrl, connectTimeoutMs, requestTimeoutMs, teacherPermissionLevel,
+			allowManualLabelOnLowConfidence, blocksPerTick, buildAnchorOffset, maxExtentBlocks,
+			blocksPerUnit, scanFromFileEnabled, maxScanBytes, maxScanChunks, scanChunkTimeoutMs, false);
 	}
 	public record AnchorOffset(int x, int y, int z) {
 	}

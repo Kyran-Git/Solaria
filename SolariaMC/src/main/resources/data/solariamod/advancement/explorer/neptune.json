@@ -1,0 +1,23 @@
+﻿{
+    "criteria":  {
+                     "visit":  {
+                                   "trigger":  "minecraft:changed_dimension",
+                                   "conditions":  {
+                                                      "to":  "solariamod:neptune"
+                                                  }
+                               }
+                 },
+    "display":  {
+                    "show_toast":  true,
+                    "icon":  {
+                                 "id":  "minecraft:spyglass"
+                             },
+                    "description":  {
+                                        "text":  "Explore neptune in creative flight"
+                                    },
+                    "announce_to_chat":  false,
+                    "title":  {
+                                  "text":  "neptune Explorer"
+                              }
+                }
+}

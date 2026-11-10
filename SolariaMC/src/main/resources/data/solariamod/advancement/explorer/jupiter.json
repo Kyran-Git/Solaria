@@ -1,0 +1,23 @@
+﻿{
+    "criteria":  {
+                     "visit":  {
+                                   "trigger":  "minecraft:changed_dimension",
+                                   "conditions":  {
+                                                      "to":  "solariamod:jupiter"
+                                                  }
+                               }
+                 },
+    "display":  {
+                    "show_toast":  true,
+                    "icon":  {
+                                 "id":  "minecraft:spyglass"
+                             },
+                    "description":  {
+                                        "text":  "Explore jupiter in creative flight"
+                                    },
+                    "announce_to_chat":  false,
+                    "title":  {
+                                  "text":  "jupiter Explorer"
+                              }
+                }
+}
