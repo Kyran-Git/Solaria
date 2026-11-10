@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "jetbrains": {
+      "type": "stdio",
+      "command": "cmd.exe",
+      "args": ["/d", "/c", "D:\\Solaria\\tools\\mcp\\jetbrains-mcp.cmd"],
+      "env": {
+        "IJ_MCP_SERVER_PROJECT_PATH": "D:\\Solaria\\SolariaMC"
+      }
+    }
+  }
+}
