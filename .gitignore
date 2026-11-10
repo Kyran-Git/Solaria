@@ -126,3 +126,10 @@ SolariaMC/logs/
 # requirements-service.txt is intentionally not re-included.
 !/SolariaAI/requirements.txt
 !/SolariaAI/requirements-base.txt
+SolariaMC/logs/2026-11-10-1.log.gz
+SolariaMC/logs/2026-11-10-2.log.gz
+SolariaMC/logs/2026-11-10-3.log.gz
+SolariaMC/logs/2026-11-10-4.log.gz
+SolariaMC/logs/2026-11-10-5.log.gz
+SolariaMC/logs/2026-11-10-6.log.gz
+SolariaMC/logs/2026-11-10-7.log.gz
