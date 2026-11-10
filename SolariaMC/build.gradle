@@ -252,6 +252,18 @@ tasks.register('reviewGateTest', JavaExec) {
 	mainClass = 'net.kyrangit.solaria.ReviewGateTests'
 }
 
+tasks.register('buildTravelTest', JavaExec) {
+    group = 'verification'
+    description = 'Checks authoritative Build payload and ten distinct dimension lookups without loading worlds.'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'net.kyrangit.solaria.BuildTravelTests'
+    jvmArgs '--sun-misc-unsafe-memory-access=allow'
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
 tasks.register('planetWorldTest', JavaExec) {
 	group = 'verification'
 	description = 'Generates real chunks from the shipped planet dimensions and compares them with the blueprints (synthetic).'
@@ -278,7 +290,7 @@ tasks.register('introHubTest', JavaExec) {
 }
 
 tasks.named('test') {
-	dependsOn reviewGateTest
+	dependsOn reviewGateTest, buildTravelTest
 	dependsOn foundationTest, wikiStructureTest, blueprintTest, scanStateTest, cameraAccessTest, webcamTest, dimensionDataTest, serviceClientTest, planetWorldTest, introHubTest
 	// Tests use a Java main runner rather than a JUnit engine.
 	exclude '**/*'

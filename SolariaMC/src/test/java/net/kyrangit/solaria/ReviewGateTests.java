@@ -32,6 +32,15 @@ public final class ReviewGateTests {
         check(!low.agree(0), "Unknown label cannot be accepted");
         check(low.apply(1, AstronomyClass.MOON, true), "Teacher resolves low confidence");
         check(!low.ready() && low.agree(1) && low.ready(), "Low confidence needs explicit consent");
+        check(!low.canBuild(0) && low.canBuild(1), "Build must match current host revision");
+        check(low.built(1) && low.isBuilt(), "Successful build consumes revision");
+        check(!low.canBuild(1) && !low.built(1), "Duplicate Build cannot teleport twice");
+        check(low.apply(2, AstronomyClass.MOON, true) && !low.consent(), "Rebuild needs fresh consent even for same label");
+        check(!low.canBuild(2) && low.agree(2) && low.canBuild(2), "Rebuild requires both approvals");
+        var poorQuality = new ReviewGate(null, false, false);
+        check(poorQuality.apply(1, AstronomyClass.EARTH, true), "Teacher decision is retained for poor quality");
+        check(poorQuality.agree(1) && !poorQuality.canBuild(1), "Teacher cannot bypass original quality failure");
+        check(poorQuality.application().equals("rejected"), "Quality rejection acknowledged");
         var separate = new ReviewGate(AstronomyClass.MARS, true);
         check(!separate.ready() && !separate.consent(), "Replacement sessions never inherit consent");
         var screen = net.kyrangit.solaria.scan.ScanState.idle()

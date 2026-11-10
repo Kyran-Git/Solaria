@@ -53,6 +53,7 @@ public final class HostScanSessions {
             Session s = sessions.get(c.player().getUUID());
             if (s == null || !s.id.equals(p.id())) return;
             if (!p.agree()) {
+                if (s.gate != null && p.revision() != s.gate.revision()) return;
                 remove(c.player().getUUID());
                 return;
             }
@@ -63,6 +64,28 @@ public final class HostScanSessions {
             }
             feedback(c.player(), s);
             s.nextPoll = 0;
+        });
+        ServerPlayNetworking.registerGlobalReceiver(ScanPackets.Build.TYPE, (p, c) -> {
+            Session s = sessions.get(c.player().getUUID());
+            if (s == null || !s.id.equals(p.id())) {
+                send(c.player(), p.id(), "build_failed", null, "This scan expired. Scan again before building.");
+                return;
+            }
+            if (c.player().gameMode.getGameModeForPlayer() != GameType.CREATIVE
+                || s.gate == null || !s.gate.canBuild(p.revision())) {
+                buildFeedback(c.player(), s, "build_failed", "Build requires the current revision, quality drawing, teacher approval and your agreement in Creative mode.");
+                return;
+            }
+            buildFeedback(c.player(), s, "building", "");
+            try {
+                if (net.kyrangit.solaria.command.SolariaCommands.travelToPlanet(c.player(), s.gate.label()) == 1) {
+                    s.gate.built(p.revision());
+                    buildFeedback(c.player(), s, "built", "");
+                    s.nextPoll = 0;
+                } else buildFeedback(c.player(), s, "build_failed", "Travel failed. Check the host message, then retry Build.");
+            } catch (RuntimeException e) {
+                buildFeedback(c.player(), s, "build_failed", "Planet loading failed. Check the host installation and retry.");
+            }
         });
         ServerPlayConnectionEvents.DISCONNECT.register((h, server) -> {
             remove(h.getPlayer().getUUID());
@@ -160,7 +183,7 @@ public final class HostScanSessions {
                     }
                     current.prediction = prediction;
                     if (prediction != null) current.gate = new ReviewGate(prediction.label(),
-                        prediction.accepted() && prediction.qualityPassed());
+                        prediction.accepted(), prediction.qualityPassed());
                     current.deadline = System.nanoTime() + 600_000_000_000L;
                     send(online, current.id, prediction == null ? "error" : "prediction", prediction, reason);
                 });
@@ -221,9 +244,20 @@ public final class HostScanSessions {
         }
     }
 
+    private static void buildFeedback(ServerPlayer player, Session s, String status, String reason) {
+        JsonObject json = new JsonObject();
+        json.addProperty("status", status);
+        json.addProperty("reason", reason);
+        if (s.gate != null) {
+            json.addProperty("revision", s.gate.revision());
+            json.addProperty("label", s.gate.label() == null ? "unknown" : s.gate.label().id());
+        }
+        ServerPlayNetworking.send(player, new ScanPackets.Result(s.id, json.toString()));
+    }
+
     private static void feedback(ServerPlayer player, Session s) {
         JsonObject json = new JsonObject();
-        json.addProperty("status", s.gate.ready() ? "ready" : !s.gate.accepted() ? "rejected"
+        json.addProperty("status", s.gate.isBuilt() ? "built" : s.gate.ready() ? "ready" : s.gate.application().equals("rejected") ? "rejected"
             : s.gate.consent() ? "waiting_teacher" : "correction");
         json.addProperty("revision", s.gate.revision());
         json.addProperty("label", s.gate.label() == null ? "unknown" : s.gate.label().id());

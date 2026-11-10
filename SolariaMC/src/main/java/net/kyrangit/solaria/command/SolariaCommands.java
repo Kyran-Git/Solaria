@@ -146,7 +146,13 @@ public final class SolariaCommands {
 				+ "'. Valid: " + valid + "."));
 			return 0;
 		}
-		ResourceKey<Level> dimKey = SolariaDimensions.keyFor(cls);
+        return travelToPlanet(player, cls);
+    }
+
+    /** Shared server-only path for operator previews and approved scanner builds. */
+    public static int travelToPlanet(ServerPlayer player, AstronomyClass cls) {
+        CommandSourceStack source = player.createCommandSourceStack();
+        ResourceKey<Level> dimKey = SolariaDimensions.keyFor(cls);
 		ServerLevel targetLevel = source.getServer().getLevel(dimKey);
 		if (targetLevel == null) {
 			source.sendFailure(Component.literal("[PLACEMENT_BLOCKED] Dimension solariamod:"
@@ -172,7 +178,12 @@ public final class SolariaCommands {
 		}
 		// Stand clear of the body (including rings) and look back toward the centre.
 		var generator = (net.kyrangit.solaria.dimension.PlanetChunkGenerator) targetLevel.getChunkSource().getGenerator();
-		Vec3 spawnPos = new Vec3(generator.viewingDistance() + 0.5, 0.5, 0.5);
+		if (generator.blueprint().astronomyClass() != cls) {
+            player.setAttached(net.kyrangit.solaria.dimension.LessonReturn.Attachment.ANCHOR, previousAnchor);
+            source.sendFailure(Component.literal("[PLACEMENT_BLOCKED] This dimension has the wrong body generator. Check the host dimension data."));
+            return 0;
+        }
+        Vec3 spawnPos = new Vec3(generator.viewingDistance() + 0.5, 0.5, 0.5);
 		TeleportTransition transition = new TeleportTransition(
 			targetLevel, spawnPos, Vec3.ZERO,
 			90.0f, 0.0f, TeleportTransition.DO_NOTHING);
@@ -187,6 +198,9 @@ public final class SolariaCommands {
 		arrived.getAbilities().flying = true;
 		arrived.onUpdateAbilities();
 		final String display = capitalize(cls.id());
+        arrived.connection.send(new net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket(Component.literal(display)));
+        arrived.level().playSound(null, arrived.blockPosition(), net.minecraft.sounds.SoundEvents.EXPERIENCE_ORB_PICKUP,
+            net.minecraft.sounds.SoundSource.PLAYERS, 0.6f, 1.2f);
 		arrived.sendSystemMessage(Component.literal(
 			"Entering the " + display + " dimension. Bodies are not to scale. "
 			+ "Use /solaria return to go back."));

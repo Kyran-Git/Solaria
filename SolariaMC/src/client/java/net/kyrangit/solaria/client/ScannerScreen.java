@@ -49,79 +49,82 @@ public final class ScannerScreen extends Screen {
 		super(Component.translatable("solaria.scan.title"));
 	}
 
+	private boolean studentAgreed;
+	private boolean teacherApproved;
+	private boolean qualityAccepted;
+
 	@Override
 	protected void init() {
-		int centreX = this.width / 2;
-		int buttonsY = this.height - 40;
-		if (awaitingTeacher) {
-			addRenderableWidget(closeBtn(centreX - BUTTON_WIDTH / 2, buttonsY));
-			return;
-		}
-		if (checkingCamera && !cameraPermissionRequired) {
-			addRenderableWidget(closeBtn(centreX - BUTTON_WIDTH / 2, buttonsY));
-			return;
-		}
+		int width = Math.max(1, Math.min(BUTTON_WIDTH, (this.width - 46) / 2));
+		int left = this.width / 2 - width - 3;
+		int right = this.width / 2 + 3;
+		int y = this.height - 60;
+		Component label = Component.literal("Open camera");
+		Button.OnPress action = b -> checkCameraAccess(true);
+		boolean enabled = !checkingCamera;
 		if (cameraPermissionRequired) {
-			addRenderableWidget(primary(centreX - BUTTON_WIDTH - BUTTON_GAP / 2, buttonsY,
-				Component.translatable("solaria.scan.button.camera_settings"), b -> openCameraSettings()));
-			addRenderableWidget(closeBtn(centreX + BUTTON_GAP / 2, buttonsY));
-			return;
-		}
-		switch (state.status()) {
-			case IDLE -> {
-				addRenderableWidget(primary(centreX - BUTTON_WIDTH - BUTTON_GAP / 2, buttonsY,
-					Component.translatable("solaria.scan.button.open_camera"),
-					b -> checkCameraAccess(true)));
-				addRenderableWidget(closeBtn(centreX + BUTTON_GAP / 2, buttonsY));
-			}
-			case CAPTURING -> {
-				Button capture = primary(centreX - BUTTON_WIDTH - BUTTON_GAP / 2, buttonsY,
-					Component.translatable("solaria.scan.button.capture"), b -> captureFrame());
-				capture.active = frame != null;
-				addRenderableWidget(capture);
-				addRenderableWidget(closeBtn(centreX + BUTTON_GAP / 2, buttonsY));
-			}
-			case CAPTURED -> {
-				addRenderableWidget(primary(centreX - BUTTON_WIDTH - BUTTON_GAP / 2, buttonsY - 28,
-					Component.literal("Submit drawing"), b -> submitDrawing()));
-				addRenderableWidget(primary(centreX - BUTTON_WIDTH - BUTTON_GAP / 2, buttonsY,
-					Component.translatable("solaria.scan.button.retake"), b -> advance(ScanAction.RETRY)));
-				addRenderableWidget(closeBtn(centreX + BUTTON_GAP / 2, buttonsY));
-			}
+			label = Component.literal("Camera settings"); action = b -> openCameraSettings();
+		} else switch (state.status()) {
+			case CAPTURING -> { label = Component.literal("Capture"); action = b -> captureFrame(); enabled = frame != null; }
+			case CAPTURED -> { label = Component.literal("Submit drawing"); action = b -> submitDrawing(); }
 			case AWAITING_STUDENT_CONFIRM -> {
-				addRenderableWidget(primary(centreX - BUTTON_WIDTH - BUTTON_GAP / 2, buttonsY,
-					Component.literal("Yes, this is correct"),
-					b -> advance(ScanAction.ACCEPT)));
-				addRenderableWidget(primary(centreX + BUTTON_GAP / 2, buttonsY,
-					Component.translatable("solaria.scan.button.retry"),
-					b -> advance(ScanAction.REJECT)));
+				label = Component.literal(studentAgreed ? "Agreement recorded" : "Yes, this is correct");
+				action = b -> advance(ScanAction.ACCEPT); enabled = !studentAgreed;
 			}
-			case UNAVAILABLE -> {
-				addRenderableWidget(primary(centreX - BUTTON_WIDTH - BUTTON_GAP / 2, buttonsY,
-					Component.translatable("solaria.scan.button.retry"),
-					b -> advance(ScanAction.RETRY)));
-				addRenderableWidget(closeBtn(centreX + BUTTON_GAP / 2, buttonsY));
-			}
-			case DONE -> addRenderableWidget(closeBtn(centreX - BUTTON_WIDTH / 2, buttonsY));
-			case UPLOADING, CLASSIFYING, BUILDING ->
-				addRenderableWidget(closeBtn(centreX - BUTTON_WIDTH / 2, buttonsY));
+			case UNAVAILABLE -> { label = Component.literal("Retry scan"); action = b -> retryScan(); }
+			case UPLOADING, CLASSIFYING, BUILDING, DONE -> { label = Component.literal("Please wait"); enabled = false; }
+			default -> { }
 		}
+		Button primary = Button.builder(label, action).bounds(left, y, width, BUTTON_HEIGHT).build();
+		primary.active = enabled;
+		addRenderableWidget(primary);
+		Button retry = Button.builder(Component.literal("Retry / new scan"), b -> retryScan())
+			.bounds(right, y, width, BUTTON_HEIGHT).build();
+		retry.active = !checkingCamera && state.status() != ScanState.Status.IDLE && state.status() != ScanState.Status.BUILDING;
+		addRenderableWidget(retry);
+		Button build = Button.builder(Component.literal("Build"), b -> {
+			if (buildBlockReason() == null) {
+				net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
+					new net.kyrangit.solaria.scan.ScanPackets.Build(submissionId, reviewRevision));
+				state = state.transition(ScanAction.ACCEPT);
+				serviceStatus = Component.literal("Build requested from host...");
+				rebuildWidgets();
+			}
+		}).bounds(left, y + 24, width, BUTTON_HEIGHT).build();
+		String reason = buildBlockReason();
+		build.active = reason == null;
+		build.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(
+			reason == null ? "Build the approved observation" : reason)));
+		addRenderableWidget(build);
+		addRenderableWidget(Button.builder(Component.literal("Close"), b -> onClose())
+			.bounds(right, y + 24, width, BUTTON_HEIGHT).build());
 	}
 
-	private Button primary(int x, int y, Component label, Button.OnPress onPress) {
-		return Button.builder(label, onPress).bounds(x, y, BUTTON_WIDTH, BUTTON_HEIGHT).build();
+	private String buildBlockReason() {
+		if (!qualityAccepted || state.predictedClass() == null) return "A scan must pass host confidence and quality checks.";
+		if (!studentAgreed) return "Confirm that the identified object is correct first.";
+		if (!teacherApproved) return "Waiting for teacher approval.";
+		if (state.status() != ScanState.Status.AWAITING_STUDENT_CONFIRM) return "Build is not available in this stage.";
+		if (!net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.canSend(
+			net.kyrangit.solaria.scan.ScanPackets.Build.TYPE)) return "Host does not support building.";
+		return null;
 	}
 
-	private Button closeBtn(int x, int y) {
-		return Button.builder(Component.translatable("solaria.scan.button.close"), b -> onClose())
-			.bounds(x, y, BUTTON_WIDTH, BUTTON_HEIGHT).build();
+	private void retryScan() {
+		cancelSubmission();
+		stopCamera();
+		clearFrame();
+		cameraFailure = null;
+		serviceStatus = null;
+		state = ScanState.idle();
+		rebuildWidgets();
 	}
-
 	private void advance(ScanAction action) {
 		if (action == ScanAction.ACCEPT && submissionId != null) {
 			net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
 				new net.kyrangit.solaria.scan.ScanPackets.Decision(submissionId, reviewRevision, true));
 			awaitingTeacher = true;
+			studentAgreed = true;
 			serviceStatus = Component.literal("Waiting for teacher approval. Closing cancels this scan.");
 			rebuildWidgets();
 			return;
@@ -261,6 +264,7 @@ public final class ScannerScreen extends Screen {
 				new net.kyrangit.solaria.scan.ScanPackets.Decision(submissionId, reviewRevision, false));
 		}
 		submissionId = null; reviewRevision = 0; awaitingTeacher = false;
+		studentAgreed = teacherApproved = qualityAccepted = false;
 	}
 
 	public void receiveResult(net.kyrangit.solaria.scan.ScanPackets.Result packet) {
@@ -270,9 +274,24 @@ public final class ScannerScreen extends Screen {
 			String status = data.get("status").getAsString();
 			if (status.equals("classifying")) serviceStatus = Component.literal("Cleaning and classifying drawing...");
 			else if (status.equals("waiting_teacher")) serviceStatus = Component.literal("Student agreement recorded; waiting for teacher approval.");
+			else if (status.equals("building")) {
+				serviceStatus = Component.literal("Building your approved observation...");
+			} else if (status.equals("built")) {
+				if (state.status() == ScanState.Status.BUILDING) state = state.withBuildComplete();
+				submissionId = null;
+				onClose();
+				return;
+			} else if (status.equals("build_failed")) {
+				// Keep an approved result buildable so a transient host failure can be retried.
+				state = state.predictedClass() != null
+					? state.withTeacherLabel(state.predictedClass(), state.confidence())
+					: state.withFailure(ReasonCode.SERVICE_PROTOCOL_ERROR);
+				serviceStatus = Component.literal("Build failed: " + (data.has("reason") ? data.get("reason").getAsString() : "Ask your teacher"));
+			}
 			else if (status.equals("correction")) {
 				reviewRevision = data.get("revision").getAsInt();
 				awaitingTeacher = false;
+				studentAgreed = teacherApproved = false;
 				state = state.withTeacherLabel(net.kyrangit.solaria.blueprint.AstronomyClass.fromId(data.get("label").getAsString()),
 					data.get("confidence").getAsFloat());
 				serviceStatus = Component.literal((data.get("mock").getAsBoolean() ? "MOCK (synthetic): " : "")
@@ -280,7 +299,8 @@ public final class ScannerScreen extends Screen {
 			} else if (status.equals("ready")) {
 				reviewRevision = data.get("revision").getAsInt();
 				awaitingTeacher = true;
-				serviceStatus = Component.literal("Both approvals recorded. Generation/travel not enabled yet.");
+				teacherApproved = studentAgreed = true;
+				serviceStatus = Component.literal("Both approvals recorded. Select Build to continue.");
 			} else if (status.equals("rejected")) {
 				reviewRevision = data.get("revision").getAsInt();
 				awaitingTeacher = false;
@@ -293,10 +313,12 @@ public final class ScannerScreen extends Screen {
 				serviceStatus = Component.literal("Scan failed: " + data.get("reason").getAsString());
 			} else if (status.equals("prediction")) {
 				boolean mock = data.get("mock").getAsBoolean();
+				qualityAccepted = !data.has("quality") || data.get("quality").isJsonNull()
+					|| data.get("quality").getAsString().isBlank();
 				if (data.get("accepted").getAsBoolean()) {
 					state = state.withPrediction(net.kyrangit.solaria.blueprint.AstronomyClass.fromId(data.get("label").getAsString()),
 						data.get("confidence").getAsFloat());
-					serviceStatus = mock ? Component.literal("MOCK (synthetic): " + planetName() + " — is this correct?") : null;
+					serviceStatus = mock ? Component.literal("MOCK (synthetic): " + planetName() + "  -  is this correct?") : null;
 				} else {
 					state = state.withFailure(ReasonCode.QUALITY_REJECTED);
 					serviceStatus = Component.literal((mock ? "MOCK (synthetic): " : "") + "Please retake: "
@@ -354,42 +376,47 @@ public final class ScannerScreen extends Screen {
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-		int centreX = this.width / 2;
-		int panelWidth = Math.min(660, this.width - 16);
-		int left = centreX - panelWidth / 2;
-		graphics.fill(0, 0, this.width, this.height, 0xB509101D);
-		roundedPanel(graphics, left + 2, 14, panelWidth, this.height - 24, 12, 0x70000000);
-		roundedPanel(graphics, left, 10, panelWidth, this.height - 24, 12, 0xF018263B);
-		roundedPanel(graphics, left + 1, 11, panelWidth - 2, 55, 11, 0xFF203650);
-		graphics.fill(left + 20, 64, left + panelWidth - 20, 65, 0xFF50D6C2);
-		roundedPanel(graphics, left + 8, this.height - 78, panelWidth - 16, 56, 8, 0xFF101C2F);
-		int y = 25;
-		graphics.centeredText(this.font, this.getTitle(), centreX, y, 0xFFFFFFFF);
-		y += LINE_HEIGHT * 2;
-		for (var line : this.font.split(statusLine(), Math.max(1, panelWidth - 40))) {
-			graphics.centeredText(this.font, line, centreX, y, 0xFF80E8D7);
-			y += LINE_HEIGHT;
+		int panelWidth = Math.max(1, Math.min(760, this.width - 16));
+		int left = (this.width - panelWidth) / 2;
+		int bottom = this.height - 68;
+		graphics.fill(0, 0, this.width, this.height, 0xD509101D);
+		roundedPanel(graphics, left, 8, panelWidth, this.height - 16, 8, 0xF018263B);
+		graphics.centeredText(this.font, Component.literal("SOLARIA / OBSERVATORY"), this.width / 2, 16, 0xFF80E8D7);
+		int textWidth = Math.max(1, panelWidth - 24);
+		int y = 32;
+		for (var line : this.font.split(Component.literal("Capture > Analyze > Review > Build"), textWidth)) {
+			if (y + LINE_HEIGHT > bottom) break;
+			graphics.centeredText(this.font, line, this.width / 2, y, 0xFFCFCFCF); y += LINE_HEIGHT;
 		}
-		y += LINE_HEIGHT * 2;
-		for (Component bullet : bulletLines()) {
-			for (var line : this.font.split(bullet, Math.max(1, panelWidth - 40))) {
-				graphics.centeredText(this.font, line, centreX, y, 0xFFCFCFCF);
-				y += LINE_HEIGHT;
-			}
+		String confidence = state.predictedClass() == null ? "Confidence: pending" :
+			planetName() + " / Confidence: " + Math.round(state.confidence() * 100) + "%";
+		String approvals = " / Student: " + (studentAgreed ? "yes" : "pending") + " / Teacher: " + (teacherApproved ? "yes" : "pending");
+		for (var line : this.font.split(Component.literal(confidence + approvals), textWidth)) {
+			if (y + LINE_HEIGHT > bottom) break;
+			graphics.centeredText(this.font, line, this.width / 2, y, 0xFF80E8D7); y += LINE_HEIGHT;
 		}
-		if (preview != null && frame != null) {
-			int availableHeight = this.height - 88 - y;
-			if (availableHeight > 16) {
-				double scale = Math.min((panelWidth - 48.0) / frame.width(), (double) availableHeight / frame.height());
-				int w = Math.max(1, (int) (frame.width() * scale));
-				int h = Math.max(1, (int) (frame.height() * scale));
-				roundedPanel(graphics, centreX - w / 2 - 5, y - 5, w + 10, h + 10, 7, 0xFF50D6C2);
-				graphics.blit(PREVIEW_ID, centreX - w / 2, y, centreX - w / 2 + w, y + h, 0, 1, 0, 1);
+		int statusBudget = Math.min(3, Math.max(0, (bottom - y - 20) / LINE_HEIGHT));
+		for (var line : this.font.split(statusLine(), textWidth)) {
+			if (statusBudget-- <= 0) break;
+			graphics.centeredText(this.font, line, this.width / 2, y, 0xFFFFFFFF); y += LINE_HEIGHT;
+		}
+		y += 6;
+		if (preview != null && frame != null && bottom - y > 20) {
+			double scale = Math.min((panelWidth - 24.0) / frame.width(), (bottom - y - 6.0) / frame.height());
+			int w = Math.max(1, (int) (frame.width() * scale));
+			int h = Math.max(1, (int) (frame.height() * scale));
+			int x = (this.width - w) / 2;
+			graphics.blit(PREVIEW_ID, x, y, x + w, y + h, 0, 1, 0, 1);
+		} else {
+			for (Component bullet : bulletLines()) {
+				for (var line : this.font.split(bullet, textWidth)) {
+					if (y + LINE_HEIGHT > bottom) break;
+					graphics.centeredText(this.font, line, this.width / 2, y, 0xFFCFCFCF); y += LINE_HEIGHT;
+				}
 			}
 		}
 		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
 	}
-
 	/** Scanline-rounded panels, using the game's GUI primitives without extra dependencies. */
 	private static void roundedPanel(GuiGraphicsExtractor graphics, int x, int y, int width, int height,
 		int radius, int color) {

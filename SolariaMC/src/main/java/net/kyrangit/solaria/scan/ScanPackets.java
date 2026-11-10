@@ -64,9 +64,19 @@ public final class ScanPackets {
         }
     }
 
+    /** Only identity and revision cross the wire; the host chooses the label. */
+    public record Build(String id, int revision) implements CustomPacketPayload {
+        public static final Type<Build> TYPE = new Type<>(SolariaMod.id("scan_build_v1"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, Build> CODEC = CustomPacketPayload.codec(
+            (p, b) -> { b.writeUtf(p.id, 64); b.writeVarInt(p.revision); },
+            b -> new Build(b.readUtf(64), b.readVarInt()));
+        @Override public Type<Build> type() { return TYPE; }
+    }
+
     public static void register() {
         PayloadTypeRegistry.serverboundPlay().register(Upload.TYPE, Upload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(Decision.TYPE, Decision.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(Build.TYPE, Build.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(Result.TYPE, Result.CODEC);
     }
 }
