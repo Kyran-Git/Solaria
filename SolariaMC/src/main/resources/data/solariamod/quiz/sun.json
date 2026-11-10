@@ -1,0 +1,285 @@
+{
+  "body": "sun",
+  "questions": [
+    {
+      "id": "sun_01",
+      "type": "true_false",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 11 Bintang dan Galaksi",
+      "prompt": {
+        "en": "The Sun is a star."
+      },
+      "explanation": {
+        "en": "The Sun is the only star in our solar system."
+      },
+      "source": "https://science.nasa.gov/sun/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "sun_02",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 11 Bintang dan Galaksi",
+      "prompt": {
+        "en": "What is the Sun mostly made of?"
+      },
+      "explanation": {
+        "en": "The Sun is a ball of hot plasma made mostly of hydrogen and helium."
+      },
+      "source": "https://science.nasa.gov/sun/facts/",
+      "choices": [
+        "Rock and iron",
+        "Hydrogen and helium",
+        "Oxygen and nitrogen",
+        "Water and ice"
+      ],
+      "answer": [
+        1
+      ]
+    },
+    {
+      "id": "sun_03",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 11 Bintang dan Galaksi",
+      "prompt": {
+        "en": "What type of star is the Sun?"
+      },
+      "explanation": {
+        "en": "The Sun is a yellow dwarf star about 4.5 billion years old."
+      },
+      "source": "https://science.nasa.gov/sun/facts/",
+      "choices": [
+        "A red giant",
+        "A white dwarf",
+        "A neutron star",
+        "A yellow dwarf"
+      ],
+      "answer": [
+        3
+      ]
+    },
+    {
+      "id": "sun_04",
+      "type": "true_false",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 11 Bintang dan Galaksi",
+      "prompt": {
+        "en": "The Sun has a solid surface you could land on."
+      },
+      "explanation": {
+        "en": "The Sun is made of plasma and has no solid surface; the photosphere is its visible layer."
+      },
+      "source": "https://science.nasa.gov/sun/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        1
+      ]
+    },
+    {
+      "id": "sun_05",
+      "type": "order",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 11 Bintang dan Galaksi",
+      "prompt": {
+        "en": "Put these layers of the Sun in order from the centre outward."
+      },
+      "explanation": {
+        "en": "Energy made in the core passes through the radiative and convection zones to the surface and beyond."
+      },
+      "source": "https://science.nasa.gov/sun/facts/",
+      "choices": [
+        "Radiative zone",
+        "Convection zone",
+        "Photosphere",
+        "Corona",
+        "Core"
+      ],
+      "answer": [
+        4,
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "sun_06",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 11 Bintang dan Galaksi",
+      "prompt": {
+        "en": "What process makes energy in the Sun's core?"
+      },
+      "explanation": {
+        "en": "In the core, hydrogen atoms fuse into helium and release huge amounts of energy."
+      },
+      "source": "https://science.nasa.gov/sun/facts/",
+      "choices": [
+        "Nuclear fusion of hydrogen",
+        "Burning coal",
+        "Chemical fire",
+        "Lightning storms"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "sun_07",
+      "type": "match",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T3 Bab 9 Cuaca Angkasa Lepas",
+      "prompt": {
+        "en": "Match each kind of solar activity to its description."
+      },
+      "explanation": {
+        "en": "Flares and CMEs can trigger geomagnetic storms, which make auroras and can disturb technology."
+      },
+      "source": "https://science.nasa.gov/sun/solar-storms-and-flares/",
+      "left": [
+        "Solar flare",
+        "Coronal mass ejection",
+        "Geomagnetic storm"
+      ],
+      "choices": [
+        "Huge cloud of plasma",
+        "Can cause auroras on Earth",
+        "Sudden burst of light and energy"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "sun_08",
+      "type": "true_false",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T3 Bab 9 Cuaca Angkasa Lepas",
+      "prompt": {
+        "en": "The Sun's activity rises and falls in a cycle of about 11 years."
+      },
+      "explanation": {
+        "en": "About every 11 years the Sun's magnetic poles flip and sunspots, flares and CMEs peak."
+      },
+      "source": "https://science.nasa.gov/sun/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "sun_09",
+      "type": "order",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T3 Bab 9 Cuaca Angkasa Lepas",
+      "prompt": {
+        "en": "Order these solar flare classes from weakest to strongest."
+      },
+      "explanation": {
+        "en": "Each flare class letter is 10 times more energetic than the one before it."
+      },
+      "source": "https://science.nasa.gov/sun/solar-storms-and-flares/",
+      "choices": [
+        "B",
+        "C",
+        "M",
+        "X",
+        "A"
+      ],
+      "answer": [
+        4,
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "sun_10",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 11 Bintang dan Galaksi",
+      "prompt": {
+        "en": "About how much of the solar system's mass is in the Sun?"
+      },
+      "explanation": {
+        "en": "The Sun holds about 99.8% of all the mass in the solar system."
+      },
+      "source": "https://science.nasa.gov/sun/facts/",
+      "choices": [
+        "About 99.8%",
+        "About 50%",
+        "About 75%",
+        "About 90%"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "sun_11",
+      "type": "match",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 11 Bintang dan Galaksi",
+      "prompt": {
+        "en": "Match each part of the Sun to its temperature."
+      },
+      "explanation": {
+        "en": "The core is hottest, but strangely the outer corona is far hotter than the photosphere."
+      },
+      "source": "https://science.nasa.gov/sun/facts/",
+      "left": [
+        "Core",
+        "Photosphere",
+        "Corona"
+      ],
+      "choices": [
+        "About 5,500 C",
+        "Up to about 2 million C",
+        "About 15 million C"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "sun_12",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 11 Bintang dan Galaksi",
+      "prompt": {
+        "en": "What will the Sun become in about 5 billion years?"
+      },
+      "explanation": {
+        "en": "When its hydrogen runs low, the Sun will swell into a red giant, then shrink to a white dwarf."
+      },
+      "source": "https://science.nasa.gov/sun/facts/",
+      "choices": [
+        "A red giant, then a white dwarf",
+        "A black hole",
+        "A neutron star",
+        "A new planet"
+      ],
+      "answer": [
+        0
+      ]
+    }
+  ]
+}

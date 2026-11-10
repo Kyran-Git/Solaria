@@ -1,0 +1,284 @@
+{
+  "body": "neptune",
+  "questions": [
+    {
+      "id": "neptune_01",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Which planet is farthest from the Sun?"
+      },
+      "explanation": {
+        "en": "Neptune is the eighth and most distant planet from the Sun."
+      },
+      "source": "https://science.nasa.gov/neptune/neptune-facts/",
+      "choices": [
+        "Uranus",
+        "Neptune",
+        "Saturn",
+        "Jupiter"
+      ],
+      "answer": [
+        1
+      ]
+    },
+    {
+      "id": "neptune_02",
+      "type": "true_false",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "You can see Neptune in the night sky with just your eyes."
+      },
+      "explanation": {
+        "en": "Neptune is too faint to see with the naked eye; you need a telescope."
+      },
+      "source": "https://science.nasa.gov/neptune/neptune-facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        1
+      ]
+    },
+    {
+      "id": "neptune_03",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Neptune is named after the Roman god of what?"
+      },
+      "explanation": {
+        "en": "Neptune's deep blue colour suits its name, the Roman god of the sea."
+      },
+      "source": "https://science.nasa.gov/neptune/neptune-facts/",
+      "choices": [
+        "War",
+        "The sea",
+        "Farming",
+        "The sky"
+      ],
+      "answer": [
+        1
+      ]
+    },
+    {
+      "id": "neptune_04",
+      "type": "order",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Put these planets in order from nearest to farthest from the Sun."
+      },
+      "explanation": {
+        "en": "Mars is 4th, Jupiter 5th, Uranus 7th and Neptune 8th from the Sun."
+      },
+      "source": "https://science.nasa.gov/solar-system/planets/",
+      "choices": [
+        "Jupiter",
+        "Uranus",
+        "Neptune",
+        "Mars"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "neptune_05",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T3 Bab 10 Penerokaan Angkasa Lepas",
+      "prompt": {
+        "en": "How was Neptune first found?"
+      },
+      "explanation": {
+        "en": "Le Verrier predicted Neptune with mathematics, and Galle saw it through a telescope in 1846."
+      },
+      "source": "https://science.nasa.gov/neptune/neptune-facts/",
+      "choices": [
+        "Predicted with maths, then seen",
+        "Seen by ancient sky watchers",
+        "Found by Voyager 2",
+        "Spotted by Galileo in 1610"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "neptune_06",
+      "type": "true_false",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Neptune's moon Triton orbits backward (retrograde)."
+      },
+      "explanation": {
+        "en": "Triton orbits in the opposite direction to Neptune's spin."
+      },
+      "source": "https://science.nasa.gov/neptune/neptune-facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "neptune_07",
+      "type": "match",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Match each Neptune fact to its number."
+      },
+      "explanation": {
+        "en": "Neptune is so far away that one orbit takes about 165 Earth years."
+      },
+      "source": "https://science.nasa.gov/neptune/neptune-facts/",
+      "left": [
+        "Length of one year",
+        "Length of one day",
+        "Distance from the Sun",
+        "Number of known moons"
+      ],
+      "choices": [
+        "About 16 hours",
+        "About 30 AU",
+        "16",
+        "About 165 Earth years"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "neptune_08",
+      "type": "true_false",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Neptune is the densest of the giant planets."
+      },
+      "explanation": {
+        "en": "Neptune is the densest of the four giant planets."
+      },
+      "source": "https://science.nasa.gov/neptune/neptune-facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "neptune_09",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "About how long does sunlight take to reach Neptune?"
+      },
+      "explanation": {
+        "en": "Neptune is about 30 AU away, so sunlight takes about 4 hours to arrive."
+      },
+      "source": "https://science.nasa.gov/neptune/neptune-facts/",
+      "choices": [
+        "About 8 minutes",
+        "About 43 minutes",
+        "About 13 minutes",
+        "About 4 hours"
+      ],
+      "answer": [
+        3
+      ]
+    },
+    {
+      "id": "neptune_10",
+      "type": "match",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T3 Bab 10 Penerokaan Angkasa Lepas",
+      "prompt": {
+        "en": "Match each name to its link with Neptune."
+      },
+      "explanation": {
+        "en": "Neptune was the first planet found by prediction rather than by searching the sky."
+      },
+      "source": "https://science.nasa.gov/neptune/neptune-facts/",
+      "left": [
+        "Urbain Le Verrier",
+        "Johann Galle",
+        "Triton"
+      ],
+      "choices": [
+        "First saw Neptune in 1846",
+        "Moon with geysers",
+        "Predicted Neptune using maths"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "neptune_11",
+      "type": "order",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Put these planets in order from largest to smallest."
+      },
+      "explanation": {
+        "en": "Saturn is 2nd largest, Uranus 3rd, Neptune 4th and Earth 5th."
+      },
+      "source": "https://science.nasa.gov/solar-system/planets/",
+      "choices": [
+        "Uranus",
+        "Neptune",
+        "Earth",
+        "Saturn"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "neptune_12",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "How many main rings does Neptune have?"
+      },
+      "explanation": {
+        "en": "Neptune has five main rings."
+      },
+      "source": "https://science.nasa.gov/neptune/neptune-facts/",
+      "choices": [
+        "0",
+        "1",
+        "5",
+        "13"
+      ],
+      "answer": [
+        2
+      ]
+    }
+  ]
+}

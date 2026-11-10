@@ -289,8 +289,20 @@ tasks.register('introHubTest', JavaExec) {
 	}
 }
 
+tasks.register('quizBankTest', JavaExec) {
+	group = 'verification'
+	description = 'Validates the ten sourced quiz banks, random selection, grading and override fallback (synthetic).'
+	dependsOn testClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'net.kyrangit.solaria.quiz.QuizBankTests'
+	jvmArgs '--sun-misc-unsafe-memory-access=allow'
+	javaLauncher = javaToolchains.launcherFor {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
 tasks.named('test') {
-	dependsOn reviewGateTest, buildTravelTest
+	dependsOn reviewGateTest, buildTravelTest, quizBankTest
 	dependsOn foundationTest, wikiStructureTest, blueprintTest, scanStateTest, cameraAccessTest, webcamTest, dimensionDataTest, serviceClientTest, planetWorldTest, introHubTest
 	// Tests use a Java main runner rather than a JUnit engine.
 	exclude '**/*'

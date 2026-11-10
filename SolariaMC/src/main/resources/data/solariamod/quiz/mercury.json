@@ -1,0 +1,285 @@
+{
+  "body": "mercury",
+  "questions": [
+    {
+      "id": "mercury_01",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Which planet is closest to the Sun?"
+      },
+      "explanation": {
+        "en": "Mercury is the planet nearest the Sun, and also the smallest planet."
+      },
+      "source": "https://science.nasa.gov/mercury/facts/",
+      "choices": [
+        "Venus",
+        "Earth",
+        "Mars",
+        "Mercury"
+      ],
+      "answer": [
+        3
+      ]
+    },
+    {
+      "id": "mercury_02",
+      "type": "true_false",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Mercury has no moons and no rings."
+      },
+      "explanation": {
+        "en": "Mercury has no moons and no rings."
+      },
+      "source": "https://science.nasa.gov/mercury/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "mercury_03",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "About how many Earth days does Mercury take to orbit the Sun once?"
+      },
+      "explanation": {
+        "en": "Mercury is the fastest planet and completes an orbit every 88 Earth days."
+      },
+      "source": "https://science.nasa.gov/mercury/facts/",
+      "choices": [
+        "365 days",
+        "225 days",
+        "687 days",
+        "88 days"
+      ],
+      "answer": [
+        3
+      ]
+    },
+    {
+      "id": "mercury_04",
+      "type": "order",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Put these planets in order from nearest to farthest from the Sun."
+      },
+      "explanation": {
+        "en": "Mercury is 1st, Venus 2nd, Earth 3rd and Mars 4th from the Sun."
+      },
+      "source": "https://science.nasa.gov/solar-system/planets/",
+      "choices": [
+        "Venus",
+        "Earth",
+        "Mars",
+        "Mercury"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "mercury_05",
+      "type": "true_false",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Mercury is the hottest planet in our solar system."
+      },
+      "explanation": {
+        "en": "Venus is hotter. Mercury is closer to the Sun but has almost no atmosphere to trap heat."
+      },
+      "source": "https://science.nasa.gov/mercury/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        1
+      ]
+    },
+    {
+      "id": "mercury_06",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "What does Mercury have instead of a thick atmosphere?"
+      },
+      "explanation": {
+        "en": "Mercury has a thin exosphere made of atoms knocked off its surface, not a real atmosphere."
+      },
+      "source": "https://science.nasa.gov/mercury/facts/",
+      "choices": [
+        "A very thin exosphere",
+        "Thick carbon dioxide clouds",
+        "Deep oceans of water",
+        "A ring of ice"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "mercury_07",
+      "type": "match",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Match each Mercury time to its length."
+      },
+      "explanation": {
+        "en": "Mercury spins slowly, so one solar day (176 days) lasts two of its years."
+      },
+      "source": "https://science.nasa.gov/mercury/facts/",
+      "left": [
+        "One orbit of the Sun",
+        "One spin on its axis",
+        "One sunrise to the next"
+      ],
+      "choices": [
+        "59 Earth days",
+        "176 Earth days",
+        "88 Earth days"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "mercury_08",
+      "type": "order",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Put these planets in order from smallest to largest."
+      },
+      "explanation": {
+        "en": "Mercury is the smallest planet, then Mars (7th largest), Venus (6th) and Earth (5th)."
+      },
+      "source": "https://science.nasa.gov/solar-system/planets/",
+      "choices": [
+        "Mars",
+        "Venus",
+        "Earth",
+        "Mercury"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "mercury_09",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "About how much of Mercury's radius is taken up by its iron core?"
+      },
+      "explanation": {
+        "en": "Mercury's metallic core is about 85% of the planet's radius."
+      },
+      "source": "https://science.nasa.gov/mercury/facts/",
+      "choices": [
+        "About 10%",
+        "About 85%",
+        "About 25%",
+        "About 50%"
+      ],
+      "answer": [
+        1
+      ]
+    },
+    {
+      "id": "mercury_10",
+      "type": "true_false",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Mercury is the second densest planet, after Earth."
+      },
+      "explanation": {
+        "en": "Its huge iron core makes Mercury the second densest planet, after Earth."
+      },
+      "source": "https://science.nasa.gov/mercury/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "mercury_11",
+      "type": "match",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Match each Mercury fact to its number."
+      },
+      "explanation": {
+        "en": "Caloris is a giant impact basin; Mercury is small, fast, and 0.4 AU from the Sun."
+      },
+      "source": "https://science.nasa.gov/mercury/facts/",
+      "left": [
+        "Width of the Caloris basin",
+        "Radius of Mercury",
+        "Average orbital speed",
+        "Time for sunlight to arrive"
+      ],
+      "choices": [
+        "About 2,440 km",
+        "About 47 km/s",
+        "About 3.2 minutes",
+        "About 1,550 km"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "mercury_12",
+      "type": "order",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Order these temperatures from hottest to coldest."
+      },
+      "explanation": {
+        "en": "Venus reaches about 467 C. Mercury's day hits 430 C but its night drops to -180 C."
+      },
+      "source": "https://science.nasa.gov/mercury/facts/",
+      "choices": [
+        "Mercury daytime surface",
+        "Mercury night-time surface",
+        "Venus surface"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    }
+  ]
+}

@@ -1,0 +1,282 @@
+{
+  "body": "uranus",
+  "questions": [
+    {
+      "id": "uranus_01",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "What makes the way Uranus spins unusual?"
+      },
+      "explanation": {
+        "en": "Uranus is tilted about 98 degrees, so it rolls around the Sun on its side."
+      },
+      "source": "https://science.nasa.gov/uranus/facts/",
+      "choices": [
+        "It does not spin at all",
+        "It spins once a minute",
+        "It wobbles like a top",
+        "It spins on its side"
+      ],
+      "answer": [
+        3
+      ]
+    },
+    {
+      "id": "uranus_02",
+      "type": "true_false",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Uranus is called an ice giant."
+      },
+      "explanation": {
+        "en": "Uranus is an ice giant, made mostly of icy materials around a small rocky core."
+      },
+      "source": "https://science.nasa.gov/uranus/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "uranus_03",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "What gives Uranus its blue-green colour?"
+      },
+      "explanation": {
+        "en": "Methane in Uranus's atmosphere gives it a blue-green colour."
+      },
+      "source": "https://science.nasa.gov/uranus/facts/",
+      "choices": [
+        "Rust in its soil",
+        "Oceans of water",
+        "Its icy rings",
+        "Methane gas"
+      ],
+      "answer": [
+        3
+      ]
+    },
+    {
+      "id": "uranus_04",
+      "type": "order",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Put these planets in order from nearest to farthest from the Sun."
+      },
+      "explanation": {
+        "en": "Saturn is 6th, Uranus 7th and Neptune 8th from the Sun."
+      },
+      "source": "https://science.nasa.gov/solar-system/planets/",
+      "choices": [
+        "Uranus",
+        "Neptune",
+        "Saturn"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "uranus_05",
+      "type": "true_false",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T3 Bab 10 Penerokaan Angkasa Lepas",
+      "prompt": {
+        "en": "Uranus was the first planet found using a telescope."
+      },
+      "explanation": {
+        "en": "William Herschel discovered Uranus with a telescope in 1781."
+      },
+      "source": "https://science.nasa.gov/uranus/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "uranus_06",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Most moons of Uranus are named after characters from whose works?"
+      },
+      "explanation": {
+        "en": "Uranus's moons are named after characters by William Shakespeare and Alexander Pope."
+      },
+      "source": "https://science.nasa.gov/uranus/facts/",
+      "choices": [
+        "Shakespeare and Alexander Pope",
+        "Greek myths",
+        "Roman gods",
+        "Fairy tales"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "uranus_07",
+      "type": "match",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T3 Bab 10 Penerokaan Angkasa Lepas",
+      "prompt": {
+        "en": "Match each name to its link with Uranus."
+      },
+      "explanation": {
+        "en": "Herschel found it, Voyager 2 visited it, and methane colours it."
+      },
+      "source": "https://science.nasa.gov/uranus/facts/",
+      "left": [
+        "William Herschel",
+        "Voyager 2",
+        "Methane"
+      ],
+      "choices": [
+        "Flew past Uranus in 1986",
+        "Gives Uranus its colour",
+        "Discovered Uranus in 1781"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "uranus_08",
+      "type": "true_false",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Uranus has recorded colder temperatures than any other planet."
+      },
+      "explanation": {
+        "en": "Uranus's atmosphere can drop to about -224 C, the coldest minimum of any planet."
+      },
+      "source": "https://science.nasa.gov/uranus/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "uranus_09",
+      "type": "match",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Match each Uranus fact to its number."
+      },
+      "explanation": {
+        "en": "Uranus is tilted almost sideways and takes 84 Earth years to orbit the Sun."
+      },
+      "source": "https://science.nasa.gov/uranus/facts/",
+      "left": [
+        "Tilt of its axis",
+        "Length of one year",
+        "Length of one day",
+        "Number of known rings"
+      ],
+      "choices": [
+        "About 84 Earth years",
+        "About 17 hours",
+        "13",
+        "About 98 degrees"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "uranus_10",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "How many known moons does Uranus have?"
+      },
+      "explanation": {
+        "en": "Uranus has 28 known moons."
+      },
+      "source": "https://science.nasa.gov/uranus/facts/",
+      "choices": [
+        "28",
+        "2",
+        "16",
+        "274"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "uranus_11",
+      "type": "order",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Put these planets in order from largest to smallest."
+      },
+      "explanation": {
+        "en": "Jupiter is largest, then Saturn, then Uranus (3rd) and Neptune (4th)."
+      },
+      "source": "https://science.nasa.gov/solar-system/planets/",
+      "choices": [
+        "Saturn",
+        "Uranus",
+        "Neptune",
+        "Jupiter"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "uranus_12",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "About how long does sunlight take to reach Uranus?"
+      },
+      "explanation": {
+        "en": "Uranus is about 19 AU away, so sunlight takes about 2 hours 40 minutes to arrive."
+      },
+      "source": "https://science.nasa.gov/uranus/facts/",
+      "choices": [
+        "About 2 hours 40 minutes",
+        "About 8 minutes",
+        "About 43 minutes",
+        "About 1 day"
+      ],
+      "answer": [
+        0
+      ]
+    }
+  ]
+}

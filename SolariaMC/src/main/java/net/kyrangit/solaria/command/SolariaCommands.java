@@ -86,13 +86,18 @@ public final class SolariaCommands {
 		if (!authorized(source, config)) {
 			return 0;
 		}
+		int quizWarnings = net.kyrangit.solaria.quiz.QuizServer.reloadBank();
+		if (quizWarnings > 0) {
+			source.sendFailure(Component.literal("[INPUT_INVALID] " + quizWarnings
+				+ " quiz file(s) were rejected; the built-in questions are used for those bodies. See the server log."));
+		}
 		ConfigManager.ReloadResult result = config.reload();
 		if (!result.success()) {
 			PrivacyLog.failure(result.error().reasonCode());
 			source.sendFailure(Component.literal("[INPUT_INVALID] " + result.error().getMessage() + " Previous configuration retained."));
 			return 0;
 		}
-		source.sendSuccess(() -> Component.literal("Solaria configuration reloaded."), false);
+		source.sendSuccess(() -> Component.literal("Solaria configuration and quiz bank reloaded."), false);
 		return 1;
 	}
 
@@ -203,7 +208,7 @@ public final class SolariaCommands {
             net.minecraft.sounds.SoundSource.PLAYERS, 0.6f, 1.2f);
 		arrived.sendSystemMessage(Component.literal(
 			"Entering the " + display + " dimension. Bodies are not to scale. "
-			+ "Use /solaria return to go back."));
+			+ "Try /solaria quiz " + cls.id() + " to test what you know. Use /solaria return to go back."));
 		return 1;
 	}
 

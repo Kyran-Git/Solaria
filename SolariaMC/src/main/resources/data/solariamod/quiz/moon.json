@@ -1,0 +1,285 @@
+{
+  "body": "moon",
+  "questions": [
+    {
+      "id": "moon_01",
+      "type": "true_false",
+      "difficulty": "easy",
+      "kssm": "none identified (general enrichment)",
+      "prompt": {
+        "en": "The Moon makes its own light."
+      },
+      "explanation": {
+        "en": "The Moon reflects light from the Sun; the Sun is the only object here that makes its own light."
+      },
+      "source": "https://science.nasa.gov/moon/moon-phases/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        1
+      ]
+    },
+    {
+      "id": "moon_02",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "none identified (general enrichment)",
+      "prompt": {
+        "en": "Why do we always see the same side of the Moon?"
+      },
+      "explanation": {
+        "en": "The Moon's spin matches its orbit (synchronous rotation), so one side always faces Earth."
+      },
+      "source": "https://science.nasa.gov/moon/facts/",
+      "choices": [
+        "It does not spin at all",
+        "Earth blocks the other side",
+        "It spins once each time it orbits",
+        "The far side is always dark"
+      ],
+      "answer": [
+        2
+      ]
+    },
+    {
+      "id": "moon_03",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "none identified (general enrichment)",
+      "prompt": {
+        "en": "How strong is gravity on the Moon compared with Earth?"
+      },
+      "explanation": {
+        "en": "Moon gravity is about one sixth of Earth's, so you would weigh much less there."
+      },
+      "source": "https://science.nasa.gov/moon/facts/",
+      "choices": [
+        "About one sixth",
+        "About half",
+        "The same",
+        "About twice as strong"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "moon_04",
+      "type": "true_false",
+      "difficulty": "easy",
+      "kssm": "none identified (general enrichment)",
+      "prompt": {
+        "en": "The Moon is slowly moving away from Earth."
+      },
+      "explanation": {
+        "en": "The Moon drifts about 2.5 cm farther from Earth each year."
+      },
+      "source": "https://science.nasa.gov/moon/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "moon_05",
+      "type": "order",
+      "difficulty": "medium",
+      "kssm": "none identified (general enrichment)",
+      "prompt": {
+        "en": "Starting from New Moon, put these phases in order."
+      },
+      "explanation": {
+        "en": "After New Moon the lit part grows (waxes) until we see a Full Moon."
+      },
+      "source": "https://science.nasa.gov/moon/moon-phases/",
+      "choices": [
+        "Waxing crescent",
+        "First quarter",
+        "Waxing gibbous",
+        "Full Moon",
+        "New Moon"
+      ],
+      "answer": [
+        4,
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "moon_06",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "kssm": "none identified (general enrichment)",
+      "prompt": {
+        "en": "About how long does one full cycle of Moon phases take?"
+      },
+      "explanation": {
+        "en": "The Moon goes from New Moon back to New Moon in about 29.5 days."
+      },
+      "source": "https://science.nasa.gov/moon/moon-phases/",
+      "choices": [
+        "About 7 days",
+        "About 24 hours",
+        "About 365 days",
+        "About 29.5 days"
+      ],
+      "answer": [
+        3
+      ]
+    },
+    {
+      "id": "moon_07",
+      "type": "match",
+      "difficulty": "medium",
+      "kssm": "none identified (general enrichment)",
+      "prompt": {
+        "en": "Match each tide word to its meaning."
+      },
+      "explanation": {
+        "en": "The Moon's gravity drives tides; when the Sun lines up too we get extra-big spring tides."
+      },
+      "source": "https://science.nasa.gov/moon/tides/",
+      "left": [
+        "Spring tide",
+        "Neap tide",
+        "Time between high tides"
+      ],
+      "choices": [
+        "Sun and Moon at right angles",
+        "About 12 hours",
+        "Sun, Earth and Moon in a line"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "moon_08",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "kssm": "KSSR Sains Tahun 6 Unit 10 Gerhana (prior knowledge)",
+      "prompt": {
+        "en": "What happens during a solar eclipse?"
+      },
+      "explanation": {
+        "en": "In a solar eclipse the Moon blocks some or all of the Sun's light from reaching Earth."
+      },
+      "source": "https://science.nasa.gov/eclipses/types/",
+      "choices": [
+        "The Moon passes between Sun and Earth",
+        "Earth passes between Sun and Moon",
+        "The Sun passes behind Earth",
+        "The Moon passes behind the Sun"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "moon_09",
+      "type": "true_false",
+      "difficulty": "hard",
+      "kssm": "KSSR Sains Tahun 6 Unit 10 Gerhana (prior knowledge)",
+      "prompt": {
+        "en": "A lunar eclipse can only happen at Full Moon."
+      },
+      "explanation": {
+        "en": "A lunar eclipse needs Earth exactly between the Sun and Moon, which only happens at Full Moon."
+      },
+      "source": "https://science.nasa.gov/eclipses/types/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "moon_10",
+      "type": "match",
+      "difficulty": "hard",
+      "kssm": "KSSR Sains Tahun 6 Unit 10 Gerhana (prior knowledge)",
+      "prompt": {
+        "en": "Match each type of solar eclipse to what you see."
+      },
+      "explanation": {
+        "en": "An annular eclipse happens when the Moon is far from Earth and looks too small to cover the Sun."
+      },
+      "source": "https://science.nasa.gov/eclipses/types/",
+      "left": [
+        "Total",
+        "Annular",
+        "Partial"
+      ],
+      "choices": [
+        "A ring of Sun around the Moon",
+        "Moon covers part of the Sun",
+        "Moon covers the whole Sun"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "moon_11",
+      "type": "order",
+      "difficulty": "hard",
+      "kssm": "none identified (general enrichment)",
+      "prompt": {
+        "en": "Starting from Full Moon, put these phases in order."
+      },
+      "explanation": {
+        "en": "After Full Moon the lit part shrinks (wanes) until New Moon."
+      },
+      "source": "https://science.nasa.gov/moon/moon-phases/",
+      "choices": [
+        "Waning gibbous",
+        "Third quarter",
+        "Waning crescent",
+        "New Moon",
+        "Full Moon"
+      ],
+      "answer": [
+        4,
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "moon_12",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSR Sains Tahun 6 Unit 10 Gerhana (prior knowledge)",
+      "prompt": {
+        "en": "Why don't we get an eclipse every month?"
+      },
+      "explanation": {
+        "en": "The Moon's orbit is tilted about 5 degrees, so it usually passes above or below the Sun-Earth line."
+      },
+      "source": "https://science.nasa.gov/eclipses/types/",
+      "choices": [
+        "The Moon is too small",
+        "Earth spins too fast",
+        "The Sun moves away",
+        "The Moon's orbit is tilted"
+      ],
+      "answer": [
+        3
+      ]
+    }
+  ]
+}

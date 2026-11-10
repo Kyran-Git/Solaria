@@ -1,0 +1,283 @@
+{
+  "body": "venus",
+  "questions": [
+    {
+      "id": "venus_01",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Which planet is the hottest in our solar system?"
+      },
+      "explanation": {
+        "en": "Venus is the hottest planet, about 467 C, because its thick air traps heat."
+      },
+      "source": "https://science.nasa.gov/venus/venus-facts/",
+      "choices": [
+        "Mercury",
+        "Mars",
+        "Jupiter",
+        "Venus"
+      ],
+      "answer": [
+        3
+      ]
+    },
+    {
+      "id": "venus_02",
+      "type": "true_false",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Venus has no moons."
+      },
+      "explanation": {
+        "en": "Venus has no moons and no rings."
+      },
+      "source": "https://science.nasa.gov/venus/venus-facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "venus_03",
+      "type": "true_false",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "On Venus the Sun rises in the west and sets in the east."
+      },
+      "explanation": {
+        "en": "Venus spins backward compared with most planets, so the Sun rises in the west."
+      },
+      "source": "https://science.nasa.gov/venus/venus-facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "venus_04",
+      "type": "order",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Order these by how bright they look from Earth, brightest first."
+      },
+      "explanation": {
+        "en": "After the Sun and the Moon, Venus is the brightest natural object in our sky."
+      },
+      "source": "https://science.nasa.gov/venus/venus-facts/",
+      "choices": [
+        "The Moon",
+        "Venus",
+        "The Sun"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "venus_05",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "What makes the surface of Venus so hot?"
+      },
+      "explanation": {
+        "en": "Venus's thick carbon dioxide atmosphere traps heat in a runaway greenhouse effect."
+      },
+      "source": "https://science.nasa.gov/venus/venus-facts/",
+      "choices": [
+        "Being the closest planet to the Sun",
+        "Its very fast spin",
+        "A runaway greenhouse effect",
+        "Heat from its moon"
+      ],
+      "answer": [
+        2
+      ]
+    },
+    {
+      "id": "venus_06",
+      "type": "match",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Match each Venus fact to its value."
+      },
+      "explanation": {
+        "en": "Venus spins very slowly, is extremely hot, and its air presses down 93 times harder than Earth's."
+      },
+      "source": "https://science.nasa.gov/venus/venus-facts/",
+      "left": [
+        "One spin on its axis",
+        "One orbit of the Sun",
+        "Surface temperature",
+        "Surface air pressure"
+      ],
+      "choices": [
+        "225 Earth days",
+        "About 467 C",
+        "About 93 times Earth's",
+        "243 Earth days"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "venus_07",
+      "type": "order",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Put these planets in order from smallest to largest."
+      },
+      "explanation": {
+        "en": "Mercury is the smallest planet. Venus (12,104 km wide) is a little smaller than Earth."
+      },
+      "source": "https://science.nasa.gov/solar-system/planets/",
+      "choices": [
+        "Venus",
+        "Earth",
+        "Mercury"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "venus_08",
+      "type": "true_false",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "One spin of Venus on its axis takes longer than one Venus year."
+      },
+      "explanation": {
+        "en": "Venus takes 243 Earth days to spin once but only 225 Earth days to orbit the Sun."
+      },
+      "source": "https://science.nasa.gov/venus/venus-facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "venus_09",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "What did Galileo's observations of the phases of Venus support?"
+      },
+      "explanation": {
+        "en": "Venus showing phases like the Moon helped support the idea that planets orbit the Sun."
+      },
+      "source": "https://science.nasa.gov/venus/venus-facts/",
+      "choices": [
+        "The Sun orbits Earth",
+        "Planets orbit the Sun",
+        "Venus has moons",
+        "Venus is a star"
+      ],
+      "answer": [
+        1
+      ]
+    },
+    {
+      "id": "venus_10",
+      "type": "order",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Order these planets by average distance from the Sun, nearest first."
+      },
+      "explanation": {
+        "en": "Mercury is 1st, Venus 2nd, Mars 4th and Jupiter 5th planet from the Sun."
+      },
+      "source": "https://science.nasa.gov/solar-system/planets/",
+      "choices": [
+        "Venus",
+        "Mars",
+        "Jupiter",
+        "Mercury"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "venus_11",
+      "type": "match",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T3 Bab 10 Penerokaan Angkasa Lepas",
+      "prompt": {
+        "en": "Match each name to what it did at Venus."
+      },
+      "explanation": {
+        "en": "Radar could see through the clouds; Venera landers survived briefly on the hot surface."
+      },
+      "source": "https://science.nasa.gov/venus/venus-facts/",
+      "left": [
+        "Magellan",
+        "Venera",
+        "Galileo Galilei"
+      ],
+      "choices": [
+        "Soviet landers on the surface",
+        "Saw the phases of Venus",
+        "Mapped the surface with radar"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "venus_12",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "How does the width of Venus compare with Earth's?"
+      },
+      "explanation": {
+        "en": "Venus is 12,104 km across; Earth is 12,756 km. They are almost twins in size."
+      },
+      "source": "https://science.nasa.gov/venus/venus-facts/",
+      "choices": [
+        "Only slightly smaller",
+        "About half as wide",
+        "Twice as wide",
+        "Ten times wider"
+      ],
+      "answer": [
+        0
+      ]
+    }
+  ]
+}

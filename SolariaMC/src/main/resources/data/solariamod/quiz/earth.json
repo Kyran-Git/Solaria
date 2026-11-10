@@ -1,0 +1,287 @@
+{
+  "body": "earth",
+  "questions": [
+    {
+      "id": "earth_01",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Earth is which planet from the Sun?"
+      },
+      "explanation": {
+        "en": "Earth is the third planet from the Sun."
+      },
+      "source": "https://science.nasa.gov/earth/facts/",
+      "choices": [
+        "First",
+        "Second",
+        "Third",
+        "Fourth"
+      ],
+      "answer": [
+        2
+      ]
+    },
+    {
+      "id": "earth_02",
+      "type": "true_false",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Earth is the only planet known to have liquid water on its surface."
+      },
+      "explanation": {
+        "en": "Earth is the only place we know of with liquid water on the surface."
+      },
+      "source": "https://science.nasa.gov/earth/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "earth_03",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "About how much of Earth's surface is covered by ocean?"
+      },
+      "explanation": {
+        "en": "Oceans cover about 71% of Earth's surface."
+      },
+      "source": "https://science.nasa.gov/earth/facts/",
+      "choices": [
+        "About 25%",
+        "About 50%",
+        "About 71%",
+        "About 95%"
+      ],
+      "answer": [
+        2
+      ]
+    },
+    {
+      "id": "earth_04",
+      "type": "true_false",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Earth has seasons because its axis is tilted."
+      },
+      "explanation": {
+        "en": "Earth's axis is tilted about 23.4 degrees, which gives us seasons."
+      },
+      "source": "https://science.nasa.gov/earth/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "earth_05",
+      "type": "order",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T1 Bab 9 Bumi (9.1 Sistem dan Struktur Bumi)",
+      "prompt": {
+        "en": "Put Earth's layers in order from the centre outward."
+      },
+      "explanation": {
+        "en": "From the centre: solid inner core, liquid outer core, thick mantle, then the crust."
+      },
+      "source": "https://science.nasa.gov/earth/facts/",
+      "choices": [
+        "Outer core",
+        "Mantle",
+        "Crust",
+        "Inner core"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "earth_06",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Which gas makes up most of Earth's atmosphere?"
+      },
+      "explanation": {
+        "en": "Earth's air is about 78% nitrogen and 21% oxygen."
+      },
+      "source": "https://science.nasa.gov/earth/facts/",
+      "choices": [
+        "Oxygen",
+        "Nitrogen",
+        "Carbon dioxide",
+        "Hydrogen"
+      ],
+      "answer": [
+        1
+      ]
+    },
+    {
+      "id": "earth_07",
+      "type": "match",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T1 Bab 9 Bumi (9.1 Sistem dan Struktur Bumi)",
+      "prompt": {
+        "en": "Match each layer of Earth to its description."
+      },
+      "explanation": {
+        "en": "The inner core is solid, the outer core liquid, the mantle thickest, and the crust outermost."
+      },
+      "source": "https://science.nasa.gov/earth/facts/",
+      "left": [
+        "Inner core",
+        "Outer core",
+        "Mantle",
+        "Crust"
+      ],
+      "choices": [
+        "Liquid metal layer",
+        "Thickest layer",
+        "Outermost rocky layer",
+        "Solid metal centre"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "earth_08",
+      "type": "true_false",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Earth is the largest of the rocky (terrestrial) planets."
+      },
+      "explanation": {
+        "en": "Earth is the fifth largest planet and the biggest of the rocky planets."
+      },
+      "source": "https://science.nasa.gov/earth/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "earth_09",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Why do we add a leap day every four years?"
+      },
+      "explanation": {
+        "en": "Earth takes about 365.25 days to orbit the Sun, so the extra quarter days add up to a leap day."
+      },
+      "source": "https://science.nasa.gov/earth/facts/",
+      "choices": [
+        "A year is about 365.25 days",
+        "Earth's spin is speeding up",
+        "The Moon pulls Earth off course",
+        "The Sun moves each year"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "earth_10",
+      "type": "match",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Match each Earth fact to its number."
+      },
+      "explanation": {
+        "en": "Sunlight takes about 8 minutes to cross the 150 million km between the Sun and Earth."
+      },
+      "source": "https://science.nasa.gov/earth/facts/",
+      "left": [
+        "Length of one spin",
+        "Distance to the Moon",
+        "Distance to the Sun (1 AU)",
+        "Tilt of the axis"
+      ],
+      "choices": [
+        "About 384,400 km",
+        "About 150 million km",
+        "About 23.4 degrees",
+        "About 23.9 hours"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "earth_11",
+      "type": "order",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Put these planets in order from largest to smallest."
+      },
+      "explanation": {
+        "en": "Earth is 5th largest, Venus 6th, Mars 7th and Mercury the smallest."
+      },
+      "source": "https://science.nasa.gov/solar-system/planets/",
+      "choices": [
+        "Venus",
+        "Mars",
+        "Mercury",
+        "Earth"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "earth_12",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "What produces Earth's magnetic field?"
+      },
+      "explanation": {
+        "en": "Earth's magnetic field is generated deep inside the planet, in its core."
+      },
+      "source": "https://science.nasa.gov/earth/facts/",
+      "choices": [
+        "The Moon",
+        "Earth's core",
+        "The oceans",
+        "The ozone layer"
+      ],
+      "answer": [
+        1
+      ]
+    }
+  ]
+}

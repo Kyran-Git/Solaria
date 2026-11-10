@@ -1,0 +1,284 @@
+{
+  "body": "saturn",
+  "questions": [
+    {
+      "id": "saturn_01",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "What is Saturn best known for?"
+      },
+      "explanation": {
+        "en": "Saturn is surrounded by a bright, complex system of icy rings."
+      },
+      "source": "https://science.nasa.gov/saturn/facts/",
+      "choices": [
+        "Its red colour",
+        "Being nearest the Sun",
+        "Its bright rings",
+        "Having no moons"
+      ],
+      "answer": [
+        2
+      ]
+    },
+    {
+      "id": "saturn_02",
+      "type": "true_false",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Saturn is the second largest planet."
+      },
+      "explanation": {
+        "en": "Saturn is the sixth planet from the Sun and the second largest, after Jupiter."
+      },
+      "source": "https://science.nasa.gov/saturn/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "saturn_03",
+      "type": "true_false",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Saturn's rings are made of chunks of ice and rock."
+      },
+      "explanation": {
+        "en": "The rings are made of countless pieces of ice and rock."
+      },
+      "source": "https://science.nasa.gov/saturn/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "saturn_04",
+      "type": "order",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Put these planets in order from nearest to farthest from the Sun."
+      },
+      "explanation": {
+        "en": "Jupiter is 5th, Saturn 6th and Uranus 7th from the Sun."
+      },
+      "source": "https://science.nasa.gov/solar-system/planets/",
+      "choices": [
+        "Saturn",
+        "Uranus",
+        "Jupiter"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "saturn_05",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Which of these is true about Saturn?"
+      },
+      "explanation": {
+        "en": "Saturn is mostly hydrogen and helium and is less dense than water."
+      },
+      "source": "https://science.nasa.gov/saturn/facts/",
+      "choices": [
+        "It is made mostly of iron",
+        "It is the densest planet",
+        "It has a rocky surface",
+        "It is less dense than water"
+      ],
+      "answer": [
+        3
+      ]
+    },
+    {
+      "id": "saturn_06",
+      "type": "match",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Match each Saturn name to what it is."
+      },
+      "explanation": {
+        "en": "Titan has lakes of methane, Enceladus sprays water ice, and the Cassini Division is 4,700 km wide."
+      },
+      "source": "https://science.nasa.gov/saturn/facts/",
+      "left": [
+        "Titan",
+        "Enceladus",
+        "Cassini Division"
+      ],
+      "choices": [
+        "Moon spraying jets of water",
+        "A wide gap in the rings",
+        "Moon with methane lakes"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "saturn_07",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Saturn is named after the Roman god of what?"
+      },
+      "explanation": {
+        "en": "Saturn is named after the Roman god of agriculture."
+      },
+      "source": "https://science.nasa.gov/saturn/facts/",
+      "choices": [
+        "War",
+        "The sea",
+        "Love",
+        "Farming (agriculture)"
+      ],
+      "answer": [
+        3
+      ]
+    },
+    {
+      "id": "saturn_08",
+      "type": "true_false",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Saturn's main rings are hundreds of kilometres thick."
+      },
+      "explanation": {
+        "en": "The rings are very wide but only about 10 metres thick in most places."
+      },
+      "source": "https://science.nasa.gov/saturn/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        1
+      ]
+    },
+    {
+      "id": "saturn_09",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "About how long is one day on Saturn?"
+      },
+      "explanation": {
+        "en": "Saturn spins quickly; one day lasts about 10.7 hours."
+      },
+      "source": "https://science.nasa.gov/saturn/facts/",
+      "choices": [
+        "About 10.7 hours",
+        "About 24 hours",
+        "About 59 days",
+        "About 3 hours"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "saturn_10",
+      "type": "match",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Match each Saturn fact to its number."
+      },
+      "explanation": {
+        "en": "Saturn is far from the Sun, so it orbits slowly, and its winds are extremely fast."
+      },
+      "source": "https://science.nasa.gov/saturn/facts/",
+      "left": [
+        "Length of one year",
+        "Distance from the Sun",
+        "Time for sunlight to arrive",
+        "Top wind speed"
+      ],
+      "choices": [
+        "About 9.5 AU",
+        "About 80 minutes",
+        "About 500 m/s",
+        "About 29.4 Earth years"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "saturn_11",
+      "type": "order",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Put these planets in order from largest to smallest."
+      },
+      "explanation": {
+        "en": "Jupiter is largest, then Saturn, Uranus, Earth (5th) and Mars (7th)."
+      },
+      "source": "https://science.nasa.gov/solar-system/planets/",
+      "choices": [
+        "Saturn",
+        "Uranus",
+        "Earth",
+        "Mars",
+        "Jupiter"
+      ],
+      "answer": [
+        4,
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "saturn_12",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "What strange shape surrounds Saturn's north pole?"
+      },
+      "explanation": {
+        "en": "A six-sided pattern called the hexagon circles Saturn's north pole."
+      },
+      "source": "https://science.nasa.gov/saturn/facts/",
+      "choices": [
+        "A perfect square",
+        "A six-sided hexagon",
+        "A red spot",
+        "A ring of volcanoes"
+      ],
+      "answer": [
+        1
+      ]
+    }
+  ]
+}

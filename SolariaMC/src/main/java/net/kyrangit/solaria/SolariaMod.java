@@ -32,9 +32,11 @@ public class SolariaMod implements ModInitializer {
 		net.kyrangit.solaria.intro.IntroHub.install();
 		net.kyrangit.solaria.scan.ScanPackets.register();
 		new net.kyrangit.solaria.scan.HostScanSessions(config).install();
+		net.kyrangit.solaria.quiz.QuizServer.install(FabricLoader.getInstance().getConfigDir());
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
 			SolariaCommands.register(dispatcher, config);
 			net.kyrangit.solaria.intro.IntroHub.registerCommands(dispatcher, config);
+			net.kyrangit.solaria.quiz.QuizServer.registerCommands(dispatcher);
 		});
 	}
 

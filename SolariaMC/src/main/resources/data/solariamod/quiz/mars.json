@@ -1,0 +1,284 @@
+{
+  "body": "mars",
+  "questions": [
+    {
+      "id": "mars_01",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Why does Mars look red?"
+      },
+      "explanation": {
+        "en": "Iron minerals in Martian dust and rock oxidise, or rust, making the planet look red."
+      },
+      "source": "https://science.nasa.gov/mars/facts/",
+      "choices": [
+        "It is extremely hot",
+        "Rusty iron in its soil",
+        "It is covered in red plants",
+        "It reflects light from Jupiter"
+      ],
+      "answer": [
+        1
+      ]
+    },
+    {
+      "id": "mars_02",
+      "type": "true_false",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Mars has two moons."
+      },
+      "explanation": {
+        "en": "Mars has two small moons, Phobos and Deimos."
+      },
+      "source": "https://science.nasa.gov/mars/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "mars_03",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Mars is named after the Roman god of what?"
+      },
+      "explanation": {
+        "en": "The Romans named the red planet after their god of war."
+      },
+      "source": "https://science.nasa.gov/mars/facts/",
+      "choices": [
+        "The sea",
+        "War",
+        "Farming",
+        "The sky"
+      ],
+      "answer": [
+        1
+      ]
+    },
+    {
+      "id": "mars_04",
+      "type": "order",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Put these planets in order from nearest to farthest from the Sun."
+      },
+      "explanation": {
+        "en": "Earth is 3rd, Mars 4th and Jupiter 5th from the Sun."
+      },
+      "source": "https://science.nasa.gov/solar-system/planets/",
+      "choices": [
+        "Mars",
+        "Jupiter",
+        "Earth"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "mars_05",
+      "type": "true_false",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Mars has seasons because its axis is tilted."
+      },
+      "explanation": {
+        "en": "Mars is tilted about 25 degrees, similar to Earth, so it has seasons."
+      },
+      "source": "https://science.nasa.gov/mars/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "mars_06",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "What is Olympus Mons?"
+      },
+      "explanation": {
+        "en": "Olympus Mons is about 25 km high, roughly three times the height of Mount Everest."
+      },
+      "source": "https://science.nasa.gov/mars/facts/",
+      "choices": [
+        "A deep canyon",
+        "One of Mars's moons",
+        "The largest volcano in the solar system",
+        "A polar ice cap"
+      ],
+      "answer": [
+        2
+      ]
+    },
+    {
+      "id": "mars_07",
+      "type": "match",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Match each Mars name to what it is."
+      },
+      "explanation": {
+        "en": "Phobos and Deimos are moons; Olympus Mons is a volcano; Valles Marineris is a canyon."
+      },
+      "source": "https://science.nasa.gov/mars/facts/",
+      "left": [
+        "Phobos",
+        "Olympus Mons",
+        "Valles Marineris"
+      ],
+      "choices": [
+        "A giant volcano",
+        "A huge canyon system",
+        "A moon of Mars"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "mars_08",
+      "type": "true_false",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "A day on Mars (called a sol) is a little longer than a day on Earth."
+      },
+      "explanation": {
+        "en": "One Mars day lasts about 24.6 hours."
+      },
+      "source": "https://science.nasa.gov/mars/facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "mars_09",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "What is the thin atmosphere of Mars mostly made of?"
+      },
+      "explanation": {
+        "en": "Mars has a thin atmosphere made mostly of carbon dioxide."
+      },
+      "source": "https://science.nasa.gov/mars/facts/",
+      "choices": [
+        "Oxygen",
+        "Nitrogen",
+        "Water vapour",
+        "Carbon dioxide"
+      ],
+      "answer": [
+        3
+      ]
+    },
+    {
+      "id": "mars_10",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "About how long is one year on Mars?"
+      },
+      "explanation": {
+        "en": "Mars is farther from the Sun than Earth, so its orbit takes 687 Earth days."
+      },
+      "source": "https://science.nasa.gov/mars/facts/",
+      "choices": [
+        "88 Earth days",
+        "365 Earth days",
+        "687 Earth days",
+        "12 Earth years"
+      ],
+      "answer": [
+        2
+      ]
+    },
+    {
+      "id": "mars_11",
+      "type": "match",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Match each Mars fact to its number."
+      },
+      "explanation": {
+        "en": "Mars is about half as wide as Earth and about 1.5 AU from the Sun."
+      },
+      "source": "https://science.nasa.gov/mars/facts/",
+      "left": [
+        "Radius of Mars",
+        "Length of a sol",
+        "Height of Olympus Mons",
+        "Time for sunlight to arrive"
+      ],
+      "choices": [
+        "About 24.6 hours",
+        "About 25 km",
+        "About 13 minutes",
+        "About 3,390 km"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "mars_12",
+      "type": "order",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Put these planets in order from smallest to largest."
+      },
+      "explanation": {
+        "en": "Mercury is smallest, then Mars, Venus, Earth, and Jupiter is the largest planet."
+      },
+      "source": "https://science.nasa.gov/solar-system/planets/",
+      "choices": [
+        "Mars",
+        "Venus",
+        "Earth",
+        "Jupiter",
+        "Mercury"
+      ],
+      "answer": [
+        4,
+        0,
+        1,
+        2,
+        3
+      ]
+    }
+  ]
+}

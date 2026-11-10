@@ -1,0 +1,286 @@
+{
+  "body": "jupiter",
+  "questions": [
+    {
+      "id": "jupiter_01",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Which is the largest planet in our solar system?"
+      },
+      "explanation": {
+        "en": "Jupiter is the largest planet; about 1,000 Earths could fit inside it."
+      },
+      "source": "https://science.nasa.gov/jupiter/jupiter-facts/",
+      "choices": [
+        "Saturn",
+        "Earth",
+        "Jupiter",
+        "Neptune"
+      ],
+      "answer": [
+        2
+      ]
+    },
+    {
+      "id": "jupiter_02",
+      "type": "true_false",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "You could stand on a solid surface on Jupiter."
+      },
+      "explanation": {
+        "en": "Jupiter is a gas giant made mostly of hydrogen and helium with no true surface."
+      },
+      "source": "https://science.nasa.gov/jupiter/jupiter-facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        1
+      ]
+    },
+    {
+      "id": "jupiter_03",
+      "type": "multiple_choice",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "What is Jupiter's Great Red Spot?"
+      },
+      "explanation": {
+        "en": "The Great Red Spot is a giant storm that is bigger than Earth."
+      },
+      "source": "https://science.nasa.gov/jupiter/jupiter-facts/",
+      "choices": [
+        "A huge volcano",
+        "A red lake",
+        "A giant storm bigger than Earth",
+        "A shadow of a moon"
+      ],
+      "answer": [
+        2
+      ]
+    },
+    {
+      "id": "jupiter_04",
+      "type": "true_false",
+      "difficulty": "easy",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Jupiter has rings."
+      },
+      "explanation": {
+        "en": "Jupiter has faint rings, discovered by Voyager 1 in 1979."
+      },
+      "source": "https://science.nasa.gov/jupiter/jupiter-facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "jupiter_05",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Jupiter is made mostly of which two gases?"
+      },
+      "explanation": {
+        "en": "Like the Sun, Jupiter is mostly hydrogen and helium."
+      },
+      "source": "https://science.nasa.gov/jupiter/jupiter-facts/",
+      "choices": [
+        "Oxygen and nitrogen",
+        "Carbon dioxide and water",
+        "Methane and ammonia",
+        "Hydrogen and helium"
+      ],
+      "answer": [
+        3
+      ]
+    },
+    {
+      "id": "jupiter_06",
+      "type": "match",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Match each moon of Jupiter to its fact."
+      },
+      "explanation": {
+        "en": "These are three of the four Galilean moons; Callisto is the fourth."
+      },
+      "source": "https://science.nasa.gov/jupiter/jupiter-facts/",
+      "left": [
+        "Io",
+        "Europa",
+        "Ganymede"
+      ],
+      "choices": [
+        "May hide an ocean under its ice",
+        "Bigger than the planet Mercury",
+        "Most volcanic body known"
+      ],
+      "answer": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "jupiter_07",
+      "type": "order",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Put these planets in order from nearest to farthest from the Sun."
+      },
+      "explanation": {
+        "en": "Mars is 4th, Jupiter 5th, Saturn 6th and Uranus 7th from the Sun."
+      },
+      "source": "https://science.nasa.gov/solar-system/planets/",
+      "choices": [
+        "Jupiter",
+        "Saturn",
+        "Uranus",
+        "Mars"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "jupiter_08",
+      "type": "true_false",
+      "difficulty": "medium",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Jupiter has the shortest day of any planet."
+      },
+      "explanation": {
+        "en": "Jupiter spins once in about 10 hours, faster than any other planet."
+      },
+      "source": "https://science.nasa.gov/jupiter/jupiter-facts/",
+      "choices": [
+        "True",
+        "False"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "jupiter_09",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "About how many Earths could fit inside Jupiter?"
+      },
+      "explanation": {
+        "en": "Jupiter is about 11 times wider than Earth, so about 1,000 Earths could fit inside."
+      },
+      "source": "https://science.nasa.gov/jupiter/jupiter-facts/",
+      "choices": [
+        "About 1,000",
+        "About 10",
+        "About 100",
+        "About 1 million"
+      ],
+      "answer": [
+        0
+      ]
+    },
+    {
+      "id": "jupiter_10",
+      "type": "multiple_choice",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T3 Bab 10 Penerokaan Angkasa Lepas",
+      "prompt": {
+        "en": "Who discovered Jupiter's four largest moons in 1610?"
+      },
+      "explanation": {
+        "en": "Galileo saw Io, Europa, Ganymede and Callisto through his telescope in 1610."
+      },
+      "source": "https://science.nasa.gov/jupiter/jupiter-facts/",
+      "choices": [
+        "Isaac Newton",
+        "Galileo Galilei",
+        "William Herschel",
+        "Johannes Kepler"
+      ],
+      "answer": [
+        1
+      ]
+    },
+    {
+      "id": "jupiter_11",
+      "type": "match",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Match each Jupiter fact to its number."
+      },
+      "explanation": {
+        "en": "Jupiter spins fast but orbits slowly at about 5.2 AU from the Sun."
+      },
+      "source": "https://science.nasa.gov/jupiter/jupiter-facts/",
+      "left": [
+        "Length of one day",
+        "Length of one year",
+        "Radius of Jupiter",
+        "Time for sunlight to arrive"
+      ],
+      "choices": [
+        "About 12 Earth years",
+        "About 69,911 km",
+        "About 43 minutes",
+        "About 10 hours"
+      ],
+      "answer": [
+        3,
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "jupiter_12",
+      "type": "order",
+      "difficulty": "hard",
+      "kssm": "KSSM Sains T2 Bab 12 Sistem Suria",
+      "prompt": {
+        "en": "Put these planets in order from largest to smallest."
+      },
+      "explanation": {
+        "en": "Jupiter is largest, then Saturn, Uranus, Neptune and Earth (5th largest)."
+      },
+      "source": "https://science.nasa.gov/solar-system/planets/",
+      "choices": [
+        "Saturn",
+        "Uranus",
+        "Neptune",
+        "Earth",
+        "Jupiter"
+      ],
+      "answer": [
+        4,
+        0,
+        1,
+        2,
+        3
+      ]
+    }
+  ]
+}
