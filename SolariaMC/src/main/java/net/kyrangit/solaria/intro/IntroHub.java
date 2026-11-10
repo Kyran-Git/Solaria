@@ -37,9 +37,19 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.portal.TeleportTransition;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
+import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
+import net.minecraft.world.level.block.state.BlockState;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Opt-in classroom onboarding. All quiz/reward decisions are made by the server. */
 public final class IntroHub {
@@ -49,8 +59,11 @@ public final class IntroHub {
     public static final class Data {
         public static final AttachmentType<Boolean> ENABLED = AttachmentRegistry.create(SolariaMod.id("intro_enabled"),
             b -> b.persistent(Codec.BOOL));
-        /** v2: mission board text changed for any-order stations, so existing hubs rebuild once. */
-        public static final AttachmentType<Boolean> BUILT = AttachmentRegistry.create(SolariaMod.id("intro_built_v2"),
+        /** v3: the quiz stations became the Orbit Builder, so existing hubs rebuild once. */
+        public static final AttachmentType<Boolean> BUILT = AttachmentRegistry.create(SolariaMod.id("intro_built_v3"),
+            b -> b.persistent(Codec.BOOL));
+        /** Still registered only so older worlds load without "unknown attachment" warnings; never read. */
+        public static final AttachmentType<Boolean> LEGACY_BUILT_V2 = AttachmentRegistry.create(SolariaMod.id("intro_built_v2"),
             b -> b.persistent(Codec.BOOL));
         /** Still registered only so older worlds load without "unknown attachment" warnings; never read. */
         public static final AttachmentType<Boolean> LEGACY_BUILT_V1 = AttachmentRegistry.create(SolariaMod.id("intro_built_v1"),
@@ -59,7 +72,13 @@ public final class IntroHub {
             b -> b.persistent(Codec.BOOL).copyOnDeath());
         public static final AttachmentType<Boolean> REQUIRED = AttachmentRegistry.create(SolariaMod.id("intro_required"),
             b -> b.persistent(Codec.BOOL).copyOnDeath().syncWith(ByteBufCodecs.BOOL, AttachmentSyncPredicate.targetOnly()));
-        /** Bitmask of solved stations (see {@link IntroQuiz}); any order. */
+        /** Orbit Builder slots filled (see {@link OrbitPuzzle}); synced so the client knows when scanning unlocks. */
+        public static final AttachmentType<Integer> ORBIT = AttachmentRegistry.create(SolariaMod.id("intro_orbit"),
+            b -> b.persistent(OrbitPuzzle.CODEC).copyOnDeath().syncWith(ByteBufCodecs.VAR_INT, AttachmentSyncPredicate.targetOnly()));
+        /** Bodies this player has arrived at through Build or /solaria visit (see {@link StarChart}). */
+        public static final AttachmentType<Integer> STAR_CHART = AttachmentRegistry.create(SolariaMod.id("star_chart"),
+            b -> b.persistent(StarChart.CODEC).copyOnDeath());
+        /** Legacy three-station quiz mask; read once to migrate finished players, then removed. */
         public static final AttachmentType<Integer> SOLVED = AttachmentRegistry.create(SolariaMod.id("intro_solved"),
             b -> b.persistent(IntroQuiz.MASK_CODEC).copyOnDeath().syncWith(ByteBufCodecs.VAR_INT, AttachmentSyncPredicate.targetOnly()));
         /** Old in-order count from before any-order stations; converted to {@link #SOLVED} on join. */
@@ -75,24 +94,34 @@ public final class IntroHub {
     private IntroHub() {
     }
 
-    /** Bitmask of solved stations. */
-    public static int solved(Player player) {
+    /** Selected supply core per player; transient, so a restart simply asks them to pick again. */
+    private static final Map<UUID, Integer> HELD = new ConcurrentHashMap<>();
+    /** Stage-3 round start (overworld game time) per player; transient, a restart just needs START again. */
+    private static final Map<UUID, Long> ROUND = new ConcurrentHashMap<>();
+
+    /** Orbit Builder slots filled. Server-side fallback treats an unmigrated finished quiz as complete. */
+    public static int orbit(Player player) {
+        Integer orbit = player.getAttached(Data.ORBIT);
+        if (orbit != null) return orbit;
+        return legacyFinished(player) ? OrbitPuzzle.ALL : 0;
+    }
+
+    /** Stage reached, 0..3 (3 = complete). */
+    public static int stage(Player player) {
+        return OrbitPuzzle.stage(orbit(player));
+    }
+
+    private static boolean legacyFinished(Player player) {
         Integer solved = player.getAttached(Data.SOLVED);
-        if (solved != null) return solved;
-        // Server-side fallback until the join migration has run; the client only ever sees SOLVED.
         Integer legacy = player.getAttached(Data.LEGACY_PROGRESS);
-        return legacy == null ? 0 : IntroQuiz.fromLegacyCount(legacy);
+        return (solved != null && IntroQuiz.complete(solved)) || (legacy != null && IntroQuiz.fromLegacyCount(legacy) == IntroQuiz.ALL);
     }
 
-    /** Number of solved stations, 0..3. */
-    public static int progress(Player player) {
-        return IntroQuiz.count(solved(player));
-    }
-
+    /** Students who already finished the old quiz keep their scanner; anyone partway restarts with the new mission. */
     private static void migrateLegacyProgress(ServerPlayer player) {
-        Integer legacy = player.getAttached(Data.LEGACY_PROGRESS);
-        if (legacy == null) return;
-        if (!player.hasAttached(Data.SOLVED)) player.setAttached(Data.SOLVED, IntroQuiz.fromLegacyCount(legacy));
+        if (!player.hasAttached(Data.SOLVED) && !player.hasAttached(Data.LEGACY_PROGRESS)) return;
+        if (!player.hasAttached(Data.ORBIT)) player.setAttached(Data.ORBIT, legacyFinished(player) ? OrbitPuzzle.ALL : 0);
+        player.removeAttached(Data.SOLVED);
         player.removeAttached(Data.LEGACY_PROGRESS);
     }
 
@@ -101,22 +130,42 @@ public final class IntroHub {
     }
 
     public static boolean canScan(Player player) {
-        return !enrolled(player) || IntroQuiz.complete(solved(player));
+        return !enrolled(player) || OrbitPuzzle.complete(orbit(player));
+    }
+
+    /** Records an arrival on the student's star chart and tells them what is left; called after a successful planet teleport. */
+    public static void chartArrival(ServerPlayer player, net.kyrangit.solaria.blueprint.AstronomyClass body) {
+        int before = player.getAttachedOrElse(Data.STAR_CHART, 0);
+        int after = StarChart.visit(before, body);
+        if (after == before) return;
+        player.setAttached(Data.STAR_CHART, after);
+        tell(player, "New entry on your star chart! " + StarChart.describe(after), ChatFormatting.LIGHT_PURPLE);
+    }
+
+    private static String progressText(int mask) {
+        return "Stage " + Math.min(OrbitPuzzle.stage(mask) + 1, 3) + "/3, " + OrbitPuzzle.count(mask) + "/" + OrbitPuzzle.SLOTS + " cores placed";
     }
 
     public static void install() {
-        var unused = Data.SOLVED;
+        var unused = Data.ORBIT;
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             ServerPlayer player = handler.getPlayer();
             // Defer teleport until the join packet sequence has completed.
             server.execute(() -> {
                 if (player.hasDisconnected()) return;
                 migrateLegacyProgress(player);
+                // The timed round never survives a reconnect: clear half-placed giants so START restarts it fairly.
+                int mask = orbit(player);
+                if (OrbitPuzzle.stage(mask) == 2 && OrbitPuzzle.expire(mask) != mask) player.setAttached(Data.ORBIT, OrbitPuzzle.expire(mask));
                 boolean seen = player.getAttachedOrElse(Data.SEEN, false);
                 player.setAttached(Data.SEEN, true);
                 if (!seen && server.overworld().getAttachedOrElse(Data.ENABLED, false)) enter(player, server, true);
                 else if (enrolled(player) && !canScan(player)) enter(player, server, false);
             });
+        });
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            HELD.remove(handler.getPlayer().getUUID());
+            ROUND.remove(handler.getPlayer().getUUID());
         });
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, player, alive) -> {
             // Only an unfinished mission is mandatory; a finished explorer respawns normally.
@@ -129,9 +178,16 @@ public final class IntroHub {
             }
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (server.overworld().getGameTime() % 20 != 0) return;
+            long now = server.overworld().getGameTime();
+            if (now % 20 != 0) return;
             for (ServerPlayer player : java.util.List.copyOf(server.getPlayerList().getPlayers())) {
                 boolean inHub = player.level().dimension().equals(DIMENSION);
+                if (!inHub) ROUND.remove(player.getUUID());
+                else {
+                    tickRound(player, now);
+                    // Chunk reloads drop the client-only core blocks, so refresh them every few seconds.
+                    if (now % 60 == 0) showCores(player);
+                }
                 if (enrolled(player) && !canScan(player) && !inHub) enter(player, server, false);
                 // Teachers in creative/spectator may inspect freely; everyone else stays on the platform.
                 if (inHub && !player.isCreative() && !player.isSpectator()
@@ -155,14 +211,19 @@ public final class IntroHub {
                 tell(player, "Use /solaria intro join to start your explorer mission.", ChatFormatting.AQUA);
                 return InteractionResult.SUCCESS;
             }
-            for (int station = 0; station < IntroQuiz.COUNT; station++) {
-                for (int answer = 0; answer < 3; answer++) {
-                    if (button.equals(HubLayout.choice(station, answer))) {
-                        answer(serverPlayer, station, answer);
-                        return InteractionResult.SUCCESS;
-                    }
+            for (int core = 0; core < OrbitPuzzle.CORES.size(); core++) {
+                if (button.equals(HubLayout.supply(core))) {
+                    pick(serverPlayer, core);
+                    return InteractionResult.SUCCESS;
                 }
             }
+            for (int slot = 0; slot < OrbitPuzzle.SLOTS; slot++) {
+                if (button.equals(HubLayout.pedestal(slot))) {
+                    place(serverPlayer, slot);
+                    return InteractionResult.SUCCESS;
+                }
+            }
+            if (button.equals(HubLayout.START)) startRound(serverPlayer);
             if (button.equals(HubLayout.TERMINAL)) reward(serverPlayer);
             if (button.equals(HubLayout.EXIT)) leave(serverPlayer, serverPlayer.level().getServer());
             return InteractionResult.SUCCESS;
@@ -173,33 +234,163 @@ public final class IntroHub {
             !level.dimension().equals(DIMENSION) || player.isCreative());
     }
 
-    private static void answer(ServerPlayer player, int station, int choice) {
-        int before = solved(player);
-        if (IntroQuiz.solved(before, station)) {
-            tell(player, IntroQuiz.complete(before) ? "Mission complete! Collect your scanner at the green depot behind you."
-                : "You already solved this station. Still to explore: " + IntroQuiz.remaining(before) + ".", ChatFormatting.AQUA);
+    private static void pick(ServerPlayer player, int core) {
+        if (OrbitPuzzle.complete(orbit(player))) {
+            tell(player, "Every orbit is filled! Collect your scanner at the green depot.", ChatFormatting.AQUA);
             return;
         }
-        var question = IntroQuiz.QUESTIONS.get(station);
-        int after = IntroQuiz.answer(before, station, choice);
-        boolean correct = after != before;
-        tell(player, (correct ? "Correct! " : "Not quite - try again! ") + question.explanation(),
-            correct ? ChatFormatting.GREEN : ChatFormatting.YELLOW);
-        if (!correct) {
-            tell(player, question.prompt(), ChatFormatting.AQUA);
+        HELD.put(player.getUUID(), core);
+        player.sendOverlayMessage(Component.literal("Holding the " + OrbitPuzzle.name(core) + " core. Press an orbit slot button to place it.")
+            .withStyle(ChatFormatting.AQUA));
+        player.playSound(SoundEvents.NOTE_BLOCK_HAT.value(), 0.6f, 1.4f);
+    }
+
+    private static void place(ServerPlayer player, int slot) {
+        int before = orbit(player);
+        if (OrbitPuzzle.placed(before, slot)) {
+            player.sendOverlayMessage(Component.literal("That orbit already has its " + OrbitPuzzle.name(OrbitPuzzle.expected(slot)) + " core.")
+                .withStyle(ChatFormatting.GRAY));
             return;
         }
-        player.setAttached(Data.SOLVED, after);
-        player.level().playSound(null, player.blockPosition(), SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.PLAYERS, 0.6f, 1.2f);
-        if (IntroQuiz.complete(after)) {
-            tell(player, "Explorer mission complete! Your scanner is unlocked. Visit the green depot, then the cyan lesson exit.", ChatFormatting.GOLD);
+        int stage = OrbitPuzzle.stage(before);
+        if (OrbitPuzzle.slotStage(slot) != stage) {
+            tell(player, OrbitPuzzle.slotStage(slot) > stage ? "That slot is locked for now. " + OrbitPuzzle.objective(before)
+                : "That stage is done. " + OrbitPuzzle.objective(before), ChatFormatting.YELLOW);
+            return;
+        }
+        Integer core = HELD.get(player.getUUID());
+        if (core == null) {
+            tell(player, "Your hands are empty. Press a core button on the supply wall first.", ChatFormatting.YELLOW);
+            return;
+        }
+        long now = player.level().getServer().overworld().getGameTime();
+        if (stage == 2 && !ROUND.containsKey(player.getUUID())) {
+            tell(player, "Press the START button to begin the timed round before placing a giant.", ChatFormatting.YELLOW);
+            return;
+        }
+        int after = OrbitPuzzle.place(before, slot, core);
+        ServerLevel level = (ServerLevel) player.level();
+        BlockPos marker = HubLayout.marker(slot);
+        if (after == before) {
+            player.playSound(SoundEvents.NOTE_BLOCK_BASS.value(), 0.8f, 0.6f);
+            level.sendParticles(player, ParticleTypes.SMOKE, true, false, marker.getX() + 0.5, marker.getY() + 0.5, marker.getZ() + 0.5,
+                8, 0.2, 0.2, 0.2, 0.01);
+            String penalty = "";
+            if (stage == 2) {
+                // Move the round start back so the remaining time drops, without letting it go below zero.
+                ROUND.computeIfPresent(player.getUUID(), (id, start) -> start - OrbitPuzzle.PENALTY_TICKS);
+                penalty = " (-10 s, " + OrbitPuzzle.secondsLeft(ROUND.getOrDefault(player.getUUID(), now), now) + " s left)";
+            }
+            tell(player, "Not quite: the " + OrbitPuzzle.name(core) + " core does not belong there" + penalty + ". " + OrbitPuzzle.hint(slot),
+                ChatFormatting.YELLOW);
+            return;
+        }
+        player.setAttached(Data.ORBIT, after);
+        HELD.remove(player.getUUID());
+        showCore(player, slot);
+        level.sendParticles(player, ParticleTypes.END_ROD, true, false, marker.getX() + 0.5, marker.getY() + 0.5, marker.getZ() + 0.5,
+            16, 0.3, 0.3, 0.3, 0.03);
+        player.playSound(SoundEvents.NOTE_BLOCK_CHIME.value(), 0.8f, 0.7f + 0.1f * (OrbitPuzzle.count(after) % 9));
+        player.sendOverlayMessage(Component.literal("Correct! " + OrbitPuzzle.name(core) + " is in place. " + progressText(after) + ".")
+            .withStyle(ChatFormatting.GREEN));
+        int newStage = OrbitPuzzle.stage(after);
+        if (newStage == stage) return;
+        ROUND.remove(player.getUUID());
+        if (newStage == 3) {
+            title(player, "Orbit Builder complete!", "Your scanner is unlocked");
+            player.playSound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 0.8f, 1.0f);
+            level.sendParticles(player, ParticleTypes.FIREWORK, true, false, HubLayout.TERMINAL.getX() + 0.5, HubLayout.TERMINAL.getY() + 1.0,
+                HubLayout.TERMINAL.getZ() + 0.5, 40, 0.6, 0.6, 0.6, 0.08);
+            tell(player, "Explorer mission complete! You rebuilt the Solar System. Visit the green depot, then the cyan lesson exit.", ChatFormatting.GOLD);
             reward(player);
-        } else tell(player, IntroQuiz.count(after) + "/3 complete! Still to explore: " + IntroQuiz.remaining(after) + ".", ChatFormatting.AQUA);
+        } else {
+            title(player, "Stage " + (newStage + 1) + " unlocked", newStage == 1 ? "Outer planets and the Moon" : "Timed: giant planet clues");
+            player.playSound(SoundEvents.PLAYER_LEVELUP, 0.7f, 1.0f);
+            tell(player, OrbitPuzzle.objective(after), ChatFormatting.AQUA);
+        }
+    }
+
+    private static void startRound(ServerPlayer player) {
+        int mask = orbit(player);
+        int stage = OrbitPuzzle.stage(mask);
+        if (stage != 2) {
+            tell(player, stage < 2 ? "The timed round unlocks at stage 3. " + OrbitPuzzle.objective(mask)
+                : "You already finished the timed round!", ChatFormatting.YELLOW);
+            return;
+        }
+        long now = player.level().getServer().overworld().getGameTime();
+        Long running = ROUND.get(player.getUUID());
+        if (running != null && !OrbitPuzzle.expired(running, now)) {
+            player.sendOverlayMessage(Component.literal(OrbitPuzzle.secondsLeft(running, now) + " seconds left. Read the clue signs!")
+                .withStyle(ChatFormatting.GOLD));
+            return;
+        }
+        ROUND.put(player.getUUID(), now);
+        title(player, "GO!", "Match each giant to its clue: 120 seconds");
+        player.playSound(SoundEvents.NOTE_BLOCK_BELL.value(), 1.0f, 1.0f);
+    }
+
+    private static void tickRound(ServerPlayer player, long now) {
+        Long start = ROUND.get(player.getUUID());
+        if (start == null) return;
+        int mask = orbit(player);
+        if (OrbitPuzzle.stage(mask) != 2) {
+            ROUND.remove(player.getUUID());
+            return;
+        }
+        if (OrbitPuzzle.expired(start, now)) {
+            ROUND.remove(player.getUUID());
+            int reset = OrbitPuzzle.expire(mask);
+            player.setAttached(Data.ORBIT, reset);
+            for (int slot = 9; slot < OrbitPuzzle.SLOTS; slot++) showCore(player, slot);
+            player.playSound(SoundEvents.NOTE_BLOCK_DIDGERIDOO.value(), 0.8f, 0.8f);
+            title(player, "Time's up!", "Press START to try the giants again");
+            tell(player, "Time's up! The giant slots reset, but stages 1 and 2 are saved. Press START when you are ready.", ChatFormatting.YELLOW);
+            return;
+        }
+        int left = OrbitPuzzle.secondsLeft(start, now);
+        if (left <= 10) player.playSound(SoundEvents.NOTE_BLOCK_HAT.value(), 0.5f, 2.0f);
+        player.sendOverlayMessage(Component.literal("Giant clues: " + left + " s left").withStyle(left <= 10 ? ChatFormatting.RED : ChatFormatting.GOLD));
+    }
+
+    /** Lights a placed core on this player's client only, so every student sees their own progress on a shared hub. */
+    private static void showCore(ServerPlayer player, int slot) {
+        int mask = orbit(player);
+        BlockState state = OrbitPuzzle.placed(mask, slot) ? coreBlock(OrbitPuzzle.expected(slot)) : Blocks.AIR.defaultBlockState();
+        player.connection.send(new ClientboundBlockUpdatePacket(HubLayout.marker(slot), state));
+    }
+
+    private static void showCores(ServerPlayer player) {
+        if (orbit(player) == 0) return;
+        for (int slot = 0; slot < OrbitPuzzle.SLOTS; slot++) showCore(player, slot);
+    }
+
+    /** Colour hints only; real blocks are never placed at the markers. */
+    public static BlockState coreBlock(int core) {
+        Block block = switch (OrbitPuzzle.CORES.get(core)) {
+            case "mercury" -> Blocks.TUFF;
+            case "venus" -> Blocks.YELLOW_TERRACOTTA;
+            case "earth" -> Blocks.LIGHT_BLUE_CONCRETE;
+            case "mars" -> Blocks.RED_TERRACOTTA;
+            case "jupiter" -> Blocks.ORANGE_TERRACOTTA;
+            case "saturn" -> Blocks.YELLOW_CONCRETE;
+            case "uranus" -> Blocks.LIGHT_BLUE_TERRACOTTA;
+            case "neptune" -> Blocks.BLUE_CONCRETE;
+            default -> Blocks.SMOOTH_STONE;
+        };
+        return block.defaultBlockState();
+    }
+
+    private static void title(ServerPlayer player, String title, String subtitle) {
+        player.connection.send(new ClientboundSetTitlesAnimationPacket(5, 40, 10));
+        player.connection.send(new ClientboundSetSubtitleTextPacket(Component.literal(subtitle).withStyle(ChatFormatting.AQUA)));
+        player.connection.send(new ClientboundSetTitleTextPacket(Component.literal(title).withStyle(ChatFormatting.GOLD)));
     }
 
     private static boolean reward(ServerPlayer player) {
-        if (!IntroQuiz.complete(solved(player))) {
-            tell(player, "Complete the three stations to earn your scanner. Progress: " + progress(player) + "/3.", ChatFormatting.YELLOW);
+        if (!OrbitPuzzle.complete(orbit(player))) {
+            tell(player, "Finish the Orbit Builder to earn your scanner. " + progressText(orbit(player)) + ". " + OrbitPuzzle.objective(orbit(player)),
+                ChatFormatting.YELLOW);
             return false;
         }
         if (player.getInventory().contains(stack -> stack.is(SolariaItems.SCANNER))) return true;
@@ -252,8 +443,14 @@ public final class IntroHub {
         arrived.removeAttached(LessonReturn.Attachment.ANCHOR);
         arrived.getAbilities().flying = false;
         arrived.onUpdateAbilities();
-        tell(arrived, "Welcome to Solaria Academy! Explore the three stations ahead (Planets, Sun, Moon) in any order. Right-click an answer button. Progress: "
-            + progress(arrived) + "/3. /solaria intro status shows your mission.", ChatFormatting.AQUA);
+        HELD.remove(arrived.getUUID());
+        ROUND.remove(arrived.getUUID());
+        int mask = orbit(arrived);
+        title(arrived, "Solaria Academy", OrbitPuzzle.complete(mask) ? "Mission complete" : "Orbit Builder: rebuild the Solar System");
+        tell(arrived, "Welcome to Solaria Academy! The Sun's orbit slots have lost their planets. Press a core on the supply wall, then press the "
+            + "orbit slot where it belongs. " + progressText(mask) + ". " + OrbitPuzzle.objective(mask), ChatFormatting.AQUA);
+        // Wait a moment so the hub chunks reach the client before the per-player cores are drawn.
+        arrived.level().getServer().execute(() -> showCores(arrived));
         return true;
     }
 
@@ -271,7 +468,8 @@ public final class IntroHub {
             return false;
         }
         if (!canScan(player)) {
-            tell(player, "Finish the three stations first. You can do it! Progress: " + progress(player) + "/3.", ChatFormatting.YELLOW);
+            tell(player, "Finish the Orbit Builder first. You can do it! " + progressText(orbit(player)) + ". " + OrbitPuzzle.objective(orbit(player)),
+                ChatFormatting.YELLOW);
             return false;
         }
         if (!reward(player)) return false;
@@ -338,21 +536,31 @@ public final class IntroHub {
                 if (!teacher(c.getSource(), config)) return 0;
                 int count = 0;
                 for (ServerPlayer player : EntityArgument.getPlayers(c, "players")) {
-                    player.setAttached(Data.SOLVED, IntroQuiz.ALL);
+                    player.setAttached(Data.ORBIT, OrbitPuzzle.ALL);
+                    player.removeAttached(Data.SOLVED);
                     player.removeAttached(Data.LEGACY_PROGRESS);
+                    ROUND.remove(player.getUUID());
+                    if (player.level().dimension().equals(DIMENSION)) showCores(player);
                     reward(player);
                     count++;
                 }
                 return count;
-            })))));
+            })))
+            .then(Commands.literal("chart").executes(c -> {
+                ServerPlayer player = c.getSource().getPlayerOrException();
+                c.getSource().sendSuccess(() -> Component.literal(StarChart.describe(player.getAttachedOrElse(Data.STAR_CHART, 0)))
+                    .withStyle(ChatFormatting.LIGHT_PURPLE), false);
+                return 1;
+            }))));
     }
 
     private static int status(CommandSourceStack source) {
         ServerPlayer player = source.getPlayer();
         source.sendSuccess(() -> Component.literal("Solaria Academy: automatic intro "
             + (source.getServer().overworld().getAttachedOrElse(Data.ENABLED, false) ? "enabled" : "disabled")
-            + (player == null ? "" : "; your progress " + progress(player) + "/3; scanner " + (canScan(player) ? "available" : "locked"))
-            + ". Use /solaria intro join, leave, or scanner."), false);
+            + (player == null ? "." : "; Orbit Builder " + progressText(orbit(player)) + "; scanner " + (canScan(player) ? "available" : "locked")
+                + ". " + OrbitPuzzle.objective(orbit(player)) + " " + StarChart.describe(player.getAttachedOrElse(Data.STAR_CHART, 0)))
+            + " Use /solaria intro join, leave, scanner, or chart."), false);
         return 1;
     }
 

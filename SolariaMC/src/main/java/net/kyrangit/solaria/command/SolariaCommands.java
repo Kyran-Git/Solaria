@@ -209,6 +209,7 @@ public final class SolariaCommands {
 		arrived.sendSystemMessage(Component.literal(
 			"Entering the " + display + " dimension. Bodies are not to scale. "
 			+ "Try /solaria quiz " + cls.id() + " to test what you know. Use /solaria return to go back."));
+		net.kyrangit.solaria.intro.IntroHub.chartArrival(arrived, cls);
 		return 1;
 	}
 
