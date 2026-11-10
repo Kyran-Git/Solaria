@@ -131,14 +131,45 @@ public final class DimensionDataTests {
 
 		JsonObject generator = json.getAsJsonObject("generator");
 		check(generator != null && generator.has("type"), name + ": generator declares a type");
-		check(generator.get("type").getAsString().equals("minecraft:flat"),
-			name + ": uses the flat generator (no worldgen cost in a build dimension)");
+		if (name.equals("intro_hub.json")) {
+			checkIntroHub(name, generator);
+			return;
+		}
+		check(generator.get("type").getAsString().equals("solariamod:planet"),
+			name + ": uses the Solaria planet generator so the body exists in world");
 
+		// The generator is keyed by wire id, so a typo here would silently build the wrong body.
+		check(generator.has("planet"), name + ": declares the planet wire id");
+		String planet = generator.get("planet").getAsString();
+		var cls = net.kyrangit.solaria.blueprint.AstronomyClass.fromId(planet);
+		check(cls != null, name + ": planet '" + planet + "' is one of the ten classes");
+		check(planet.equals(strippedName(file)),
+			name + ": planet id matches the dimension file name (" + planet + ")");
+		check(generator.has("biome"), name + ": declares a fixed biome");
+
+		// Scale is optional in the codec, but when present it must be buildable: the
+		// generator rejects an over-cap scale with CAP_EXCEEDED at world load, not in game.
+		double scale = generator.has("scale") ? generator.get("scale").getAsDouble() : 1.0;
+		check(scale > 0.0 && scale <= 10.0, name + ": scale is within the codec range");
+		var blueprint = net.kyrangit.solaria.blueprint.BlueprintGenerator.generate(cls, scale);
+		int extent = net.kyrangit.solaria.blueprint.BlueprintGenerator
+			.blueprintExtent(cls, blueprint.diameter());
+		check(extent <= net.kyrangit.solaria.blueprint.BlueprintGenerator.MAX_EXTENT_BLOCKS,
+			name + ": configured scale stays inside the blueprint cap (extent " + extent + ")");
+	}
+
+	/** The academy is an empty void: only IntroHub builds there, never vanilla terrain. */
+	private static void checkIntroHub(String name, JsonObject generator) {
+		check(generator.get("type").getAsString().equals("minecraft:flat"), name + ": uses a flat generator");
 		JsonObject settings = generator.getAsJsonObject("settings");
-		check(settings != null, name + ": flat generator declares settings");
-		check(settings.has("biome"), name + ": declares a biome");
-		check(settings.getAsJsonArray("layers").isEmpty(),
-			name + ": flat layers are empty so the build dimension stays void");
+		check(settings != null && settings.getAsJsonArray("layers").isEmpty(), name + ": has no terrain layers");
+		check(!settings.get("features").getAsBoolean() && !settings.get("lakes").getAsBoolean(),
+			name + ": has no features or lakes");
+		check(settings.getAsJsonArray("structure_overrides").isEmpty(), name + ": has no structures");
+		var lookup = net.minecraft.data.registries.VanillaRegistries.createLookup();
+		var ops = lookup.createSerializationContext(JsonOps.INSTANCE);
+		var decoded = net.minecraft.world.level.levelgen.FlatLevelSource.CODEC.codec().parse(ops, generator);
+		check(decoded.error().isEmpty(), name + ": Minecraft's flat generator codec accepts the settings");
 	}
 
 	// ------------------------------------------------------------------ utils

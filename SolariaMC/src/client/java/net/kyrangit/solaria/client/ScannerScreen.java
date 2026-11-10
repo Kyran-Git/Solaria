@@ -440,7 +440,11 @@ public final class ScannerScreen extends Screen {
 				Component.translatable("solaria.scan.help.good_light"),
 				Component.translatable("solaria.scan.help.press_capture")
 			};
-			case UNAVAILABLE -> cameraFailure == null ? new Component[]{
+			case UNAVAILABLE -> cameraFailure == null && state.reasonCode() == ReasonCode.INTRO_REQUIRED ? new Component[]{
+				// The host refused the scan: the explorer mission is unfinished (e.g. a handed-over scanner).
+				Component.translatable("solaria.intro.scanner_locked"),
+				Component.translatable("solaria.scan.help.intro_required")
+			} : cameraFailure == null ? new Component[]{
 				Component.translatable(state.reasonCode() == ReasonCode.SERVICE_TOKEN_MISSING
 					|| state.reasonCode() == ReasonCode.UNAUTHORIZED
 					? "solaria.scan.help.service_token" : "solaria.scan.help.service_failed"),

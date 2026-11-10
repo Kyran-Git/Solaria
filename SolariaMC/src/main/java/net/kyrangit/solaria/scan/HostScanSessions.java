@@ -100,6 +100,10 @@ public final class HostScanSessions {
     private void receive(MinecraftServer server, ServerPlayer player, ScanPackets.Upload p) {
         UUID playerId = player.getUUID();
         if (!p.id().matches("[a-f0-9]{32}")) return;
+        if (!net.kyrangit.solaria.intro.IntroHub.canScan(player)) {
+            send(player, p.id(), "error", null, "INTRO_REQUIRED");
+            return;
+        }
         if (player.gameMode.getGameModeForPlayer() != GameType.CREATIVE) {
             send(player, p.id(), "error", null, "PERMISSION_DENIED");
             return;

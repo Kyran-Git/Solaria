@@ -26,10 +26,16 @@ public class SolariaMod implements ModInitializer {
 		// vanilla item registry is frozen, and wires the Tools and Utilities
 		// creative tab entry via Fabric's CreativeModeTabEvents hook.
 		SolariaItems.register();
+		net.minecraft.core.Registry.register(net.minecraft.core.registries.BuiltInRegistries.CHUNK_GENERATOR,
+			id("planet"), net.kyrangit.solaria.dimension.PlanetChunkGenerator.CODEC);
+		net.kyrangit.solaria.dimension.LessonReturn.register();
+		net.kyrangit.solaria.intro.IntroHub.install();
 		net.kyrangit.solaria.scan.ScanPackets.register();
 		new net.kyrangit.solaria.scan.HostScanSessions(config).install();
-		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
-			SolariaCommands.register(dispatcher, config));
+		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
+			SolariaCommands.register(dispatcher, config);
+			net.kyrangit.solaria.intro.IntroHub.registerCommands(dispatcher, config);
+		});
 	}
 
 	public static ConfigManager config() {

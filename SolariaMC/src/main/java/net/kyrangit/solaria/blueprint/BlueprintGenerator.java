@@ -134,7 +134,7 @@ public final class BlueprintGenerator {
 	 * Returns the largest bounding-box side length for a class at the given body diameter.
 	 * For ringed planets the ring extends the bounding box beyond the body diameter.
 	 */
-	static int blueprintExtent(AstronomyClass cls, int diameter) {
+	public static int blueprintExtent(AstronomyClass cls, int diameter) {
 		return switch (cls) {
 			// Saturn ring outer radius ≈ 1.9 × body radius → full extent = 2 × 1.9r = 3.8r
 			case SATURN -> (int) Math.ceil(diameter * 1.9);

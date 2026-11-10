@@ -49,7 +49,7 @@ public final class SolariaCommands {
 						return builder.buildFuture();
 					})
 					.executes(context -> visit(context.getSource(),
-						StringArgumentType.getString(context, "planet")))))
+						StringArgumentType.getString(context, "planet"), config))))
 			.then(Commands.literal("return")
 				.executes(context -> returnToOverworld(context.getSource()))));
 	}
@@ -131,7 +131,8 @@ public final class SolariaCommands {
 	 * The player is placed in creative mode so they can fly and explore the sphere.
 	 * Note: bodies are not to scale with one another or with the real solar system.
 	 */
-	private static int visit(CommandSourceStack source, String planetId) {
+	private static int visit(CommandSourceStack source, String planetId, ConfigManager config) {
+		if (!authorized(source, config)) return 0;
 		ServerPlayer player = source.getPlayer();
 		if (player == null) {
 			source.sendFailure(Component.literal("[INPUT_INVALID] This command must be run by a player."));
@@ -152,19 +153,39 @@ public final class SolariaCommands {
 				+ cls.id() + " is not loaded. Check mod installation."));
 			return 0;
 		}
-		// Spawn 800 blocks out from origin on the +X axis so the player has a clear
-		// view of the sphere centred at origin before flying in.
-		Vec3 spawnPos = new Vec3(800.0, 0.0, 0.0);
+		if (!(targetLevel.getChunkSource().getGenerator() instanceof net.kyrangit.solaria.dimension.PlanetChunkGenerator)) {
+			source.sendFailure(Component.literal("[PLACEMENT_BLOCKED] This world still uses the old void generator. Use a new test world; saved chunks are not migrated."));
+			return 0;
+		}
+		// Never record the academy as a lesson return point, and never let a trip skip an unfinished mission.
+		if (player.level().dimension().equals(net.kyrangit.solaria.intro.IntroHub.DIMENSION)
+			|| !net.kyrangit.solaria.intro.IntroHub.canScan(player)) {
+			source.sendFailure(Component.literal("[INTRO_REQUIRED] Finish Solaria Academy and use its lesson exit before visiting a planet."));
+			return 0;
+		}
+		var previousAnchor = player.getAttached(net.kyrangit.solaria.dimension.LessonReturn.Attachment.ANCHOR);
+		boolean inPlanet = SolariaDimensions.classFromDimensionId(player.level().dimension().identifier().toString()) != null;
+		if (!inPlanet && previousAnchor == null) {
+			player.setAttached(net.kyrangit.solaria.dimension.LessonReturn.Attachment.ANCHOR,
+				new net.kyrangit.solaria.dimension.LessonReturn(player.level().dimension(),
+					player.getX(), player.getY(), player.getZ(), player.getYRot(), player.getXRot(), player.gameMode.getGameModeForPlayer().getName()));
+		}
+		// Stand clear of the body (including rings) and look back toward the centre.
+		var generator = (net.kyrangit.solaria.dimension.PlanetChunkGenerator) targetLevel.getChunkSource().getGenerator();
+		Vec3 spawnPos = new Vec3(generator.viewingDistance() + 0.5, 0.5, 0.5);
 		TeleportTransition transition = new TeleportTransition(
 			targetLevel, spawnPos, Vec3.ZERO,
-			-90.0f, 0.0f, TeleportTransition.DO_NOTHING);
+			90.0f, 0.0f, TeleportTransition.DO_NOTHING);
 		ServerPlayer arrived = player.teleport(transition);
 		if (arrived == null) {
+			player.setAttached(net.kyrangit.solaria.dimension.LessonReturn.Attachment.ANCHOR, previousAnchor);
 			source.sendFailure(Component.literal("[PLACEMENT_BLOCKED] Teleport to "
 				+ cls.id() + " dimension failed."));
 			return 0;
 		}
 		arrived.setGameMode(GameType.CREATIVE);
+		arrived.getAbilities().flying = true;
+		arrived.onUpdateAbilities();
 		final String display = capitalize(cls.id());
 		arrived.sendSystemMessage(Component.literal(
 			"Entering the " + display + " dimension. Bodies are not to scale. "
@@ -173,7 +194,8 @@ public final class SolariaCommands {
 	}
 
 	/**
-	 * Returns the player to the overworld spawn. Safe to call from any Solaria planet dimension.
+	 * Returns the player to the exact lesson location saved when they first left for a planet.
+	 * The anchor is cleared only after the teleport succeeds, so a failure keeps the way back.
 	 */
 	private static int returnToOverworld(CommandSourceStack source) {
 		ServerPlayer player = source.getPlayer();
@@ -181,23 +203,30 @@ public final class SolariaCommands {
 			source.sendFailure(Component.literal("[INPUT_INVALID] This command must be run by a player."));
 			return 0;
 		}
-		if (player.level().dimension().equals(Level.OVERWORLD)) {
-			source.sendFailure(Component.literal("You are already in the overworld."));
+		var anchor = player.getAttached(net.kyrangit.solaria.dimension.LessonReturn.Attachment.ANCHOR);
+		if (anchor == null) {
+			source.sendFailure(Component.literal(
+				"No saved lesson location. Use /solaria visit <planet> first; this command only undoes that trip."));
 			return 0;
 		}
-		ServerLevel overworld = source.getServer().overworld();
-		net.minecraft.world.level.storage.LevelData.RespawnData respawn =
-			overworld.getLevelData().getRespawnData();
-		Vec3 spawnPos = Vec3.atCenterOf(respawn.pos());
+		ServerLevel lessonLevel = source.getServer().getLevel(anchor.dimension());
+		if (lessonLevel == null) {
+			source.sendFailure(Component.literal("[PLACEMENT_BLOCKED] The saved lesson world "
+				+ anchor.dimension().identifier() + " is not loaded. The saved location is kept."));
+			return 0;
+		}
 		TeleportTransition transition = new TeleportTransition(
-			overworld, spawnPos, Vec3.ZERO,
-			respawn.yaw(), 0.0f, TeleportTransition.DO_NOTHING);
+			lessonLevel, new Vec3(anchor.x(), anchor.y(), anchor.z()), Vec3.ZERO,
+			anchor.yaw(), anchor.pitch(), TeleportTransition.DO_NOTHING);
 		ServerPlayer arrived = player.teleport(transition);
 		if (arrived == null) {
-			source.sendFailure(Component.literal("[PLACEMENT_BLOCKED] Return to overworld failed."));
+			source.sendFailure(Component.literal(
+				"[PLACEMENT_BLOCKED] Return failed. The saved lesson location is kept; try again."));
 			return 0;
 		}
-		arrived.sendSystemMessage(Component.literal("Returned to the overworld."));
+		arrived.setGameMode(GameType.byName(anchor.gameMode(), GameType.SURVIVAL));
+		arrived.removeAttached(net.kyrangit.solaria.dimension.LessonReturn.Attachment.ANCHOR);
+		arrived.sendSystemMessage(Component.literal("Returned to where you started the lesson."));
 		return 1;
 	}
 

@@ -36,6 +36,10 @@ public final class ScannerItem extends Item {
 	@Override
 	public InteractionResult use(Level level, Player player, InteractionHand hand) {
 		if (level.isClientSide()) {
+			if (!net.kyrangit.solaria.intro.IntroHub.canScan(player)) {
+				player.sendOverlayMessage(Component.translatable("solaria.intro.scanner_locked"));
+				return InteractionResult.FAIL;
+			}
 			// Reflective bridge: the client sourceset holds the screen class; a
 			// dedicated server never loads it. Failures are swallowed so the
 			// item is still safe to right-click on any environment.

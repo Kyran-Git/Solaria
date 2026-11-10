@@ -30,5 +30,7 @@ public enum ReasonCode {
 	SCAN_TIMEOUT,
 	INTERNAL_ERROR,
 	REVIEW_CONFLICT,
-	QUALITY_REJECTED
+	QUALITY_REJECTED,
+	// The player is enrolled in Solaria Academy and has not completed its quiz.
+	INTRO_REQUIRED
 }

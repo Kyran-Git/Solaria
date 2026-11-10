@@ -45,6 +45,10 @@ public final class ScannerClientBridge {
 		if (client.player == null || client.screen != null) {
 			return;
 		}
+		if (!net.kyrangit.solaria.intro.IntroHub.canScan(client.player)) {
+			client.player.sendOverlayMessage(net.minecraft.network.chat.Component.translatable("solaria.intro.scanner_locked"));
+			return;
+		}
 		client.setScreen(new ScannerScreen());
 	}
 }
