@@ -19,6 +19,13 @@ import java.util.List;
 public final class HubLayout {
     public static final int FLOOR_Y = 64;
     public static final int RADIUS = 25;
+    /** Exclusive upper bound of the build volume; tall enough to clear the floating Sun. */
+    public static final int TOP_Y = 100;
+    /** Bottom of the void-floor pit: black base, then a carpeted light layer, then stacked glass sheets up to the floor. */
+    public static final int VOID_BOTTOM = FLOOR_Y - 17;
+    public static final int SUN_RADIUS = 10;
+    /** Lowest Sun block sits 10 blocks above a standing player's head (feet at y=65, head top at y=67). */
+    public static final BlockPos SUN_CENTRE = new BlockPos(0, FLOOR_Y + 3 + 10 + SUN_RADIUS, -3);
     public static final BlockPos SPAWN = new BlockPos(0, FLOOR_Y + 1, 0);
     public static final BlockPos TERMINAL = new BlockPos(0, FLOOR_Y + 1, 17);
     public static final BlockPos EXIT = new BlockPos(4, FLOOR_Y + 1, 17);
@@ -72,7 +79,8 @@ public final class HubLayout {
                 if (!(level.getBlockEntity(pos) instanceof SignBlockEntity entity)) {
                     throw new IllegalStateException("Intro hub sign placement failed");
                 }
-                SignText text = new SignText().setColor(DyeColor.BLACK);
+                // Glowing text stays readable whatever the local light level is.
+                SignText text = new SignText().setColor(DyeColor.BLACK).setHasGlowingText(true);
                 for (int i = 0; i < Math.min(4, lines.length); i++) text = text.setMessage(i, Component.literal(lines[i]));
                 entity.setText(text, true);
                 entity.setText(text, false);
@@ -83,29 +91,36 @@ public final class HubLayout {
     }
 
     public static void build(Sink sink) {
-        // v3 rebuild removes old consoles, floating models and signs before placing the new hub.
+        // Each rebuild clears the whole volume, removing old consoles, models and signs first.
         for (int x = -RADIUS; x <= RADIUS; x++) {
             for (int z = -RADIUS; z <= RADIUS; z++) {
-                for (int y = FLOOR_Y + 1; y < 80; y++) put(sink, new BlockPos(x, y, z), Blocks.AIR);
-                put(sink, new BlockPos(x, FLOOR_Y - 1, z), Blocks.POLISHED_DEEPSLATE);
-                Block floor = x < -3 && z < 2 ? Blocks.BLUE_CONCRETE
-                    : z < -12 ? Blocks.CYAN_CONCRETE : x > 11 ? Blocks.PURPLE_CONCRETE : Blocks.POLISHED_DEEPSLATE;
+                for (int y = FLOOR_Y + 1; y < TOP_Y; y++) put(sink, new BlockPos(x, y, z), Blocks.AIR);
+                boolean edge = Math.abs(x) == RADIUS || Math.abs(z) == RADIUS;
+                voidFloor(sink, x, z, edge);
                 double distance = Math.sqrt(x * x + (z + 3) * (z + 3));
+                // Orbit paths glow on top of the starry glass, tracing identical circles around the Sun.
+                Block floor = edge ? Blocks.BLACK_CONCRETE : Blocks.BLACK_STAINED_GLASS;
                 for (int orbit = 4; orbit <= 20; orbit += 4) {
-                    if (Math.abs(distance - orbit) < 0.4) floor = Blocks.SMOOTH_QUARTZ;
+                    if (Math.abs(distance - orbit) < 0.4) floor = Blocks.SEA_LANTERN;
                 }
                 if (distance < 3) floor = Blocks.SHROOMLIGHT;
                 put(sink, new BlockPos(x, FLOOR_Y, z), floor);
-                if (Math.abs(x) == RADIUS || Math.abs(z) == RADIUS) {
-                    put(sink, new BlockPos(x, 65, z), Blocks.QUARTZ_BRICKS);
+                if (edge) {
+                    boolean lamp = Math.floorMod(x + z, 5) == 0;
+                    put(sink, new BlockPos(x, 65, z), lamp ? Blocks.SEA_LANTERN : Blocks.QUARTZ_BRICKS);
                     put(sink, new BlockPos(x, 66, z), Blocks.LIGHT_BLUE_STAINED_GLASS);
                     put(sink, new BlockPos(x, 67, z), Blocks.LIGHT_BLUE_STAINED_GLASS);
                 }
             }
         }
-        sphere(sink, new BlockPos(0, 71, -3), 3, Blocks.SHROOMLIGHT, Blocks.YELLOW_CONCRETE);
+        for (int[] post : new int[][]{{-22, -22}, {0, -22}, {22, -22}, {-22, 0}, {22, 0}, {-22, 22}, {0, 22}, {22, 22}}) {
+            lampPost(sink, post[0], post[1]);
+        }
+        sphere(sink, SUN_CENTRE, SUN_RADIUS, Blocks.SHROOMLIGHT, Blocks.YELLOW_CONCRETE);
+        put(sink, new BlockPos(0, 65, -4), Blocks.QUARTZ_PILLAR);
+        put(sink, new BlockPos(0, 66, -4), Blocks.QUARTZ_PILLAR);
         board(sink, new BlockPos(0, 67, -3), Direction.SOUTH, Blocks.YELLOW_CONCRETE,
-            "SUN", "Sizes/distances", "NOT to scale");
+            "SUN", "Look up!", "Sizes/distances", "NOT to scale");
         for (int core = 0; core < OrbitPuzzle.CORES.size(); core++) {
             console(sink, supply(core), Direction.NORTH, Blocks.CYAN_CONCRETE,
                 OrbitPuzzle.name(core), "Select core");
@@ -144,7 +159,44 @@ public final class HubLayout {
         board(sink, base.offset(0, 4, 1), Direction.SOUTH, colour, lines);
     }
 
+    /**
+     * One column of the void floor below FLOOR_Y: black base, light hidden under black carpet, a foggy gap,
+     * then black glass sheets every other block with end-rod "stars" scattered in the gaps. Edges are solid black.
+     */
+    private static void voidFloor(Sink sink, int x, int z, boolean edge) {
+        put(sink, new BlockPos(x, VOID_BOTTOM, z), Blocks.BLACK_CONCRETE);
+        for (int y = VOID_BOTTOM + 1; y < FLOOR_Y; y++) {
+            BlockPos pos = new BlockPos(x, y, z);
+            if (edge) {
+                put(sink, pos, Blocks.BLACK_CONCRETE);
+            } else if (y == VOID_BOTTOM + 1) {
+                put(sink, pos, Blocks.PEARLESCENT_FROGLIGHT);
+            } else if (y == VOID_BOTTOM + 2) {
+                put(sink, pos, Blocks.BLACK_CARPET);
+            } else if (y > VOID_BOTTOM + 4 && Math.floorMod(FLOOR_Y - y, 2) == 0) {
+                put(sink, pos, Blocks.BLACK_STAINED_GLASS);
+            } else if (Math.floorMod(x * 73 + z * 37 + y * 151, 41) == 0) {
+                put(sink, pos, Blocks.END_ROD);
+            } else {
+                put(sink, pos, Blocks.AIR);
+            }
+        }
+    }
+
+    private static void lampPost(Sink sink, int x, int z) {
+        for (int y = FLOOR_Y + 1; y <= FLOOR_Y + 3; y++) put(sink, new BlockPos(x, y, z), Blocks.QUARTZ_PILLAR);
+        put(sink, new BlockPos(x, FLOOR_Y + 4, z), Blocks.LANTERN);
+    }
+
+    /** Lit floor pad in the console's zone colour, so every station reads clearly from a distance. */
+    private static Block glow(Block colour) {
+        if (colour == Blocks.PURPLE_CONCRETE) return Blocks.PEARLESCENT_FROGLIGHT;
+        if (colour == Blocks.LIME_CONCRETE) return Blocks.VERDANT_FROGLIGHT;
+        return Blocks.SEA_LANTERN;
+    }
+
     private static void console(Sink sink, BlockPos button, Direction facing, Block colour, String title, String subtitle) {
+        put(sink, button.below(), glow(colour));
         Direction back = facing.getOpposite();
         put(sink, button.relative(back), colour);
         put(sink, button.above().relative(back), colour);

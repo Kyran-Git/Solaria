@@ -59,8 +59,14 @@ public final class IntroHub {
     public static final class Data {
         public static final AttachmentType<Boolean> ENABLED = AttachmentRegistry.create(SolariaMod.id("intro_enabled"),
             b -> b.persistent(Codec.BOOL));
-        /** v3: the quiz stations became the Orbit Builder, so existing hubs rebuild once. */
-        public static final AttachmentType<Boolean> BUILT = AttachmentRegistry.create(SolariaMod.id("intro_built_v3"),
+        /** v5: flat void-glass floor with a starry pit below it, so existing hubs rebuild once. */
+        public static final AttachmentType<Boolean> BUILT = AttachmentRegistry.create(SolariaMod.id("intro_built_v5"),
+            b -> b.persistent(Codec.BOOL));
+        /** Still registered only so older worlds load without "unknown attachment" warnings; never read. */
+        public static final AttachmentType<Boolean> LEGACY_BUILT_V4 = AttachmentRegistry.create(SolariaMod.id("intro_built_v4"),
+            b -> b.persistent(Codec.BOOL));
+        /** Still registered only so older worlds load without "unknown attachment" warnings; never read. */
+        public static final AttachmentType<Boolean> LEGACY_BUILT_V3 = AttachmentRegistry.create(SolariaMod.id("intro_built_v3"),
             b -> b.persistent(Codec.BOOL));
         /** Still registered only so older worlds load without "unknown attachment" warnings; never read. */
         public static final AttachmentType<Boolean> LEGACY_BUILT_V2 = AttachmentRegistry.create(SolariaMod.id("intro_built_v2"),
@@ -462,7 +468,8 @@ public final class IntroHub {
             Vec3.ZERO, 180, 0, TeleportTransition.DO_NOTHING));
     }
 
-    private static boolean leave(ServerPlayer player, MinecraftServer server) {
+    /** Also backs {@code /solaria return} while inside the academy, which saves its own return point. */
+    public static boolean leave(ServerPlayer player, MinecraftServer server) {
         if (!player.level().dimension().equals(DIMENSION)) {
             tell(player, "You are not in the intro hub.", ChatFormatting.YELLOW);
             return false;

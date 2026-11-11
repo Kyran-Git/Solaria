@@ -203,8 +203,30 @@ public final class IntroHubTests {
             }
         });
         check(blocks.keySet().stream().allMatch(p -> Math.abs(p.getX()) <= HubLayout.RADIUS
-            && Math.abs(p.getZ()) <= HubLayout.RADIUS && p.getY() >= HubLayout.FLOOR_Y - 1 && p.getY() < 80),
+            && Math.abs(p.getZ()) <= HubLayout.RADIUS && p.getY() >= HubLayout.VOID_BOTTOM && p.getY() < HubLayout.TOP_Y),
             "the build stays inside its bounded footprint");
+        check(blocks.entrySet().stream().noneMatch(e -> e.getValue().is(Blocks.END_ROD) && e.getKey().getY() >= HubLayout.FLOOR_Y),
+            "end-rod stars stay below the flat walking floor");
+        check(blocks.entrySet().stream().filter(e -> e.getValue().is(Blocks.END_ROD)).count() > 50, "void floor has stars");
+        check(blocks.get(new BlockPos(6, HubLayout.FLOOR_Y, 6)).is(Blocks.BLACK_STAINED_GLASS)
+            && blocks.get(new BlockPos(6, HubLayout.VOID_BOTTOM + 2, 6)).is(Blocks.BLACK_CARPET)
+            && blocks.get(new BlockPos(6, HubLayout.VOID_BOTTOM + 1, 6)).getLightEmission() > 0, "void floor glows from below");
+        int sunBottom = blocks.entrySet().stream().filter(e -> e.getValue().is(Blocks.SHROOMLIGHT)
+            && e.getKey().getY() > HubLayout.FLOOR_Y).mapToInt(e -> e.getKey().getY()).min().orElseThrow();
+        check(sunBottom - (HubLayout.SPAWN.getY() + 1) > 10, "Sun model floats 10+ blocks above a player's head");
+        long sunWidth = blocks.entrySet().stream().filter(e -> e.getKey().getY() == HubLayout.SUN_CENTRE.getY()
+            && e.getKey().getZ() == HubLayout.SUN_CENTRE.getZ() && !e.getValue().isAir()).count();
+        check(sunWidth >= 20, "Sun model is about 20 blocks across");
+        for (int x = -HubLayout.RADIUS; x <= HubLayout.RADIUS; x++) {
+            for (int z = -HubLayout.RADIUS; z <= HubLayout.RADIUS; z++) {
+                double d = Math.sqrt(x * x + (z + 3) * (z + 3));
+                BlockState mirror = blocks.get(new BlockPos(-x, HubLayout.FLOOR_Y, z));
+                if (d <= 21) check(blocks.get(new BlockPos(x, HubLayout.FLOOR_Y, z)).getBlock() == mirror.getBlock()
+                    || blocks.get(new BlockPos(x, HubLayout.FLOOR_Y + 1, z)) != null && !blocks.get(new BlockPos(x, HubLayout.FLOOR_Y + 1, z)).isAir()
+                    || !blocks.get(new BlockPos(-x, HubLayout.FLOOR_Y + 1, z)).isAir(),
+                    "orbit floor pattern is symmetric at " + x + "," + z);
+            }
+        }
         check(blocks.get(HubLayout.SPAWN.below()).isSolid(), "arrival point has solid floor");
         check(blocks.getOrDefault(HubLayout.SPAWN, Blocks.AIR.defaultBlockState()).isAir()
             && blocks.getOrDefault(HubLayout.SPAWN.above(), Blocks.AIR.defaultBlockState()).isAir(), "arrival point has headroom");

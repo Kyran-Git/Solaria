@@ -230,10 +230,14 @@ public final class SolariaCommands {
 			source.sendFailure(Component.literal("[INPUT_INVALID] This command must be run by a player."));
 			return 0;
 		}
+		// The academy keeps its own return point (and only releases it once the Orbit Builder is done).
+		if (player.level().dimension().equals(net.kyrangit.solaria.intro.IntroHub.DIMENSION)) {
+			return net.kyrangit.solaria.intro.IntroHub.leave(player, source.getServer()) ? 1 : 0;
+		}
 		var anchor = player.getAttached(net.kyrangit.solaria.dimension.LessonReturn.Attachment.ANCHOR);
 		if (anchor == null) {
 			source.sendFailure(Component.literal(
-				"No saved lesson location. Use /solaria visit <planet> first; this command only undoes that trip."));
+				"You are already at your lesson location. /solaria return takes you back after a planet visit or from Solaria Academy."));
 			return 0;
 		}
 		ServerLevel lessonLevel = source.getServer().getLevel(anchor.dimension());

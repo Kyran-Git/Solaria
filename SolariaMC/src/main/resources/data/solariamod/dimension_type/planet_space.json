@@ -4,7 +4,7 @@
   "has_ceiling": false,
   "has_ender_dragon_fight": false,
   "has_fixed_time": true,
-  "ambient_light": 0.1,
+  "ambient_light": 0.85,
   "monster_spawn_light_level": 0,
   "monster_spawn_block_light_limit": 0,
   "logical_height": 512,
