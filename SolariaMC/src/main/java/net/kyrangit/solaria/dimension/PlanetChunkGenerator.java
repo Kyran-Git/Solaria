@@ -53,6 +53,31 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
     /** A clear standing distance on the +X axis: outside the structure, inside the loaded area. */
     public int viewingDistance() { return halfExtent() + 24; }
 
+    /**
+     * Diagonal viewpoint in the +X,+Z quadrant that faces the quarter-sphere cutaway opening,
+     * raised above the equator so interior layers are visible on arrival.
+     */
+    private double arrivalDistance() { return halfExtent() + 24.0; }
+    public double arrivalX() { return arrivalDistance() * Math.cos(Math.toRadians(45.0)) + 0.5; }
+    public double arrivalZ() { return arrivalDistance() * Math.sin(Math.toRadians(45.0)) + 0.5; }
+    public double arrivalY() { return halfExtent() * 0.35 + 0.5; }
+
+    /** Yaw in degrees pointing from the arrival point toward the origin (Minecraft yaw: 0 = +Z, 90 = -X). */
+    public float arrivalYaw() {
+        double dx = -arrivalX();
+        double dz = -arrivalZ();
+        return (float) Math.toDegrees(Math.atan2(-dx, dz));
+    }
+
+    /** Pitch in degrees aiming slightly down at the origin from the raised arrival point. */
+    public float arrivalPitch() {
+        double dx = -arrivalX();
+        double dy = -arrivalY();
+        double dz = -arrivalZ();
+        double horizontal = Math.sqrt(dx * dx + dz * dz);
+        return (float) Math.toDegrees(-Math.atan2(dy, horizontal));
+    }
+
     public BlockState blockAt(int x, int y, int z) {
         // Includes both ring systems, independently of the primary-body diameter.
         int bound = halfExtent();

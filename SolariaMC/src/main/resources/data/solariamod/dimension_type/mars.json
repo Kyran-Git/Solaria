@@ -4,7 +4,7 @@
     "has_ceiling":  false,
     "has_ender_dragon_fight":  false,
     "has_fixed_time":  true,
-    "ambient_light":  0.25,
+    "ambient_light":  0.75,
     "monster_spawn_light_level":  0,
     "monster_spawn_block_light_limit":  0,
     "logical_height":  512,
@@ -24,7 +24,7 @@
                        "minecraft:visual/cloud_color":  "#00000000",
                        "minecraft:visual/sky_color":  "#241108",
                        "minecraft:visual/sun_angle":  180,
-                       "minecraft:visual/fog_end_distance":  180,
+                       "minecraft:visual/fog_end_distance":  768,
                        "minecraft:visual/fog_color":  "#bc8355",
                        "minecraft:visual/star_brightness":  0.8
                    }
