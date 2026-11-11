@@ -13,7 +13,8 @@ import net.minecraft.world.level.Level;
 import java.util.function.Consumer;
 
 /**
- * Phase 4 camera. Right-click opens the scanner screen on the client.
+ * Phase 4 camera. Right-click opens the scanner menu on the client, where the
+ * student chooses between scanning a drawing and taking a quiz.
  *
  * <p>Capture, upload, and classification are not wired yet; the screen's
  * state machine ({@code ScanState}) makes that explicit instead of
@@ -36,10 +37,7 @@ public final class ScannerItem extends Item {
 	@Override
 	public InteractionResult use(Level level, Player player, InteractionHand hand) {
 		if (level.isClientSide()) {
-			if (!net.kyrangit.solaria.intro.IntroHub.canScan(player)) {
-				player.sendOverlayMessage(Component.translatable("solaria.intro.scanner_locked"));
-				return InteractionResult.FAIL;
-			}
+			// Always open the menu: it locks Scan until the Academy is done but keeps quizzes available.
 			// Reflective bridge: the client sourceset holds the screen class; a
 			// dedicated server never loads it. Failures are swallowed so the
 			// item is still safe to right-click on any environment.

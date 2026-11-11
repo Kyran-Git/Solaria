@@ -20,7 +20,7 @@
   "solaria.command.player_only": "This command must be run by a player.",
 
   "item.solariamod.scanner": "Solaria Scanner",
-  "item.solariamod.scanner.tooltip.line1": "Right-click to open the camera.",
+  "item.solariamod.scanner.tooltip.line1": "Right-click to scan drawings or take quizzes.",
   "item.solariamod.scanner.tooltip.line2": "Hold a drawing in front of the webcam.",
 
   "solaria.scan.title": "Solaria Scanner",
@@ -63,7 +63,16 @@
   "solaria.scan.command.opening": "Opening Solaria scanner...",
   "dimension.solariamod.intro_hub": "Solaria Academy",
   "solaria.intro.scanner_locked": "Complete the Solaria Academy mission to unlock the scanner.",
-  "solaria.scan.help.intro_required": "Answer the three Academy stations, then try again. /solaria intro status shows your progress."
+  "solaria.scan.help.intro_required": "Answer the three Academy stations, then try again. /solaria intro status shows your progress.",
+  "solaria.menu.title": "SOLARIA / SCANNER",
+  "solaria.menu.hint": "What would you like to do?",
+  "solaria.menu.scan": "Scan a drawing",
+  "solaria.menu.quiz": "Take a quiz",
+  "solaria.menu.quiz.title": "SOLARIA / QUIZ",
+  "solaria.menu.quiz.pick": "Pick a body to be quizzed on.",
+  "solaria.menu.quiz.unavailable": "Quizzes need a Solaria server connection.",
+  "solaria.menu.back": "Back",
+  "solaria.menu.close": "Close"
 }
 
 

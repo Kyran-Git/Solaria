@@ -28,7 +28,7 @@ public final class ScannerClientBridge {
 	}
 
 	/**
-	 * Installs the client tick hook that opens {@link ScannerScreen} when a
+	 * Installs the client tick hook that opens {@link ScannerMenuScreen} when a
 	 * request has been posted. Call once from the client entrypoint.
 	 */
 	public static void install() {
@@ -45,10 +45,7 @@ public final class ScannerClientBridge {
 		if (client.player == null || client.screen != null) {
 			return;
 		}
-		if (!net.kyrangit.solaria.intro.IntroHub.canScan(client.player)) {
-			client.player.sendOverlayMessage(net.minecraft.network.chat.Component.translatable("solaria.intro.scanner_locked"));
-			return;
-		}
-		client.setScreen(new ScannerScreen());
+		// The menu itself disables Scan until the Academy is complete; quizzes stay available.
+		client.setScreen(new ScannerMenuScreen());
 	}
 }
