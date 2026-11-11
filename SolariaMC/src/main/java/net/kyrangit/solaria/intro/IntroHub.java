@@ -47,6 +47,8 @@ import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
 import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
 import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
 import net.minecraft.world.level.block.state.BlockState;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -539,20 +541,10 @@ public final class IntroHub {
                 for (ServerPlayer player : EntityArgument.getPlayers(c, "players")) if (enter(player, c.getSource().getServer(), true)) count++;
                 return count;
             })))
-            .then(Commands.literal("unlock").then(Commands.argument("players", EntityArgument.players()).executes(c -> {
-                if (!teacher(c.getSource(), config)) return 0;
-                int count = 0;
-                for (ServerPlayer player : EntityArgument.getPlayers(c, "players")) {
-                    player.setAttached(Data.ORBIT, OrbitPuzzle.ALL);
-                    player.removeAttached(Data.SOLVED);
-                    player.removeAttached(Data.LEGACY_PROGRESS);
-                    ROUND.remove(player.getUUID());
-                    if (player.level().dimension().equals(DIMENSION)) showCores(player);
-                    reward(player);
-                    count++;
-                }
-                return count;
-            })))
+            .then(Commands.literal("unlock")
+                .executes(c -> teacher(c.getSource(), config) ? unlock(c.getSource(), List.of(c.getSource().getPlayerOrException())) : 0)
+                .then(Commands.argument("players", EntityArgument.players()).executes(c ->
+                    teacher(c.getSource(), config) ? unlock(c.getSource(), EntityArgument.getPlayers(c, "players")) : 0)))
             .then(Commands.literal("chart").executes(c -> {
                 ServerPlayer player = c.getSource().getPlayerOrException();
                 c.getSource().sendSuccess(() -> Component.literal(StarChart.describe(player.getAttachedOrElse(Data.STAR_CHART, 0)))
@@ -567,8 +559,22 @@ public final class IntroHub {
             + (source.getServer().overworld().getAttachedOrElse(Data.ENABLED, false) ? "enabled" : "disabled")
             + (player == null ? "." : "; Orbit Builder " + progressText(orbit(player)) + "; scanner " + (canScan(player) ? "available" : "locked")
                 + ". " + OrbitPuzzle.objective(orbit(player)) + " " + StarChart.describe(player.getAttachedOrElse(Data.STAR_CHART, 0)))
-            + " Use /solaria intro join, leave, scanner, or chart."), false);
+            + " Use /solaria intro join, leave, scanner, or chart. Teachers: enable, disable, rebuild, enroll <players>, unlock [players]."), false);
         return 1;
+    }
+
+    private static int unlock(CommandSourceStack source, Collection<ServerPlayer> players) {
+        for (ServerPlayer player : players) {
+            player.setAttached(Data.ORBIT, OrbitPuzzle.ALL);
+            player.removeAttached(Data.SOLVED);
+            player.removeAttached(Data.LEGACY_PROGRESS);
+            ROUND.remove(player.getUUID());
+            if (player.level().dimension().equals(DIMENSION)) showCores(player);
+            reward(player);
+        }
+        int count = players.size();
+        source.sendSuccess(() -> Component.literal("Intro unlocked for " + count + (count == 1 ? " player." : " players.")), true);
+        return count;
     }
 
     private static boolean teacher(CommandSourceStack source, ConfigManager config) {

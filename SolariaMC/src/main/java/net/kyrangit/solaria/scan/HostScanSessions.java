@@ -11,7 +11,6 @@ import net.kyrangit.solaria.service.RuntimeResponses;
 import net.kyrangit.solaria.service.ServiceException;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.level.GameType;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -71,9 +70,8 @@ public final class HostScanSessions {
                 send(c.player(), p.id(), "build_failed", null, "This scan expired. Scan again before building.");
                 return;
             }
-            if (c.player().gameMode.getGameModeForPlayer() != GameType.CREATIVE
-                || s.gate == null || !s.gate.canBuild(p.revision())) {
-                buildFeedback(c.player(), s, "build_failed", "Build requires the current revision, quality drawing, teacher approval and your agreement in Creative mode.");
+            if (s.gate == null || !s.gate.canBuild(p.revision())) {
+                buildFeedback(c.player(), s, "build_failed", "Build requires the current revision, quality drawing, teacher approval and your agreement.");
                 return;
             }
             buildFeedback(c.player(), s, "building", "");
@@ -125,10 +123,6 @@ public final class HostScanSessions {
         if (!p.id().matches("[a-f0-9]{32}")) return;
         if (!net.kyrangit.solaria.intro.IntroHub.canScan(player)) {
             send(player, p.id(), "error", null, "INTRO_REQUIRED");
-            return;
-        }
-        if (player.gameMode.getGameModeForPlayer() != GameType.CREATIVE) {
-            send(player, p.id(), "error", null, "PERMISSION_DENIED");
             return;
         }
         long now = System.nanoTime();
