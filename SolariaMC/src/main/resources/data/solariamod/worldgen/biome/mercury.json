@@ -24,7 +24,7 @@
     "minecraft:visual/cloud_color": "#00000000",
     "minecraft:visual/sky_color": "#030305",
     "minecraft:visual/sun_angle": 180,
-    "minecraft:visual/fog_end_distance": 512,
+    "minecraft:visual/fog_end_distance": 768,
     "minecraft:visual/fog_color": "#77716a",
     "minecraft:visual/star_brightness": 0.8
   },

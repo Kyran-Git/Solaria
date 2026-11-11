@@ -29,6 +29,15 @@ final class BlueprintShapes {
 		return (double) x * x + (double) y * y + (double) z * z <= radius * radius;
 	}
 
+	/**
+	 * Quarter-sphere cutaway wedge: the +X/+Z quadrant exposes the planet's interior.
+	 * Keeps the origin voxel and the x=0 and z=0 planes solid, so centre-solid and
+	 * ring-survival invariants are preserved.
+	 */
+	private static boolean cutaway(int x, int z) {
+		return x > 0 && z > 0;
+	}
+
 	/** Scatter crater positions from a seed; returns the centre of crater {@code i}. */
 	private static double[] craterCentre(int i, int seed, double radius) {
 		double[] dir = VoxelNoise.unitVector(seed ^ (i * 0x9E3779B1));
@@ -81,6 +90,14 @@ final class BlueprintShapes {
 				if (dist > radius) return 0;
 				double norm = dist / radius;
 				double nx = x / radius, ny = y / radius, nz = z / radius;
+				// Quarter-sphere cutaway: expose stellar interior zones.
+				if (cutaway(x, z)) {
+					double tex = VoxelNoise.noise3(nx * 4.0, ny * 4.0, nz * 4.0, seed ^ 0x501A);
+					if (norm < 0.28) return core;                 // radiative core
+					if (norm < 0.65) return tex > 0.55 ? gran2 : surface; // radiative zone
+					if (norm < 0.85) return tex > 0.50 ? gran1 : gran2;   // convective zone
+					return tex > 0.55 ? honey : corona;           // photosphere/corona
+				}
 				if (norm < 0.35) return core;
 				if (norm < 0.78) return surface;
 				// Outer shell: granulation noise
@@ -113,6 +130,12 @@ final class BlueprintShapes {
 		int ice      = palette.indexOf(Palette.SNOW_BLOCK);
 		int glacier  = palette.indexOf(Palette.BLUE_ICE);
 		int cloud    = palette.indexOf(Palette.WHITE_CONCRETE);
+		int inner    = palette.indexOf(Palette.GOLD_BLOCK);
+		int outer    = palette.indexOf(Palette.IRON_BLOCK);
+		int outerAlt = palette.indexOf(Palette.RAW_IRON_BLOCK);
+		int mantle   = palette.indexOf(Palette.NETHERRACK);
+		int mantleAlt= palette.indexOf(Palette.GRANITE);
+		int crust    = palette.indexOf(Palette.STONE);
 		double radius = diameter / 2.0;
 		return new Blueprint(AstronomyClass.EARTH,
 			(x, y, z) -> {
@@ -120,13 +143,23 @@ final class BlueprintShapes {
 				if (dist > radius) return 0;
 				double norm = dist / radius;
 				double nx = x / radius, ny = y / radius, nz = z / radius;
+				// Quarter-sphere cutaway: layered interior (inner core → crust).
+				if (cutaway(x, z)) {
+					double tex = VoxelNoise.noise3(nx * 3.5, ny * 3.5, nz * 3.5, seed ^ 0xEA12);
+					if (norm < 0.20) return inner;
+					if (norm < 0.55) return tex > 0.50 ? outerAlt : outer;
+					if (norm < 0.88) return tex > 0.55 ? mantleAlt : mantle;
+					if (norm < 0.94) return crust;
+					// fall through to surface shell so continents/oceans are visible at the rim
+				}
 				// Polar ice caps: |ny| > 0.82
 				double absy = Math.abs(ny);
 				if (absy > 0.82) return (norm > 0.94 && absy > 0.9) ? glacier : ice;
-				// Thin cloud shell (outermost 4%)
+				// Thin cloud shell (outermost 4%) — only render clouds where noise says so; otherwise
+				// fall through so continents and oceans beneath remain visible.
 				if (norm > 0.96) {
 					double c = VoxelNoise.noise3(nx * 4.5, ny * 4.5, nz * 4.5, seed ^ 0xCCDD);
-					return c > 0.58 ? cloud : ocean;
+					if (c > 0.62) return cloud;
 				}
 				// Continent noise
 				double continent = VoxelNoise.noise3(nx * 1.8, ny * 1.8, nz * 1.8, seed);
@@ -159,6 +192,9 @@ final class BlueprintShapes {
 		int mare     = palette.indexOf(Palette.SMOOTH_BASALT);
 		int mareAlt  = palette.indexOf(Palette.GRAY_CONCRETE);
 		int rimBlock = palette.indexOf(Palette.CALCITE);
+		int ironCore = palette.indexOf(Palette.IRON_BLOCK);
+		int mantle   = palette.indexOf(Palette.DEEPSLATE);
+		int crustIn  = palette.indexOf(Palette.STONE);
 		double radius = diameter / 2.0;
 		int craterCount = 18;
 		return new Blueprint(AstronomyClass.MOON,
@@ -166,6 +202,14 @@ final class BlueprintShapes {
 				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
 				if (dist > radius) return 0;
 				double nx = x / radius, ny = y / radius, nz = z / radius;
+				double norm = dist / radius;
+				// Quarter-sphere cutaway: expose small iron core + rocky mantle.
+				if (cutaway(x, z)) {
+					if (norm < 0.25) return ironCore;
+					if (norm < 0.85) return mantle;
+					if (norm < 0.95) return crustIn;
+					// fall through to surface detail at rim
+				}
 				// Check craters first
 				int ce = craterEffect(x, y, z, craterCount, seed, radius, 0.08, rimBlock);
 				if (ce == 0) return 0;
@@ -200,12 +244,23 @@ final class BlueprintShapes {
 		int canyon   = palette.indexOf(Palette.RED_NETHER_BRICKS);
 		int polar    = palette.indexOf(Palette.WHITE_CONCRETE);
 		int polarDry = palette.indexOf(Palette.SNOW_BLOCK);
+		int ironCore = palette.indexOf(Palette.RAW_IRON_BLOCK);
+		int mantleIn = palette.indexOf(Palette.NETHERRACK);
+		int crustIn  = palette.indexOf(Palette.STONE);
 		double radius = diameter / 2.0;
 		return new Blueprint(AstronomyClass.MARS,
 			(x, y, z) -> {
 				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
 				if (dist > radius) return 0;
 				double nx = x / radius, ny = y / radius, nz = z / radius;
+				double norm = dist / radius;
+				// Quarter-sphere cutaway: iron core → rocky mantle → crust.
+				if (cutaway(x, z)) {
+					if (norm < 0.45) return ironCore;
+					if (norm < 0.85) return mantleIn;
+					if (norm < 0.95) return crustIn;
+					// fall through to red surface detail
+				}
 				double absy = Math.abs(ny);
 				// Polar caps
 				if (absy > 0.82) return absy > 0.9 ? polarDry : polar;
@@ -239,20 +294,29 @@ final class BlueprintShapes {
 		int warm      = palette.indexOf(Palette.RAW_COPPER_BLOCK);
 		int peach     = palette.indexOf(Palette.RAW_IRON_BLOCK);
 		int redSpot   = palette.indexOf(Palette.RED_CONCRETE);
+		int rockCore  = palette.indexOf(Palette.DEEPSLATE);
+		int metalH    = palette.indexOf(Palette.IRON_BLOCK);
+		int molecH    = palette.indexOf(Palette.LAPIS_BLOCK);
 		double radius = diameter / 2.0;
-		// Great Red Spot: deterministic position on equator
-		double[] spotDir = VoxelNoise.unitVector(seed ^ 0x47A1);
-		double rawSpotX = spotDir[0];
-		double rawSpotZ = spotDir[2];
-		double spotLen = Math.sqrt(rawSpotX * rawSpotX + rawSpotZ * rawSpotZ);
-		final double spotX = spotLen > 1e-9 ? rawSpotX / spotLen : 1.0;
-		final double spotZ = spotLen > 1e-9 ? rawSpotZ / spotLen : 0.0;
-		double spotSize = 0.18; // angular half-width
+		// Great Red Spot: pinned to a fixed direction so it always appears from the
+		// arrival camera (normalised (1, 0, -0.25)).
+		final double spotX = 0.9701425001453319;
+		final double spotZ = -0.24253562503633297;
+		double spotSize = 0.22; // angular half-width (slightly larger so it reads from distance)
 		return new Blueprint(AstronomyClass.JUPITER,
 			(x, y, z) -> {
 				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
 				if (dist > radius) return 0;
 				double nx = x / radius, ny = y / radius, nz = z / radius;
+				double norm = dist / radius;
+				// Quarter-sphere cutaway: gas-giant interior layers.
+				if (cutaway(x, z)) {
+					double tex = VoxelNoise.noise3(nx * 3.0, ny * 3.0, nz * 3.0, seed ^ 0x3A91);
+					if (norm < 0.15) return rockCore;
+					if (norm < 0.60) return tex > 0.55 ? metalH : rockCore;
+					if (norm < 0.90) return tex > 0.50 ? molecH : metalH;
+					// fall through to outer cloud bands
+				}
 				// Latitude-based bands (ny = sin(latitude))
 				double lat = ny; // -1 to 1
 				double bandNoise = VoxelNoise.noise3(nx * 0.5, ny * 8.0, nz * 0.5, seed);
@@ -287,12 +351,23 @@ final class BlueprintShapes {
 		int cream  = palette.indexOf(Palette.END_STONE_BRICKS);
 		int pale   = palette.indexOf(Palette.OCHRE_FROGLIGHT);
 		int base   = palette.indexOf(Palette.SMOOTH_SANDSTONE);
+		int ironCore  = palette.indexOf(Palette.IRON_BLOCK);
+		int mantleIn  = palette.indexOf(Palette.GRANITE);
+		int crustIn   = palette.indexOf(Palette.BLACKSTONE);
 		double radius = diameter / 2.0;
 		return new Blueprint(AstronomyClass.VENUS,
 			(x, y, z) -> {
 				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
 				if (dist > radius) return 0;
 				double nx = x / radius, ny = y / radius, nz = z / radius;
+				double norm = dist / radius;
+				// Quarter-sphere cutaway: iron core → granite mantle → blackstone crust.
+				if (cutaway(x, z)) {
+					if (norm < 0.50) return ironCore;
+					if (norm < 0.82) return mantleIn;
+					if (norm < 0.90) return crustIn;
+					// fall through to cloud deck at rim
+				}
 				// Swirling cloud noise at two frequencies
 				double swirl1 = VoxelNoise.noise3(nx * 3.0 + ny * 1.5, ny * 3.0, nz * 3.0 + nx, seed);
 				double swirl2 = VoxelNoise.noise3(nx * 6.0, ny * 6.0 + nz, nz * 5.0, seed ^ 0xBEEF);
@@ -322,6 +397,9 @@ final class BlueprintShapes {
 		int ringBrt  = palette.indexOf(Palette.SMOOTH_QUARTZ);
 		int ringEdge = palette.indexOf(Palette.LIGHT_GRAY_CONCRETE);
 		int ringGap  = palette.indexOf(Palette.GRAY_TERRACOTTA);
+		int rockCore = palette.indexOf(Palette.DEEPSLATE);
+		int metalH   = palette.indexOf(Palette.IRON_BLOCK);
+		int molecH   = palette.indexOf(Palette.LAPIS_BLOCK);
 		double bodyRadius = diameter / 2.0;
 		double ringInner  = bodyRadius * 1.25;
 		double ringOuter  = bodyRadius * 1.9;
@@ -330,6 +408,16 @@ final class BlueprintShapes {
 				double dist2 = (double) x * x + (double) y * y + (double) z * z;
 				double dist = Math.sqrt(dist2);
 				if (inSphere(x, y, z, bodyRadius)) {
+					double norm = dist / bodyRadius;
+					// Quarter-sphere cutaway: expose gas-giant interior. Rings are outside
+					// the body sphere so this branch does not affect them.
+					if (cutaway(x, z)) {
+						double nxx = x / bodyRadius, nyy = y / bodyRadius, nzz = z / bodyRadius;
+						double tex = VoxelNoise.noise3(nxx * 3.0, nyy * 3.0, nzz * 3.0, seed ^ 0x5A77);
+						if (norm < 0.15) return rockCore;
+						if (norm < 0.60) return tex > 0.55 ? metalH : rockCore;
+						if (norm < 0.90) return tex > 0.50 ? molecH : metalH;
+					}
 					// Body bands keyed by latitude
 					double ny = y / bodyRadius;
 					double bandNoise = VoxelNoise.noise3(nx(x, bodyRadius) * 0.8, ny * 7.0,
@@ -371,21 +459,35 @@ final class BlueprintShapes {
 		int bodyLight  = palette.indexOf(Palette.CYAN_CONCRETE);
 		int streak     = palette.indexOf(Palette.LIGHT_BLUE_CONCRETE);
 		int haze       = palette.indexOf(Palette.LIGHT_BLUE_TERRACOTTA);
-		int storm      = palette.indexOf(Palette.RED_CONCRETE);
+		// Neptune's Great Dark Spot is a near-black storm, not red.
+		int storm      = palette.indexOf(Palette.BLACKSTONE);
 		int cloudTop   = palette.indexOf(Palette.WHITE_CONCRETE);
+		int rockCore   = palette.indexOf(Palette.DEEPSLATE);
+		int iceMantle  = palette.indexOf(Palette.PACKED_ICE);
+		int iceMantle2 = palette.indexOf(Palette.BLUE_ICE);
 		double radius = diameter / 2.0;
-		double[] stormDir = VoxelNoise.unitVector(seed ^ 0x9E31);
-		double stormX = stormDir[0], stormY = stormDir[1], stormZ = stormDir[2];
+		// Pin the Great Dark Spot to a fixed direction so it's always visible from arrival.
+		// Normalised (1, 0.2, -0.3): on the +X hemisphere the arrival camera sees, just outside the cutaway.
+		final double stormX = 0.9407208683835973;
+		final double stormY = 0.18814417367671946;
+		final double stormZ = -0.2822162605150792;
 		return new Blueprint(AstronomyClass.NEPTUNE,
 			(x, y, z) -> {
 				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
 				if (dist > radius) return 0;
 				double nx = x / radius, ny = y / radius, nz = z / radius;
+				double norm = dist / radius;
+				// Quarter-sphere cutaway: ice-giant interior.
+				if (cutaway(x, z)) {
+					double tex = VoxelNoise.noise3(nx * 3.0, ny * 3.0, nz * 3.0, seed ^ 0x9EC0);
+					if (norm < 0.25) return rockCore;
+					if (norm < 0.75) return tex > 0.50 ? iceMantle2 : iceMantle;
+					// fall through to outer atmosphere
+				}
 				// Dark spot
 				double ds = nx * stormX + ny * stormY + nz * stormZ;
 				if (ds > 0.90) return storm;
 				// Cloud top band at the outer 5%
-				double norm = dist / radius;
 				double cn = VoxelNoise.noise3(nx * 5.0, ny * 5.0, nz * 5.0, seed ^ 0xAE00);
 				if (norm > 0.95 && cn > 0.60) return cloudTop;
 				// Latitudinal streaks
@@ -412,6 +514,8 @@ final class BlueprintShapes {
 		int teal     = palette.indexOf(Palette.OXIDIZED_COPPER);
 		int shading  = palette.indexOf(Palette.CYAN_TERRACOTTA);
 		int ringBlk  = palette.indexOf(Palette.QUARTZ_BLOCK);
+		int rockCore = palette.indexOf(Palette.DEEPSLATE);
+		int iceMantle = palette.indexOf(Palette.BLUE_ICE);
 		double bodyRadius = diameter / 2.0;
 		double ringInner  = bodyRadius * 1.2;
 		double ringOuter  = bodyRadius * 1.6;
@@ -420,6 +524,13 @@ final class BlueprintShapes {
 				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
 				if (inSphere(x, y, z, bodyRadius)) {
 					double nx = x / bodyRadius, ny = y / bodyRadius, nz = z / bodyRadius;
+					double norm = dist / bodyRadius;
+					// Quarter-sphere cutaway: ice-giant interior. The near-vertical ring
+					// sits outside the body sphere so this branch does not affect it.
+					if (cutaway(x, z)) {
+						if (norm < 0.25) return rockCore;
+						if (norm < 0.75) return iceMantle;
+					}
 					double tint = VoxelNoise.noise3(nx * 2.0, ny * 2.0, nz * 2.0, seed);
 					if (tint > 0.70) return shading;
 					if (tint > 0.58) return teal;
@@ -448,6 +559,9 @@ final class BlueprintShapes {
 		int dark     = palette.indexOf(Palette.BROWN_CONCRETE);
 		int darkCr   = palette.indexOf(Palette.DEEPSLATE);
 		int rimBlock = palette.indexOf(Palette.LIGHT_GRAY_CONCRETE);
+		int ironCore = palette.indexOf(Palette.IRON_BLOCK);
+		int mantleIn = palette.indexOf(Palette.GRANITE);
+		int crustIn  = palette.indexOf(Palette.STONE);
 		double radius = diameter / 2.0;
 		int craterCount = 24;
 		return new Blueprint(AstronomyClass.MERCURY,
@@ -455,6 +569,13 @@ final class BlueprintShapes {
 				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
 				if (dist > radius) return 0;
 				double nx = x / radius, ny = y / radius, nz = z / radius;
+				double norm = dist / radius;
+				// Quarter-sphere cutaway: Mercury has an unusually large iron core.
+				if (cutaway(x, z)) {
+					if (norm < 0.70) return ironCore;
+					if (norm < 0.88) return mantleIn;
+					if (norm < 0.95) return crustIn;
+				}
 				// Craters
 				int ce = craterEffect(x, y, z, craterCount, seed, radius, 0.06, rimBlock);
 				if (ce == 0) return 0;

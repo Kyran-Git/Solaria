@@ -188,10 +188,10 @@ public final class SolariaCommands {
             source.sendFailure(Component.literal("[PLACEMENT_BLOCKED] This dimension has the wrong body generator. Check the host dimension data."));
             return 0;
         }
-        Vec3 spawnPos = new Vec3(generator.viewingDistance() + 0.5, 0.5, 0.5);
+        Vec3 spawnPos = new Vec3(generator.arrivalX(), generator.arrivalY(), generator.arrivalZ());
 		TeleportTransition transition = new TeleportTransition(
 			targetLevel, spawnPos, Vec3.ZERO,
-			90.0f, 0.0f, TeleportTransition.DO_NOTHING);
+			generator.arrivalYaw(), generator.arrivalPitch(), TeleportTransition.DO_NOTHING);
 		ServerPlayer arrived = player.teleport(transition);
 		if (arrived == null) {
 			player.setAttached(net.kyrangit.solaria.dimension.LessonReturn.Attachment.ANCHOR, previousAnchor);

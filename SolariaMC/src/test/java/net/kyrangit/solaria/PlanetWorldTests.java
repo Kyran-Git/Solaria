@@ -16,7 +16,12 @@ import net.minecraft.world.level.biome.*;
 import net.minecraft.world.level.chunk.*;
 import net.minecraft.world.level.levelgen.Heightmap;
 
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+
 import java.nio.file.*;
+import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -52,6 +57,9 @@ public final class PlanetWorldTests {
         }
         checkRingsSurvive(biome);
         checkReturnAnchor();
+        checkCutawayAndArrival(biome);
+        checkPinnedFeatures(biome);
+        checkLightingJson();
 
         reject(() -> new PlanetChunkGenerator(biome, "unknown", 1.0), "unknown class is rejected");
         reject(() -> new PlanetChunkGenerator(biome, "sun", 2.0), "over-cap scale is rejected");
@@ -172,6 +180,103 @@ public final class PlanetWorldTests {
         var stored = LessonReturn.CODEC.encodeStart(JsonOps.INSTANCE, anchor).getOrThrow();
         check(LessonReturn.CODEC.parse(JsonOps.INSTANCE, stored).getOrThrow().equals(anchor),
             "lesson return anchor survives a persistence round-trip");
+    }
+
+    /**
+     * Each body is cut open on the +X/+Z quadrant, and the arrival camera sits on that diagonal,
+     * so the layered interior and a multi-material surface must both be in view on arrival.
+     */
+    private static void checkCutawayAndArrival(Holder<Biome> biome) {
+        var cores = new EnumMap<AstronomyClass, Block>(AstronomyClass.class);
+        cores.put(AstronomyClass.SUN, Blocks.GLOWSTONE);
+        cores.put(AstronomyClass.EARTH, Blocks.GOLD_BLOCK);
+        cores.put(AstronomyClass.MOON, Blocks.IRON_BLOCK);
+        cores.put(AstronomyClass.MARS, Blocks.RAW_IRON_BLOCK);
+        cores.put(AstronomyClass.JUPITER, Blocks.DEEPSLATE);
+        cores.put(AstronomyClass.VENUS, Blocks.IRON_BLOCK);
+        cores.put(AstronomyClass.SATURN, Blocks.DEEPSLATE);
+        cores.put(AstronomyClass.URANUS, Blocks.DEEPSLATE);
+        cores.put(AstronomyClass.NEPTUNE, Blocks.DEEPSLATE);
+        cores.put(AstronomyClass.MERCURY, Blocks.IRON_BLOCK);
+
+        for (var cls : AstronomyClass.values()) {
+            var gen = new PlanetChunkGenerator(biome, cls.id(), 1.0);
+            int bound = gen.halfExtent();
+            int radius = gen.blueprint().diameter() / 2;
+
+            check(!gen.blockAt(0, 0, 0).isAir(), cls.id() + ": centre stays solid beside the cutaway");
+            check(gen.blockAt(1, 0, 1).is(cores.get(cls)),
+                cls.id() + ": cutaway exposes the " + cores.get(cls) + " core");
+
+            var interior = new HashSet<Block>();
+            for (int k = 1; k * Math.sqrt(2) < radius; k++) {
+                var state = gen.blockAt(k, 0, k);
+                if (!state.isAir()) interior.add(state.getBlock());
+            }
+            check(interior.size() >= 2, cls.id() + ": cutaway shows several interior layers, got " + interior);
+
+            // Surface shell outside the cutaway, sampled over latitude and longitude.
+            var surface = new HashSet<Block>();
+            for (int lat = -60; lat <= 60; lat += 15) {
+                for (int lon = 90; lon < 360; lon += 5) {
+                    double phi = Math.toRadians(lat), theta = Math.toRadians(lon);
+                    double r = radius * 0.97;
+                    var state = gen.blockAt((int) Math.round(r * Math.cos(phi) * Math.cos(theta)),
+                        (int) Math.round(r * Math.sin(phi)), (int) Math.round(r * Math.cos(phi) * Math.sin(theta)));
+                    if (!state.isAir()) surface.add(state.getBlock());
+                }
+            }
+            check(surface.size() >= 2, cls.id() + ": surface uses several palette blocks, got " + surface);
+
+            double ax = gen.arrivalX(), ay = gen.arrivalY(), az = gen.arrivalZ();
+            check(gen.blockAt((int) Math.floor(ax), (int) Math.floor(ay), (int) Math.floor(az)).isAir()
+                    && gen.blockAt((int) Math.floor(ax), (int) Math.floor(ay) + 1, (int) Math.floor(az)).isAir(),
+                cls.id() + ": arrival point is open space");
+            check(Math.hypot(ax, az) > bound, cls.id() + ": arrival point is outside the structure");
+            check(ax > 0 && az > 0, cls.id() + ": arrival point faces the cutaway quadrant");
+            check(ay > 0 && ay < bound, cls.id() + ": arrival point is raised but within the dimension");
+            check(Math.abs(gen.arrivalYaw() - 135.0f) < 0.01f, cls.id() + ": arrival yaw faces the origin");
+            check(gen.arrivalPitch() > 0f && gen.arrivalPitch() < 45f,
+                cls.id() + ": arrival pitch looks down at the planet");
+        }
+    }
+
+    /** Features students are asked to identify must face the arrival camera, not be left to the seed. */
+    private static void checkPinnedFeatures(Holder<Biome> biome) {
+        var jupiter = new PlanetChunkGenerator(biome, AstronomyClass.JUPITER.id(), 1.0);
+        double jr = jupiter.blueprint().diameter() / 2.0;
+        double spotX = 0.9701425001453319, spotZ = -0.24253562503633297;
+        check(jupiter.blockAt((int) Math.round(jr * 0.95 * spotX), (int) Math.round(-0.25 * jr),
+                (int) Math.round(jr * 0.95 * spotZ)).is(Blocks.RED_CONCRETE),
+            "jupiter: Great Red Spot is on the +X face");
+
+        var neptune = new PlanetChunkGenerator(biome, AstronomyClass.NEPTUNE.id(), 1.0);
+        double nr = neptune.blueprint().diameter() / 2.0;
+        double[] storm = {0.9407208683835973, 0.18814417367671946, -0.2822162605150792};
+        check(neptune.blockAt((int) Math.round(nr * 0.98 * storm[0]), (int) Math.round(nr * 0.98 * storm[1]),
+                (int) Math.round(nr * 0.98 * storm[2])).is(Blocks.BLACKSTONE),
+            "neptune: Great Dark Spot is on the +X face");
+    }
+
+    /** Planets must be lit well enough to read dark palette blocks, and fog must not hide the body. */
+    private static void checkLightingJson() throws Exception {
+        for (var cls : AstronomyClass.values()) {
+            var type = readJson("src/main/resources/data/solariamod/dimension_type/" + cls.id() + ".json");
+            double expected = cls == AstronomyClass.SUN ? 1.0 : 0.75;
+            check(type.get("ambient_light").getAsDouble() == expected,
+                cls.id() + ": ambient_light is " + expected);
+            check(type.getAsJsonObject("attributes").get("minecraft:visual/fog_end_distance").getAsInt() == 768,
+                cls.id() + ": dimension fog reaches past the planet");
+            var biome = readJson("src/main/resources/data/solariamod/worldgen/biome/" + cls.id() + ".json");
+            check(biome.getAsJsonObject("attributes").get("minecraft:visual/fog_end_distance").getAsInt() == 768,
+                cls.id() + ": biome fog reaches past the planet");
+        }
+    }
+
+    private static com.google.gson.JsonObject readJson(String path) throws Exception {
+        String text = Files.readString(Path.of(path));
+        if (text.startsWith("\uFEFF")) text = text.substring(1);
+        return JsonParser.parseString(text).getAsJsonObject();
     }
 
     private static void reject(Runnable action, String message) {
