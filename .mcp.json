@@ -3,9 +3,60 @@
     "jetbrains": {
       "type": "stdio",
       "command": "cmd.exe",
-      "args": ["/d", "/c", "D:\\Solaria\\tools\\mcp\\jetbrains-mcp.cmd"],
+      "args": [
+        "/d",
+        "/c",
+        "D:\\Solaria\\tools\\mcp\\jetbrains-mcp.cmd"
+      ],
       "env": {
         "IJ_MCP_SERVER_PROJECT_PATH": "D:\\Solaria\\SolariaMC"
+      }
+    },
+    "microsoft/markitdown": {
+      "tools": [
+        "*"
+      ],
+      "type": "stdio",
+      "command": "py",
+      "args": [
+        "-m",
+        "markitdown_mcp"
+      ]
+    },
+    "microsoft/playwright-mcp": {
+      "tools": [
+        "*"
+      ],
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ]
+    },
+    "mcmodding-mcp": {
+      "tools": [
+        "*"
+      ],
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcmodding-mcp"
+      ]
+    },
+    "mcdev-mcp": {
+      "tools": [
+        "*"
+      ],
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcdev-mcp",
+        "serve"
+      ],
+      "env": {
+        "JAVA_HOME": "C:\\Users\\nikla\\.jdks\\temurin-25.0.5"
       }
     }
   }
