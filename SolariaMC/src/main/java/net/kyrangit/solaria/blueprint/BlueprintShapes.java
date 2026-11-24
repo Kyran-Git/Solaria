@@ -243,27 +243,63 @@ final class BlueprintShapes {
 	// ================================================================== EARTH
 
 	/**
-	 * Earth: blue oceans, green/brown land, white polar caps, and thin cloud layer.
+	 * Earth: deep and shallow oceans, NASA Blue Marble continents with biome and mountain relief,
+	 * polar ice caps, and sparse dithered cloud swirls.
 	 */
 	static Blueprint earth(MaterialPalette palette, int diameter, double scale, int seed) {
-		int ocean    = palette.indexOf(Palette.BLUE_CONCRETE);
-		int deep     = palette.indexOf(Palette.DARK_PRISMARINE);
-		int shallow  = palette.indexOf(Palette.PRISMARINE);
-		int land     = palette.indexOf(Palette.GREEN_CONCRETE);
-		int forest   = palette.indexOf(Palette.GREEN_TERRACOTTA);
-		int grass    = palette.indexOf(Palette.LIME_CONCRETE);
-		int dry      = palette.indexOf(Palette.LIME_TERRACOTTA);
-		int desert   = palette.indexOf(Palette.TERRACOTTA);
-		int ice      = palette.indexOf(Palette.SNOW_BLOCK);
-		int glacier  = palette.indexOf(Palette.BLUE_ICE);
-		int cloud    = palette.indexOf(Palette.WHITE_CONCRETE);
-		int inner    = palette.indexOf(Palette.GOLD_BLOCK);
-		int outer    = palette.indexOf(Palette.IRON_BLOCK);
-		int outerAlt = palette.indexOf(Palette.RAW_IRON_BLOCK);
-		int mantle   = palette.indexOf(Palette.NETHERRACK);
-		int mantleAlt= palette.indexOf(Palette.GRANITE);
-		int crust    = palette.indexOf(Palette.STONE);
+		// NASA Earth Facts / Visible Earth Blue Marble (https://science.nasa.gov/earth/facts/):
+		// ~71% liquid oceans with shallow continental shelves, ~29% continents spanning forests,
+		// grasslands, arid deserts, and mountain belts, polar ice sheets, and dynamic cloud swirls
+		// (clearer over subtropical desert belts per NASA MODIS cloud climatology).
+		int inner     = palette.indexOf(Palette.GOLD_BLOCK);
+		int outer     = palette.indexOf(Palette.IRON_BLOCK);
+		int outerAlt  = palette.indexOf(Palette.RAW_IRON_BLOCK);
+		int mantle    = palette.indexOf(Palette.NETHERRACK);
+		int mantleAlt = palette.indexOf(Palette.GRANITE);
+		int crust     = palette.indexOf(Palette.STONE);
+
+		MaterialRamp oceanRamp = MaterialRamp.of(palette,
+			Palette.BLUE_TERRACOTTA,
+			Palette.LAPIS_BLOCK,
+			Palette.BLUE_CONCRETE,
+			Palette.CYAN_CONCRETE,
+			Palette.PRISMARINE,
+			Palette.LIGHT_BLUE_CONCRETE);
+		MaterialRamp forestRamp = MaterialRamp.of(palette,
+			Palette.GREEN_TERRACOTTA,
+			Palette.MOSS_BLOCK,
+			Palette.GREEN_CONCRETE,
+			Palette.LIME_TERRACOTTA,
+			Palette.LIME_CONCRETE);
+		MaterialRamp aridRamp = MaterialRamp.of(palette,
+			Palette.BROWN_TERRACOTTA,
+			Palette.PACKED_MUD,
+			Palette.TERRACOTTA,
+			Palette.ORANGE_TERRACOTTA,
+			Palette.YELLOW_TERRACOTTA,
+			Palette.SMOOTH_SANDSTONE,
+			Palette.END_STONE);
+		MaterialRamp mountainRamp = MaterialRamp.of(palette,
+			Palette.BROWN_CONCRETE,
+			Palette.GRAY_TERRACOTTA,
+			Palette.TUFF,
+			Palette.STONE,
+			Palette.LIGHT_GRAY_TERRACOTTA,
+			Palette.CALCITE,
+			Palette.SNOW_BLOCK);
+		MaterialRamp iceRamp = MaterialRamp.of(palette,
+			Palette.PACKED_ICE,
+			Palette.WHITE_CONCRETE,
+			Palette.CALCITE,
+			Palette.SNOW_BLOCK);
+		MaterialRamp cloudRamp = MaterialRamp.of(palette,
+			Palette.WHITE_CONCRETE,
+			Palette.CALCITE,
+			Palette.SNOW_BLOCK);
+
 		double radius = diameter / 2.0;
+		double innerLimit = interiorLimit(radius);
+		double innerRadiusSq = (radius * innerLimit) * (radius * innerLimit);
 		double minRadius = radius * (1.0 - BlueprintGenerator.MAX_RELIEF_FRAC);
 		double minRadiusSq = minRadius * minRadius;
 		double maxRadius = radius * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC);
@@ -272,63 +308,113 @@ final class BlueprintShapes {
 			(x, y, z) -> {
 				double distSq = (double) x * x + (double) y * y + (double) z * z;
 				if (distSq > maxRadiusSq) return 0;
-				double dist = Math.sqrt(distSq);
-				double norm = dist / radius;
-				// Quarter-sphere cutaway: layered interior (inner core → crust).
-				if (cutaway(x, z) && norm < 0.94) {
-					double nx = x / radius, ny = y / radius, nz = z / radius;
-					double tex = VoxelNoise.noise3(nx * 3.5, ny * 3.5, nz * 3.5, seed ^ 0xEA12);
+				if (distSq < innerRadiusSq) {
+					double norm = Math.sqrt(distSq) / radius;
 					if (norm < 0.20) return inner;
-					if (norm < 0.55) return tex > 0.50 ? outerAlt : outer;
-					if (norm < 0.88) return tex > 0.55 ? mantleAlt : mantle;
+					if (norm < 0.55) {
+						double tex = SurfacePainter.fbm(x / radius * 3.5, y / radius * 3.5, z / radius * 3.5, 2, seed ^ 0xEA12);
+						return tex > 0.50 ? outerAlt : outer;
+					}
+					if (norm < 0.88) {
+						double tex = SurfacePainter.fbm(x / radius * 3.5, y / radius * 3.5, z / radius * 3.5, 2, seed ^ 0xEA13);
+						return tex > 0.55 ? mantleAlt : mantle;
+					}
 					return crust;
 				}
+				double dist = Math.sqrt(distSq);
 				double inv = dist > 0.0 ? 1.0 / dist : 0.0;
 				double ux = x * inv;
 				double uy = dist > 0.0 ? y * inv : 1.0;
 				double uz = z * inv;
 
-				// NASA Earth / ETOPO topography (https://science.nasa.gov/earth/facts/):
-				// oceanic basins sit lower than continental shelves, with mountain belts inland.
-				double continent = VoxelNoise.noise3(ux * 1.8, uy * 1.8, uz * 1.8, seed);
-				double localRadius = radius;
+				double rawLand = EarthMask.sampleLandElev(ux, uy, uz);
+				double coastJitter = (SurfacePainter.sphereFbm(ux, uy, uz, 8.0, 2, seed ^ 0xC0A5) - 0.5) * 0.050;
+				double landField = SurfacePainter.clamp01(rawLand + coastJitter);
+				double ridgeCurve = 0.0;
+				double nasaElev = 0.0;
+
+				if (landField > 0.48) {
+					nasaElev = SurfacePainter.clamp01((rawLand - 0.72) / 0.28);
+					double rBase = SurfacePainter.sphereFbm(ux, uy, uz, 6.0, 3, seed ^ 0x4007);
+					ridgeCurve = 1.0 - Math.abs(SurfacePainter.smoothstep(0.24, 0.76, rBase) * 2.0 - 1.0);
+				}
+
 				if (distSq >= minRadiusSq) {
 					double polarIceH = SurfacePainter.latitudeGradient(uy, 0.82, 0.94) * 0.002;
 					double relief;
-					if (continent <= 0.530) {
+					if (landField <= 0.485) {
 						relief = -0.008 + polarIceH;
 					} else {
-						double landMask = SurfacePainter.smoothstep(0.530, 0.575, continent);
-						double rBase = SurfacePainter.sphereFbm(ux, uy, uz, 4.5, 3, seed ^ 0x4007);
-						double rCurve = 1.0 - Math.abs(SurfacePainter.smoothstep(0.24, 0.76, rBase) * 2.0 - 1.0);
-						double landH = 0.002 + (rCurve * rCurve) * 0.025 + rBase * 0.004;
+						double landMask = SurfacePainter.smoothstep(0.485, 0.535, landField);
+						double landH = 0.003 + nasaElev * 0.017 + (ridgeCurve * ridgeCurve) * (0.011 + 0.013 * nasaElev);
 						relief = -0.008 * (1.0 - landMask) + landH * landMask + polarIceH;
 					}
-					localRadius = reliefRadius(radius, relief);
+					double localRadius = reliefRadius(radius, relief);
 					if (dist > localRadius) return 0;
 				}
 
-				// Polar ice caps: |uy| > 0.82
-				double absy = Math.abs(uy);
-				if (absy > 0.82) return (dist / localRadius > 0.94 && absy > 0.9) ? glacier : ice;
-				// Thin cloud shell (outermost 4%) — only render clouds where noise says so; otherwise
-				// fall through so continents and oceans beneath remain visible.
-				if (dist / localRadius > 0.96) {
-					double c = VoxelNoise.noise3(ux * 4.5, uy * 4.5, uz * 4.5, seed ^ 0xCCDD);
-					if (c > 0.62) return cloud;
+				boolean isLand = landField >= 0.50;
+				double biome = EarthMask.sampleBiome(ux, uy, uz);
+				double detail = SurfacePainter.sphereFbm(ux, uy, uz, 9.0, 3, seed ^ 0xB10E);
+
+				int mat;
+				if (!isLand) {
+					double shallow = SurfacePainter.clamp01(rawLand / 0.49);
+					double shelfBoost = SurfacePainter.smoothstep(0.42, 0.98, shallow);
+					double oceanSwirl = SurfacePainter.sphereFbm(ux, uy, uz, 3.4, 3, seed ^ 0x5F5F);
+					double oceanVal = SurfacePainter.clamp01(
+						0.02 + 0.40 * SurfacePainter.smoothstep(0.22, 0.78, oceanSwirl) + 0.58 * shelfBoost);
+					mat = oceanRamp.sampleDithered(oceanVal, 0.48, x, y, z, seed ^ 0x0CEA);
+				} else {
+					double biomeMod = SurfacePainter.clamp01(biome + (detail - 0.5) * 0.14);
+					double vegT = SurfacePainter.clamp01(biomeMod / 0.42 * 0.72 + (detail - 0.5) * 0.45);
+					int forestMat = forestRamp.sampleDithered(vegT, 0.45, x, y, z, seed ^ 0xF02E);
+
+					double aridT = SurfacePainter.clamp01((biomeMod - 0.36) / 0.48 * 0.82 + (detail - 0.5) * 0.30);
+					int aridMat = aridRamp.sampleDithered(aridT, 0.45, x, y, z, seed ^ 0xA21D);
+
+					mat = SurfacePainter.blend(forestMat, aridMat, biomeMod, 0.41, 0.24, x, y, z, seed ^ 0xFA21);
+
+					double shoreBand = SurfacePainter.smoothstep(0.525, 0.498, landField);
+					if (shoreBand > 0.10 && biomeMod > 0.25 && biomeMod < 0.82) {
+						mat = SurfacePainter.blend(mat, aridRamp.at(5), shoreBand * 0.65, 0.55, 0.30, x, y, z, seed ^ 0x5402);
+					}
+
+					double mountainScore = SurfacePainter.clamp01(nasaElev * 0.65 + (ridgeCurve * ridgeCurve) * 0.45);
+					if (mountainScore > 0.48 && biome < 0.84) {
+						double mAlt = SurfacePainter.clamp01((mountainScore - 0.44) / 0.54 + (detail - 0.5) * 0.14);
+						int mMat = mountainRamp.sampleDithered(mAlt, 0.42, x, y, z, seed ^ 0x40A7);
+						mat = SurfacePainter.blend(mat, mMat, mountainScore, 0.62, 0.24, x, y, z, seed ^ 0x40A8);
+					}
+
+					if (biome > 0.78) {
+						double iceT = SurfacePainter.clamp01((biome - 0.78) / 0.20 + (detail - 0.5) * 0.16);
+						int iceMat = iceRamp.sampleDithered(0.35 + 0.65 * iceT, 0.40, x, y, z, seed ^ 0x1CE0);
+						mat = SurfacePainter.blend(mat, iceMat, biome, 0.84, 0.12, x, y, z, seed ^ 0x1CE1);
+					}
 				}
-				if (continent > 0.54) {
-					// Land biome
-					double biome = VoxelNoise.noise3(ux * 3.5, uy * 3.5, uz * 3.5, seed ^ 0xAB12);
-					if (biome > 0.65) return forest;
-					if (biome > 0.52) return grass;
-					if (biome > 0.42) return dry;
-					if (biome > 0.30) return desert;
-					return land;
+
+				// Warped polar sea-ice caps (Arctic pack ice and Antarctic fringe).
+				double wLat = SurfacePainter.warpedLatitude(ux, uy, uz, 4.5, 0.035, 3, seed ^ 0x901A);
+				double northIce = !isLand ? SurfacePainter.smoothstep(0.955, 0.985, wLat) : 0.0;
+				double southIce = SurfacePainter.smoothstep(-0.91, -0.96, wLat);
+				double polar = Math.max(northIce, southIce);
+				if (polar > 0.02) {
+					int capMat = iceRamp.sampleDithered(0.25 + 0.75 * polar, 0.42, x, y, z, seed ^ 0x1CE5);
+					mat = SurfacePainter.blend(mat, capMat, polar, 0.46, 0.24, x, y, z, seed ^ 0x1CE6);
 				}
-				// Ocean depth
-				double depth = VoxelNoise.noise3(ux * 2.5, uy * 2.5, uz * 2.5, seed ^ 0x5F5F);
-				return depth > 0.58 ? shallow : (depth < 0.35 ? deep : ocean);
+
+				// Sparse swirling weather clouds with softly dithered edges (NASA MODIS subtropical clear belts).
+				double swirl = SurfacePainter.warpedSphereFbm(ux, uy * 1.9, uz, 2.8, 3, 2.2, 0.52, seed ^ 0xC10D);
+				double wisp = SurfacePainter.sphereFbm(ux * 1.3, uy * 2.4, uz * 1.3, 6.5, 2, seed ^ 0xC10E);
+				double desertDry = isLand && biome > 0.52 ? SurfacePainter.smoothstep(0.52, 0.74, biome) * 0.08 : 0.0;
+				double cVal = swirl * 0.78 + wisp * 0.22 - desertDry;
+				if (cVal > 0.55) {
+					double cDensity = SurfacePainter.smoothstep(0.56, 0.74, cVal);
+					int cloudMat = cloudRamp.sampleDithered(cDensity, 0.40, x, y, z, seed ^ 0xC10B);
+					mat = SurfacePainter.blend(mat, cloudMat, cVal, 0.625, 0.13, x, y, z, seed ^ 0xC10F);
+				}
+				return mat;
 			},
 			palette, scale, diameter);
 	}

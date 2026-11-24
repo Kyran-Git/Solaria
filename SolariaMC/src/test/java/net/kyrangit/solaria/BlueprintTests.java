@@ -47,6 +47,7 @@ public final class BlueprintTests {
 		testColourCoverage();
 		testStep3NaturalPatterns();
 		testStep4SurfaceRelief();
+		testStep5Earth();
 		System.out.println("Blueprint plumbing check (synthetic): " + assertions + " assertions passed.");
 	}
 
@@ -379,15 +380,30 @@ public final class BlueprintTests {
 		Blueprint earth = BlueprintGenerator.generate(AstronomyClass.EARTH, 1.0);
 		MaterialPalette pal = earth.palette();
 		Set<Integer> oceanIds = Set.of(
+			pal.indexOf(Palette.BLUE_TERRACOTTA),
+			pal.indexOf(Palette.LAPIS_BLOCK),
 			pal.indexOf(Palette.BLUE_CONCRETE),
-			pal.indexOf(Palette.DARK_PRISMARINE),
-			pal.indexOf(Palette.PRISMARINE));
+			pal.indexOf(Palette.CYAN_CONCRETE),
+			pal.indexOf(Palette.PRISMARINE),
+			pal.indexOf(Palette.LIGHT_BLUE_CONCRETE));
 		Set<Integer> landIds = Set.of(
-			pal.indexOf(Palette.GREEN_CONCRETE),
 			pal.indexOf(Palette.GREEN_TERRACOTTA),
-			pal.indexOf(Palette.LIME_CONCRETE),
+			pal.indexOf(Palette.MOSS_BLOCK),
+			pal.indexOf(Palette.GREEN_CONCRETE),
 			pal.indexOf(Palette.LIME_TERRACOTTA),
-			pal.indexOf(Palette.TERRACOTTA));
+			pal.indexOf(Palette.LIME_CONCRETE),
+			pal.indexOf(Palette.BROWN_TERRACOTTA),
+			pal.indexOf(Palette.PACKED_MUD),
+			pal.indexOf(Palette.TERRACOTTA),
+			pal.indexOf(Palette.ORANGE_TERRACOTTA),
+			pal.indexOf(Palette.YELLOW_TERRACOTTA),
+			pal.indexOf(Palette.SMOOTH_SANDSTONE),
+			pal.indexOf(Palette.END_STONE),
+			pal.indexOf(Palette.BROWN_CONCRETE),
+			pal.indexOf(Palette.GRAY_TERRACOTTA),
+			pal.indexOf(Palette.TUFF),
+			pal.indexOf(Palette.STONE),
+			pal.indexOf(Palette.LIGHT_GRAY_TERRACOTTA));
 		double er = earth.diameter() / 2.0;
 		double landRSum = 0.0, oceanRSum = 0.0;
 		int landCount = 0, oceanCount = 0;
@@ -457,6 +473,142 @@ public final class BlueprintTests {
 			check(maxHit <= r + 0.5 && minHit >= r - 1.8,
 				String.format("%s non-rocky smoothness: [%.2f..%.2f] around %.2f", cls.id(), minHit, maxHit, r));
 		}
+	}
+
+	private static void testStep5Earth() {
+		Blueprint a = BlueprintGenerator.generate(AstronomyClass.EARTH, 1.0);
+		Blueprint b = BlueprintGenerator.generate(AstronomyClass.EARTH, 1.0);
+		MaterialPalette pal = a.palette();
+		double baseR = a.diameter() / 2.0;
+		double maxScan = Math.ceil(baseR * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC)) + 2.0;
+		double minScan = Math.max(1.0, Math.floor(baseR * 0.90));
+		double goldenAngle = Math.PI * (3.0 - Math.sqrt(5.0));
+
+		Set<Integer> cloudSet = Set.of(
+			pal.indexOf(Palette.WHITE_CONCRETE),
+			pal.indexOf(Palette.CALCITE),
+			pal.indexOf(Palette.SNOW_BLOCK));
+		Set<Integer> iceSet = Set.of(
+			pal.indexOf(Palette.PACKED_ICE),
+			pal.indexOf(Palette.WHITE_CONCRETE),
+			pal.indexOf(Palette.CALCITE),
+			pal.indexOf(Palette.SNOW_BLOCK));
+		Set<Integer> oceanSet = Set.of(
+			pal.indexOf(Palette.BLUE_TERRACOTTA),
+			pal.indexOf(Palette.LAPIS_BLOCK),
+			pal.indexOf(Palette.BLUE_CONCRETE),
+			pal.indexOf(Palette.CYAN_CONCRETE),
+			pal.indexOf(Palette.PRISMARINE),
+			pal.indexOf(Palette.LIGHT_BLUE_CONCRETE));
+		Set<Integer> forestSet = Set.of(
+			pal.indexOf(Palette.GREEN_TERRACOTTA),
+			pal.indexOf(Palette.MOSS_BLOCK),
+			pal.indexOf(Palette.GREEN_CONCRETE),
+			pal.indexOf(Palette.LIME_TERRACOTTA),
+			pal.indexOf(Palette.LIME_CONCRETE));
+		Set<Integer> aridSet = Set.of(
+			pal.indexOf(Palette.BROWN_TERRACOTTA),
+			pal.indexOf(Palette.PACKED_MUD),
+			pal.indexOf(Palette.TERRACOTTA),
+			pal.indexOf(Palette.ORANGE_TERRACOTTA),
+			pal.indexOf(Palette.YELLOW_TERRACOTTA),
+			pal.indexOf(Palette.SMOOTH_SANDSTONE),
+			pal.indexOf(Palette.END_STONE));
+		Set<Integer> allLandSet = new HashSet<>(forestSet);
+		allLandSet.addAll(aridSet);
+		allLandSet.addAll(Set.of(
+			pal.indexOf(Palette.BROWN_CONCRETE),
+			pal.indexOf(Palette.GRAY_TERRACOTTA),
+			pal.indexOf(Palette.TUFF),
+			pal.indexOf(Palette.STONE),
+			pal.indexOf(Palette.LIGHT_GRAY_TERRACOTTA)));
+
+		Map<Integer, Integer> counts = new HashMap<>();
+		int total = 0;
+		int lowMidTotal = 0;
+		int lowMidClouds = 0;
+
+		for (int i = 0; i < 10_000; i++) {
+			double uy = 1.0 - (2.0 * (i + 0.5) / 10_000.0);
+			double ring = Math.sqrt(Math.max(0.0, 1.0 - uy * uy));
+			double theta = goldenAngle * i;
+			double ux = ring * Math.cos(theta);
+			double uz = ring * Math.sin(theta);
+			for (double r = maxScan; r >= minScan; r -= 0.75) {
+				int vx = (int) Math.round(ux * r);
+				int vy = (int) Math.round(uy * r);
+				int vz = (int) Math.round(uz * r);
+				int idx = a.voxelAt(vx, vy, vz);
+				if (idx != 0) {
+					if (i < 2_000) {
+						check(idx == b.voxelAt(vx, vy, vz), "earth: deterministic full-scale surface voxel");
+					}
+					counts.merge(idx, 1, Integer::sum);
+					total++;
+					if (Math.abs(uy) < 0.75) {
+						lowMidTotal++;
+						if (cloudSet.contains(idx)) lowMidClouds++;
+					}
+					break;
+				}
+			}
+		}
+
+		check(counts.size() >= 10, "earth: uses >= 10 distinct surface blocks, got " + counts.size());
+		int maxCount = 0;
+		for (int count : counts.values()) {
+			if (count > maxCount) maxCount = count;
+		}
+		double topShare = (100.0 * maxCount) / total;
+		check(topShare < 40.0, String.format("earth: top block share %.1f%% >= 40%%", topShare));
+
+		double cloudPct = (100.0 * lowMidClouds) / lowMidTotal;
+		check(cloudPct >= 8.0 && cloudPct <= 35.0,
+			String.format("earth: sparse low/mid-latitude clouds %.1f%% not in [8%%..35%%]", cloudPct));
+
+		// Verify recognizable NASA geography around iconic coordinates (tolerating local cloud wisps).
+		checkRegionMatches(a, 0.0, -150.0, oceanSet, cloudSet, "Pacific Ocean");
+		checkRegionMatches(a, 25.0, -40.0, oceanSet, cloudSet, "Atlantic Ocean");
+		checkRegionMatches(a, 23.0, 13.0, aridSet, cloudSet, "Sahara Desert");
+		checkRegionMatches(a, -4.0, -62.0, forestSet, cloudSet, "Amazon Rainforest");
+		checkRegionMatches(a, -25.0, 134.0, allLandSet, cloudSet, "Australia");
+		checkRegionMatches(a, 55.0, 80.0, allLandSet, cloudSet, "Eurasia");
+		checkRegionMatches(a, -82.0, 0.0, iceSet, Set.of(), "Antarctica");
+	}
+
+	private static void checkRegionMatches(Blueprint bp, double latDeg, double lonDeg,
+	                                       Set<Integer> expected, Set<Integer> cloudIgnore, String label) {
+		double[][] offsets = {
+			{0, 0}, {3, 0}, {-3, 0}, {0, 4}, {0, -4},
+			{3, 4}, {3, -4}, {-3, 4}, {-3, -4}
+		};
+		int clearSamples = 0;
+		int matches = 0;
+		for (double[] off : offsets) {
+			double lat = Math.toRadians(latDeg + off[0]);
+			double lon = Math.toRadians(lonDeg + off[1]);
+			double uy = Math.sin(lat);
+			double cosLat = Math.cos(lat);
+			double ux = cosLat * Math.cos(lon);
+			double uz = cosLat * Math.sin(lon);
+			double radius = bp.diameter() / 2.0;
+			double maxScan = Math.ceil(radius * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC)) + 2.0;
+			for (double r = maxScan; r >= radius * 0.90; r -= 0.5) {
+				int vx = (int) Math.round(ux * r);
+				int vy = (int) Math.round(uy * r);
+				int vz = (int) Math.round(uz * r);
+				int idx = bp.voxelAt(vx, vy, vz);
+				if (idx != 0) {
+					if (!cloudIgnore.contains(idx)) {
+						clearSamples++;
+						if (expected.contains(idx)) matches++;
+					}
+					break;
+				}
+			}
+		}
+		check(clearSamples >= 2 && matches * 2 >= clearSamples,
+			String.format("earth region %s: matched %d/%d non-cloud samples", label, matches, clearSamples));
 	}
 
 	private static double surfaceRadiusAlong(Blueprint bp, double x, double y, double z) {
