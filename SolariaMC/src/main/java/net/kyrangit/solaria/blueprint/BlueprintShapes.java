@@ -120,19 +120,127 @@ final class BlueprintShapes {
 		return total;
 	}
 
+	/** Magnetic prominence arch or sweeping eruptive flare anchored inside the solar photosphere. */
+	private record SolarFlare(
+		boolean isLoop,
+		double nx, double ny, double nz,
+		double t1x, double t1y, double t1z,
+		double t2x, double t2y, double t2z,
+		double anchorR, double height, double span, double tubeR,
+		double curveU, double curveW, int seed,
+		int minX, int maxX, int minY, int maxY, int minZ, int maxZ
+	) {
+		static SolarFlare loop(double radius, double dx, double dy, double dz,
+		                       double heightFrac, double spanFrac, double tubeFrac, double twist, int seed) {
+			return create(true, radius, dx, dy, dz, heightFrac, spanFrac, tubeFrac, 0.0, twist, seed);
+		}
+
+		static SolarFlare plume(double radius, double dx, double dy, double dz,
+		                        double heightFrac, double tubeFrac, double curveU, double curveW, int seed) {
+			return create(false, radius, dx, dy, dz, heightFrac, 0.0, tubeFrac, curveU, curveW, seed);
+		}
+
+		private static SolarFlare create(boolean isLoop, double radius, double dx, double dy, double dz,
+		                                 double heightFrac, double spanFrac, double tubeFrac,
+		                                 double curveU, double curveW, int seed) {
+			TangentFeature f = TangentFeature.of(dx, dy, dz, 1.0, 1.0, seed);
+			double anchorR = radius * 0.975;
+			double height = radius * heightFrac;
+			double span = radius * spanFrac;
+			double tubeR = Math.max(0.75, radius * tubeFrac);
+			double rMin = anchorR - tubeR * 1.4;
+			double rMax = anchorR + height + tubeR * 1.6;
+			double maxU = isLoop ? span + tubeR * 2.0 : Math.abs(curveU) * height + tubeR * 2.6;
+			double maxW = isLoop ? Math.abs(curveW) * tubeR + tubeR * 2.0 : Math.abs(curveW) * height + tubeR * 2.2;
+
+			int minX = (int) Math.floor(Math.min(rMin * f.cx, rMax * f.cx) - maxU * Math.abs(f.t1x) - maxW * Math.abs(f.t2x)) - 2;
+			int maxX = (int) Math.ceil(Math.max(rMin * f.cx, rMax * f.cx) + maxU * Math.abs(f.t1x) + maxW * Math.abs(f.t2x)) + 2;
+			int minY = (int) Math.floor(Math.min(rMin * f.cy, rMax * f.cy) - maxU * Math.abs(f.t1y) - maxW * Math.abs(f.t2y)) - 2;
+			int maxY = (int) Math.ceil(Math.max(rMin * f.cy, rMax * f.cy) + maxU * Math.abs(f.t1y) + maxW * Math.abs(f.t2y)) + 2;
+			int minZ = (int) Math.floor(Math.min(rMin * f.cz, rMax * f.cz) - maxU * Math.abs(f.t1z) - maxW * Math.abs(f.t2z)) - 2;
+			int maxZ = (int) Math.ceil(Math.max(rMin * f.cz, rMax * f.cz) + maxU * Math.abs(f.t1z) + maxW * Math.abs(f.t2z)) + 2;
+
+			return new SolarFlare(
+				isLoop, f.cx, f.cy, f.cz, f.t1x, f.t1y, f.t1z, f.t2x, f.t2y, f.t2z,
+				anchorR, height, span, tubeR, curveU, curveW, seed,
+				minX, maxX, minY, maxY, minZ, maxZ);
+		}
+
+		int sample(int x, int y, int z, MaterialRamp coreRamp, int yGlass, int oGlass, int rGlass) {
+			if (x < minX || x > maxX || y < minY || y > maxY || z < minZ || z > maxZ) return 0;
+			double rN = x * nx + y * ny + z * nz;
+			double u = x * t1x + y * t1y + z * t1z;
+			double w = x * t2x + y * t2y + z * t2z;
+
+			double n1;
+			double n2;
+			double tubeNorm;
+			double altFrac;
+			if (isLoop) {
+				double s = u / span;
+				if (Math.abs(s) > 1.22 || rN < anchorR - tubeR * 1.2 || rN > anchorR + height + tubeR * 1.5) return 0;
+				n1 = VoxelNoise.noise3(x * 0.08, y * 0.08, z * 0.08, seed);
+				n2 = VoxelNoise.noise3(x * 0.16, y * 0.16, z * 0.16, seed ^ 0x51A7);
+				double curveR = anchorR + height * (1.0 - s * s);
+				double drdu = -2.0 * height * s / span;
+				double perpUR = Math.abs(rN - curveR) / Math.hypot(1.0, drdu);
+				double localTube = tubeR * (1.08 - 0.18 * (1.0 - s * s))
+					+ (n1 - 0.5) * tubeR * 0.45 + (n2 - 0.5) * tubeR * 0.25;
+				double wWarp = w + Math.sin(s * Math.PI) * curveW * tubeR + (n1 - 0.5) * tubeR * 0.40;
+				tubeNorm = Math.hypot(perpUR, wWarp) / Math.max(0.75, localTube);
+				if (tubeNorm >= 1.0) return 0;
+				altFrac = SurfacePainter.clamp01((rN - anchorR) / height);
+			} else {
+				double h = rN - anchorR;
+				if (h < -tubeR || h > height + tubeR) return 0;
+				double t = SurfacePainter.clamp01(h / height);
+				double uOff = (u - curveU * t * t * height) * 0.65;
+				double wOff = (w - curveW * t * t * height) * 1.35;
+				double d = Math.hypot(uOff, wOff);
+				if (d > tubeR * 1.95) return 0;
+				n1 = VoxelNoise.noise3(x * 0.085, y * 0.085, z * 0.085, seed);
+				n2 = VoxelNoise.noise3(x * 0.18, y * 0.18, z * 0.18, seed ^ 0x31E7);
+				double tongues = 0.34 * Math.sin(Math.atan2(wOff, uOff) * 4.0 + t * 7.0);
+				double localR = tubeR * (1.15 - 0.54 * t)
+					* (1.0 + (n1 - 0.5) * 0.72 + (n2 - 0.5) * 0.38 + tongues * Math.min(1.0, t * 2.2));
+				tubeNorm = d / Math.max(0.65, localR);
+				if (tubeNorm >= 1.0) return 0;
+				altFrac = t;
+			}
+
+			double heat = SurfacePainter.clamp01(1.08 - tubeNorm * 0.66 - altFrac * 0.26 + (n2 - 0.5) * 0.22);
+			if (tubeNorm < 0.40 || (altFrac < 0.28 && tubeNorm < 0.58)) {
+				return coreRamp.sampleDithered(heat, 0.38, x, y, z, seed ^ 0xC07E);
+			}
+			if (tubeNorm < 0.78) {
+				if (heat > 0.78 && n1 > 0.66) {
+					return coreRamp.sampleDithered(heat, 0.30, x, y, z, seed ^ 0xC07E);
+				}
+				return heat > 0.38 ? yGlass : oGlass;
+			}
+			double keepProb = ((1.0 - tubeNorm) / 0.22) * 0.90;
+			if (VoxelNoise.hashUnit(x, y, z, seed ^ 0xF1A2) >= keepProb) return 0;
+			return (heat + VoxelNoise.hashUnit(x, y, z, seed ^ 0xF1A3) * 0.28) > 0.42 ? oGlass : rGlass;
+		}
+	}
+
 	// ================================================================== SUN
 
 	/**
-	 * Sun: convective granulation, active sunspot belts with surrounding faculae, and bright limb.
+	 * Sun: convective granulation, active sunspot belts with faculae, and stained-glass solar flares.
 	 */
 	static Blueprint sun(MaterialPalette palette, int diameter, double scale, int seed) {
-		// NASA Solar Physics (https://science.nasa.gov/sun/facts/): ~1,000 km convective granulation
-		// cells, dark magnetic sunspots in active belts (~5-40 deg N/S), and bright surrounding faculae.
+		// NASA Solar Dynamics Observatory / Solar Physics (https://science.nasa.gov/sun/facts/):
+		// ~1,000 km convective granulation cells, magnetic sunspot belts (~5-40 deg N/S), faculae,
+		// and eruptive prominence loops / coronal mass ejections extending into the lower corona.
 		int core    = palette.indexOf(Palette.GLOWSTONE);
 		int radA    = palette.indexOf(Palette.GOLD_BLOCK);
 		int radB    = palette.indexOf(Palette.OCHRE_FROGLIGHT);
 		int convA   = palette.indexOf(Palette.SHROOMLIGHT);
 		int convB   = palette.indexOf(Palette.ORANGE_CONCRETE);
+		int yGlass  = palette.indexOf(Palette.YELLOW_STAINED_GLASS);
+		int oGlass  = palette.indexOf(Palette.ORANGE_STAINED_GLASS);
+		int rGlass  = palette.indexOf(Palette.RED_STAINED_GLASS);
 		MaterialRamp plasmaRamp = MaterialRamp.of(palette,
 			Palette.RED_CONCRETE,
 			Palette.REDSTONE_BLOCK,
@@ -142,6 +250,13 @@ final class BlueprintShapes {
 			Palette.RAW_GOLD_BLOCK,
 			Palette.YELLOW_CONCRETE,
 			Palette.GOLD_BLOCK,
+			Palette.OCHRE_FROGLIGHT,
+			Palette.GLOWSTONE);
+		MaterialRamp flareCoreRamp = MaterialRamp.of(palette,
+			Palette.GOLD_BLOCK,
+			Palette.ORANGE_CONCRETE,
+			Palette.SHROOMLIGHT,
+			Palette.YELLOW_CONCRETE,
 			Palette.OCHRE_FROGLIGHT,
 			Palette.GLOWSTONE);
 		MaterialRamp spotRamp = MaterialRamp.of(palette,
@@ -170,72 +285,108 @@ final class BlueprintShapes {
 
 		double radius = diameter / 2.0;
 		double innerLimit = interiorLimit(radius);
+		double innerRadiusSq = (radius * innerLimit) * (radius * innerLimit);
+		double minPhotoSq = (radius * 0.986) * (radius * 0.986);
+		double maxPhotoSq = (radius * 1.014) * (radius * 1.014);
+		double maxFlareR = radius * (BlueprintGenerator.SUN_FLARE_EXTENT_MULT - 0.004);
+		double maxFlareSq = maxFlareR * maxFlareR;
+
+		SolarFlare[] flares = {
+			SolarFlare.loop(radius,   0.04,  0.56,  0.83, 0.195, 0.250, 0.021,  0.40, seed ^ 0xF101),
+			SolarFlare.plume(radius, -0.05, -0.44, -0.90, 0.205,        0.040, -0.32,  0.22, seed ^ 0xF102),
+			SolarFlare.loop(radius,   0.05,  0.72, -0.69, 0.185, 0.230, 0.020, -0.35, seed ^ 0xF103),
+			SolarFlare.plume(radius, -0.04, -0.58,  0.81, 0.195,        0.036,  0.28, -0.18, seed ^ 0xF104),
+			SolarFlare.loop(radius,  -0.56,  0.52,  0.65, 0.190, 0.240, 0.021,  0.32, seed ^ 0xF105),
+			SolarFlare.plume(radius,  0.64, -0.34, -0.69, 0.200,        0.038,  0.26,  0.18, seed ^ 0xF106),
+			SolarFlare.loop(radius,   0.74,  0.66, -0.10, 0.185, 0.220, 0.020, -0.28, seed ^ 0xF107),
+			SolarFlare.plume(radius,  0.80, -0.42, -0.42, 0.192,        0.035, -0.24,  0.20, seed ^ 0xF108),
+			SolarFlare.loop(radius,  -0.82,  0.54,  0.18, 0.188, 0.230, 0.020,  0.34, seed ^ 0xF109),
+			SolarFlare.loop(radius,  -0.72, -0.58,  0.38, 0.182, 0.215, 0.019, -0.30, seed ^ 0xF10A)
+		};
+
 		return new Blueprint(AstronomyClass.SUN,
 			(x, y, z) -> {
 				double distSq = (double) x * x + (double) y * y + (double) z * z;
-				if (distSq > radius * radius) return 0;
-				double dist = Math.sqrt(distSq);
-				double norm = dist / radius;
-				double inv = dist > 0.0 ? 1.0 / dist : 0.0;
-				double ux = x * inv;
-				double uy = dist > 0.0 ? y * inv : 1.0;
-				double uz = z * inv;
-
-				// Interior stellar structure (kept strictly inside outer photosphere shell so no cutaway seam marks the surface).
-				if (norm < innerLimit) {
+				if (distSq > maxFlareSq) return 0;
+				if (distSq < innerRadiusSq) {
+					double dist = Math.sqrt(distSq);
+					double norm = dist / radius;
 					if (norm < 0.28) return core;
 					if (cutaway(x, z)) {
-						double tex = SurfacePainter.sphereFbm(ux, uy, uz, 4.0, 2, seed ^ 0x501A);
+						double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+						double tex = SurfacePainter.sphereFbm(x * inv, y * inv, z * inv, 4.0, 2, seed ^ 0x501A);
 						if (norm < 0.65) return tex > 0.55 ? radB : radA;
 						return tex > 0.50 ? convA : convB;
 					}
 					if (norm < 0.65) return radA;
 					return convA;
 				}
+				if (distSq <= maxPhotoSq) {
+					double dist = Math.sqrt(distSq);
+					double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+					double ux = x * inv;
+					double uy = dist > 0.0 ? y * inv : 1.0;
+					double uz = z * inv;
 
-				double macro = SurfacePainter.warpedSphereFbm(ux, uy, uz, 3.8, 3, 2.4, 0.38, seed);
-				double gran = SurfacePainter.sphereFbm(ux, uy, uz, 16.0, 3, 0.55, 2.1, seed ^ 0x64A4);
-				double cells = SurfacePainter.smoothstep(0.24, 0.78, gran);
+					boolean inPhotosphere = true;
+					if (distSq >= minPhotoSq) {
+						double swell = (SurfacePainter.sphereFbm(ux, uy, uz, 3.6, 3, seed ^ 0x5040) - 0.5) * 0.026;
+						if (dist > radius * (1.0 + swell)) {
+							inPhotosphere = false;
+						}
+					}
+					if (inPhotosphere) {
+						double norm = dist / radius;
+						double macro = SurfacePainter.warpedSphereFbm(ux, uy, uz, 3.8, 3, 2.4, 0.38, seed);
+						double gran = SurfacePainter.sphereFbm(ux, uy, uz, 16.0, 3, 0.55, 2.1, seed ^ 0x64A4);
+						double cells = SurfacePainter.smoothstep(0.24, 0.78, gran);
 
-				double temp = 0.10 + 0.44 * macro + 0.26 * cells;
-				if (Math.abs(uy) < 0.65) {
-					double plage = SurfacePainter.warpedSphereFbm(ux, uy, uz, 5.0, 2, 2.8, 0.42, seed ^ 0xAC71);
-					if (plage > 0.54) {
-						temp += (plage - 0.54) * 0.90;
+						double temp = 0.10 + 0.44 * macro + 0.26 * cells;
+						if (Math.abs(uy) < 0.65) {
+							double plage = SurfacePainter.warpedSphereFbm(ux, uy, uz, 5.0, 2, 2.8, 0.42, seed ^ 0xAC71);
+							if (plage > 0.54) {
+								temp += (plage - 0.54) * 0.90;
+							}
+						}
+						if (norm > 0.965) {
+							temp += 0.14 * cells;
+						}
+
+						double faculaeBoost = 0.0;
+						TangentFeature hitSpot = null;
+						double hitRNorm = Double.MAX_VALUE;
+						for (TangentFeature f : sunspots) {
+							double dot = ux * f.cx + uy * f.cy + uz * f.cz;
+							if (dot <= 0.94) continue;
+							double dx = ux - f.cx;
+							double dy = uy - f.cy;
+							double dz = uz - f.cz;
+							double du = dx * f.t1x + dy * f.t1y + dz * f.t1z;
+							double dv = dx * f.t2x + dy * f.t2y + dz * f.t2z;
+							double rNorm = Math.hypot(du / f.radiusA, dv / f.radiusB)
+								+ (macro - 0.5) * 0.65 + (gran - 0.5) * 0.45;
+							if (rNorm < 1.15 && rNorm < hitRNorm) {
+								hitRNorm = rNorm;
+								hitSpot = f;
+							} else if (rNorm >= 1.0 && rNorm < 1.85) {
+								double boost = 0.24 * (1.0 - (rNorm - 1.0) / 0.85);
+								if (boost > faculaeBoost) faculaeBoost = boost;
+							}
+						}
+
+						int plasmaMat = plasmaRamp.sampleDithered(temp + faculaeBoost, 0.45, x, y, z, seed ^ 0x5011);
+						if (hitSpot != null) {
+							int spotMat = spotRamp.sampleDithered(Math.max(0.0, hitRNorm), 0.40, x, y, z, hitSpot.seed);
+							return SurfacePainter.blend(spotMat, plasmaMat, hitRNorm, 0.90, 0.45, x, y, z, hitSpot.seed ^ 0x44);
+						}
+						return plasmaMat;
 					}
 				}
-				if (norm > 0.965) {
-					temp += 0.14 * cells;
+				for (SolarFlare flare : flares) {
+					int m = flare.sample(x, y, z, flareCoreRamp, yGlass, oGlass, rGlass);
+					if (m != 0) return m;
 				}
-
-				double faculaeBoost = 0.0;
-				TangentFeature hitSpot = null;
-				double hitRNorm = Double.MAX_VALUE;
-				for (TangentFeature f : sunspots) {
-					double dot = ux * f.cx + uy * f.cy + uz * f.cz;
-					if (dot <= 0.94) continue;
-					double dx = ux - f.cx;
-					double dy = uy - f.cy;
-					double dz = uz - f.cz;
-					double du = dx * f.t1x + dy * f.t1y + dz * f.t1z;
-					double dv = dx * f.t2x + dy * f.t2y + dz * f.t2z;
-					double rNorm = Math.hypot(du / f.radiusA, dv / f.radiusB)
-						+ (macro - 0.5) * 0.65 + (gran - 0.5) * 0.45;
-					if (rNorm < 1.15 && rNorm < hitRNorm) {
-						hitRNorm = rNorm;
-						hitSpot = f;
-					} else if (rNorm >= 1.0 && rNorm < 1.85) {
-						double boost = 0.24 * (1.0 - (rNorm - 1.0) / 0.85);
-						if (boost > faculaeBoost) faculaeBoost = boost;
-					}
-				}
-
-				int plasmaMat = plasmaRamp.sampleDithered(temp + faculaeBoost, 0.45, x, y, z, seed ^ 0x5011);
-				if (hitSpot != null) {
-					int spotMat = spotRamp.sampleDithered(Math.max(0.0, hitRNorm), 0.40, x, y, z, hitSpot.seed);
-					return SurfacePainter.blend(spotMat, plasmaMat, hitRNorm, 0.90, 0.45, x, y, z, hitSpot.seed ^ 0x44);
-				}
-				return plasmaMat;
+				return 0;
 			},
 			palette, scale, diameter);
 	}
@@ -873,25 +1024,41 @@ final class BlueprintShapes {
 
 		double radius = diameter / 2.0;
 		double innerLimit = interiorLimit(radius);
+		double innerRadiusSq = (radius * innerLimit) * (radius * innerLimit);
+		double minRadius = radius * (1.0 - BlueprintGenerator.MAX_RELIEF_FRAC);
+		double minRadiusSq = minRadius * minRadius;
+		double maxRadius = radius * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC);
+		double maxRadiusSq = maxRadius * maxRadius;
 		return new Blueprint(AstronomyClass.JUPITER,
 			(x, y, z) -> {
 				double distSq = (double) x * x + (double) y * y + (double) z * z;
-				if (distSq > radius * radius) return 0;
+				if (distSq > maxRadiusSq) return 0;
+				if (distSq < innerRadiusSq) {
+					double dist = Math.sqrt(distSq);
+					double norm = dist / radius;
+					if (norm < 0.15) return rockCore;
+					if (cutaway(x, z)) {
+						double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+						double tex = SurfacePainter.sphereFbm(x * inv, y * inv, z * inv, 3.0, 2, seed ^ 0x3A91);
+						if (norm < 0.60) return tex > 0.55 ? metalH : rockCore;
+						return tex > 0.50 ? molecH : metalH;
+					}
+					return norm < 0.60 ? metalH : molecH;
+				}
 				double dist = Math.sqrt(distSq);
-				double norm = dist / radius;
 				double inv = dist > 0.0 ? 1.0 / dist : 0.0;
 				double ux = x * inv;
 				double uy = dist > 0.0 ? y * inv : 1.0;
 				double uz = z * inv;
 
-				if (norm < innerLimit) {
-					if (norm < 0.15) return rockCore;
-					if (cutaway(x, z)) {
-						double tex = SurfacePainter.sphereFbm(ux, uy, uz, 3.0, 2, seed ^ 0x3A91);
-						if (norm < 0.60) return tex > 0.55 ? metalH : rockCore;
-						return tex > 0.50 ? molecH : metalH;
-					}
-					return norm < 0.60 ? metalH : molecH;
+				double gDot = ux * grs.cx + uy * grs.cy + uz * grs.cz;
+				if (distSq >= minRadiusSq) {
+					// NASA Juno: ammonia cloud zones tower slightly above belts and the GRS forms a high dome.
+					double broadSwell = (SurfacePainter.smoothstep(0.22, 0.78,
+						SurfacePainter.fbm(ux * 2.8, uy * 2.8, uz * 2.8, 2, seed ^ 0x3A80)) - 0.5) * 0.022;
+					double zoneLift = 0.004 * Math.cos(uy * Math.PI * 6.0);
+					double grsLift = gDot > 0.88 ? 0.014 * SurfacePainter.smoothstep(0.88, 0.98, gDot) : 0.0;
+					if (dist > reliefRadius(radius, broadSwell + zoneLift + grsLift)) return 0;
 				}
 
 				double eddy = SurfacePainter.warpedSphereFbm(ux, uy, uz, 4.5, 3, 2.8, 0.35, seed ^ 0xED1E);
@@ -917,7 +1084,6 @@ final class BlueprintShapes {
 				}
 
 				// Great Red Spot with cream hollow collar and swirling spiral eye.
-				double gDot = ux * grs.cx + uy * grs.cy + uz * grs.cz;
 				if (gDot > 0.85) {
 					double dx = ux - grs.cx, dy = uy - grs.cy, dz = uz - grs.cz;
 					double du = dx * grs.t1x + dy * grs.t1y + dz * grs.t1z;
@@ -1063,6 +1229,11 @@ final class BlueprintShapes {
 
 		double bodyRadius = diameter / 2.0;
 		double innerLimit = interiorLimit(bodyRadius);
+		double innerRadiusSq = (bodyRadius * innerLimit) * (bodyRadius * innerLimit);
+		double minRadius = bodyRadius * (1.0 - BlueprintGenerator.MAX_RELIEF_FRAC);
+		double minRadiusSq = minRadius * minRadius;
+		double maxRadius = bodyRadius * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC);
+		double maxRadiusSq = maxRadius * maxRadius;
 		// NASA NSSDCA Saturnian Rings Fact Sheet (https://nssdc.gsfc.nasa.gov/planetary/factsheet/satringfact.html,
 		// 1 Rs = 60,268 km): C ring 1.239-1.526 Rs, B ring 1.526-1.950 Rs, Cassini Division 1.950-2.030 Rs,
 		// A ring 2.030-2.270 Rs with Encke Gap at ~2.214 Rs (widened slightly to ~2.6 blocks for voxel legibility),
@@ -1110,45 +1281,53 @@ final class BlueprintShapes {
 		return new Blueprint(AstronomyClass.SATURN,
 			(x, y, z) -> {
 				double dist2 = (double) x * x + (double) y * y + (double) z * z;
-				double dist = Math.sqrt(dist2);
-				if (inSphere(x, y, z, bodyRadius)) {
+				if (dist2 > maxRadiusSq) return rings.voxelAt(x, y, z);
+				if (dist2 < innerRadiusSq) {
+					double dist = Math.sqrt(dist2);
 					double norm = dist / bodyRadius;
-					double inv = dist > 0.0 ? 1.0 / dist : 0.0;
-					double ux = x * inv;
-					double uy = dist > 0.0 ? y * inv : 1.0;
-					double uz = z * inv;
-
-					if (norm < innerLimit) {
-						if (norm < 0.15) return rockCore;
-						if (cutaway(x, z)) {
-							double tex = SurfacePainter.sphereFbm(ux, uy, uz, 3.0, 2, seed ^ 0x5A77);
-							if (norm < 0.60) return tex > 0.55 ? metalH : rockCore;
-							return tex > 0.50 ? molecH : metalH;
-						}
-						return norm < 0.60 ? metalH : molecH;
+					if (norm < 0.15) return rockCore;
+					if (cutaway(x, z)) {
+						double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+						double tex = SurfacePainter.sphereFbm(x * inv, y * inv, z * inv, 3.0, 2, seed ^ 0x5A77);
+						if (norm < 0.60) return tex > 0.55 ? metalH : rockCore;
+						return tex > 0.50 ? molecH : metalH;
 					}
-
-					double wLat = SurfacePainter.warpedLatitude(ux, uy, uz, 2.8, 0.04, 2, seed);
-					double haze = SurfacePainter.sphereFbm(ux, uy, uz, 4.5, 3, 0.5, 2.0, seed ^ 0x5A70);
-					double eqBright = 0.25 * Math.exp(-(wLat * wLat) / (0.22 * 0.22));
-					double waves = 0.22 * Math.cos(wLat * Math.PI * 5.0)
-						+ 0.12 * Math.sin(wLat * Math.PI * 9.0);
-					double bandVal = SurfacePainter.clamp01(0.52 + eqBright + waves + (haze - 0.5) * 0.18);
-					int goldMat = bodyRamp.sampleDithered(bandVal, 0.65, x, y, z, seed ^ 0x5A11);
-
-					double hexWave = (uy > 0.70)
-						? 0.018 * Math.cos(6.0 * Math.atan2(uz, ux)) * SurfacePainter.smoothstep(0.995, 0.94, uy)
-						: 0.0;
-					double polar = SurfacePainter.latitudeGradient(uy + hexWave, 0.72, 0.93);
-					if (polar > 0.01) {
-						int polarMat = polarRamp.sampleDithered(
-							SurfacePainter.clamp01(0.25 + 0.55 * haze - 0.25 * polar),
-							0.55, x, y, z, seed ^ 0x901E);
-						return SurfacePainter.blend(goldMat, polarMat, polar, 0.55, 0.42, x, y, z, seed ^ 0x5A90);
-					}
-					return goldMat;
+					return norm < 0.60 ? metalH : molecH;
 				}
-				return rings.voxelAt(x, y, z);
+				double dist = Math.sqrt(dist2);
+				double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+				double ux = x * inv;
+				double uy = dist > 0.0 ? y * inv : 1.0;
+				double uz = z * inv;
+
+				if (dist2 >= minRadiusSq) {
+					double broadSwell = (SurfacePainter.smoothstep(0.22, 0.78,
+						SurfacePainter.fbm(ux * 2.8, uy * 2.8, uz * 2.8, 2, seed ^ 0x5A80)) - 0.5) * 0.032;
+					double bandLift = 0.006 * Math.cos(uy * Math.PI * 5.0);
+					if (dist > reliefRadius(bodyRadius, broadSwell + bandLift)) {
+						return rings.voxelAt(x, y, z);
+					}
+				}
+
+				double wLat = SurfacePainter.warpedLatitude(ux, uy, uz, 2.8, 0.04, 2, seed);
+				double haze = SurfacePainter.sphereFbm(ux, uy, uz, 4.5, 3, 0.5, 2.0, seed ^ 0x5A70);
+				double eqBright = 0.25 * Math.exp(-(wLat * wLat) / (0.22 * 0.22));
+				double waves = 0.22 * Math.cos(wLat * Math.PI * 5.0)
+					+ 0.12 * Math.sin(wLat * Math.PI * 9.0);
+				double bandVal = SurfacePainter.clamp01(0.52 + eqBright + waves + (haze - 0.5) * 0.18);
+				int goldMat = bodyRamp.sampleDithered(bandVal, 0.65, x, y, z, seed ^ 0x5A11);
+
+				double hexWave = (uy > 0.70)
+					? 0.018 * Math.cos(6.0 * Math.atan2(uz, ux)) * SurfacePainter.smoothstep(0.995, 0.94, uy)
+					: 0.0;
+				double polar = SurfacePainter.latitudeGradient(uy + hexWave, 0.72, 0.93);
+				if (polar > 0.01) {
+					int polarMat = polarRamp.sampleDithered(
+						SurfacePainter.clamp01(0.25 + 0.55 * haze - 0.25 * polar),
+						0.55, x, y, z, seed ^ 0x901E);
+					return SurfacePainter.blend(goldMat, polarMat, polar, 0.55, 0.42, x, y, z, seed ^ 0x5A90);
+				}
+				return goldMat;
 			},
 			palette, scale, diameter);
 	}
@@ -1156,22 +1335,53 @@ final class BlueprintShapes {
 	// ================================================================== NEPTUNE
 
 	/**
-	 * Neptune: deep blue with latitudinal streaks, dark storm spot, and faint dusty rings with Adams arcs.
+	 * Neptune: natural cobalt-azure bands with undulating relief, wispy methane cirrus,
+	 * sculpted Great Dark Spot, and faint dusty rings with Adams arcs.
 	 */
 	static Blueprint neptune(MaterialPalette palette, int diameter, double scale, int seed) {
-		int bodyDeep   = palette.indexOf(Palette.LAPIS_BLOCK);
-		int bodyMain   = palette.indexOf(Palette.BLUE_CONCRETE);
-		int bodyLight  = palette.indexOf(Palette.CYAN_CONCRETE);
-		int streak     = palette.indexOf(Palette.LIGHT_BLUE_CONCRETE);
-		int haze       = palette.indexOf(Palette.LIGHT_BLUE_TERRACOTTA);
-		// Neptune's Great Dark Spot is a near-black storm, not red.
-		int storm      = palette.indexOf(Palette.BLACKSTONE);
-		int cloudTop   = palette.indexOf(Palette.WHITE_CONCRETE);
+		// NASA Voyager 2 / Hubble (https://science.nasa.gov/neptune/facts/): deep azure-cobalt
+		// methane atmosphere with zonal winds, bright high-altitude white methane cirrus streaks,
+		// dark oval anticyclone (Great Dark Spot), and a faint 5-ring system with Adams arcs.
 		int rockCore   = palette.indexOf(Palette.DEEPSLATE);
 		int iceMantle  = palette.indexOf(Palette.PACKED_ICE);
 		int iceMantle2 = palette.indexOf(Palette.BLUE_ICE);
+		int outerLayer = palette.indexOf(Palette.BLUE_CONCRETE);
+		int spotEye    = palette.indexOf(Palette.BLACKSTONE);
+
+		MaterialRamp bodyRamp = MaterialRamp.of(palette,
+			Palette.LAPIS_BLOCK,
+			Palette.BLUE_CONCRETE,
+			Palette.CYAN_CONCRETE,
+			Palette.LIGHT_BLUE_CONCRETE,
+			Palette.PRISMARINE,
+			Palette.BLUE_ICE,
+			Palette.PACKED_ICE);
+		MaterialRamp polarRamp = MaterialRamp.of(palette,
+			Palette.BLUE_TERRACOTTA,
+			Palette.LAPIS_BLOCK,
+			Palette.BLUE_CONCRETE,
+			Palette.CYAN_TERRACOTTA,
+			Palette.CYAN_CONCRETE);
+		MaterialRamp cirrusRamp = MaterialRamp.of(palette,
+			Palette.LIGHT_BLUE_CONCRETE,
+			Palette.BLUE_ICE,
+			Palette.PACKED_ICE,
+			Palette.CALCITE,
+			Palette.WHITE_CONCRETE);
+		MaterialRamp stormRamp = MaterialRamp.of(palette,
+			Palette.BLACKSTONE,
+			Palette.BLUE_TERRACOTTA,
+			Palette.LAPIS_BLOCK,
+			Palette.BLUE_CONCRETE);
+
 		double radius = diameter / 2.0;
-		double radiusSq = radius * radius;
+		double innerLimit = interiorLimit(radius);
+		double innerRadiusSq = (radius * innerLimit) * (radius * innerLimit);
+		double minRadius = radius * (1.0 - BlueprintGenerator.MAX_RELIEF_FRAC);
+		double minRadiusSq = minRadius * minRadius;
+		double maxRadius = radius * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC);
+		double maxRadiusSq = maxRadius * maxRadius;
+
 		// NASA NSSDCA Neptunian Rings Fact Sheet (https://nssdc.gsfc.nasa.gov/planetary/factsheet/nepringfact.html,
 		// 1 Rn = 24,766 km; equatorial 0.0 deg relative to Neptune's rendered spin axis, obliquity 28.32 deg to orbit):
 		// Galle (1989N3R ~1.692 Rn), Le Verrier (1989N2R ~2.148 Rn), Lassell broad dust sheet (2.160-2.300 Rn),
@@ -1207,40 +1417,107 @@ final class BlueprintShapes {
 					return (0.09 + arc) * radEnv;
 				},
 				adamsRamp, 1, seed ^ 0x7E05));
+
 		// Pin the Great Dark Spot to a fixed direction so it's always visible from arrival.
 		// Normalised (1, 0.2, -0.3): on the +X hemisphere the arrival camera sees, just outside the cutaway.
 		final double stormX = 0.9407208683835973;
 		final double stormY = 0.18814417367671946;
 		final double stormZ = -0.2822162605150792;
+		TangentFeature gds = TangentFeature.of(stormX, stormY, stormZ, 0.21, 0.13, seed ^ 0x6D50);
+
 		return new Blueprint(AstronomyClass.NEPTUNE,
 			(x, y, z) -> {
 				double distSq = (double) x * x + (double) y * y + (double) z * z;
-				if (distSq > radiusSq) return rings.voxelAt(x, y, z);
-				double dist = Math.sqrt(distSq);
-				double nx = x / radius, ny = y / radius, nz = z / radius;
-				double norm = dist / radius;
-				// Quarter-sphere cutaway: ice-giant interior.
-				if (cutaway(x, z)) {
-					double tex = VoxelNoise.noise3(nx * 3.0, ny * 3.0, nz * 3.0, seed ^ 0x9EC0);
+				if (distSq > maxRadiusSq) return rings.voxelAt(x, y, z);
+				if (distSq < innerRadiusSq) {
+					double dist = Math.sqrt(distSq);
+					double norm = dist / radius;
 					if (norm < 0.25) return rockCore;
-					if (norm < 0.75) return tex > 0.50 ? iceMantle2 : iceMantle;
-					// fall through to outer atmosphere
+					if (cutaway(x, z)) {
+						double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+						double tex = SurfacePainter.sphereFbm(x * inv, y * inv, z * inv, 3.0, 2, seed ^ 0x9EC0);
+						if (norm < 0.75) return tex > 0.50 ? iceMantle2 : iceMantle;
+						return outerLayer;
+					}
+					return norm < 0.75 ? iceMantle : outerLayer;
 				}
-				// Dark spot
-				double ds = nx * stormX + ny * stormY + nz * stormZ;
-				if (ds > 0.90) return storm;
-				// Cloud top band at the outer 5%
-				double cn = VoxelNoise.noise3(nx * 5.0, ny * 5.0, nz * 5.0, seed ^ 0xAE00);
-				if (norm > 0.95 && cn > 0.60) return cloudTop;
-				// Latitudinal streaks
-				double streakN = VoxelNoise.noise3(nx * 1.0, ny * 9.0, nz * 1.0, seed ^ 0x1234);
-				if (streakN > 0.68) return streak;
-				if (streakN > 0.58) return haze;
-				// Depth noise
-				double depth = VoxelNoise.noise3(nx * 2.5, ny * 2.5, nz * 2.5, seed ^ 0x7777);
-				if (depth > 0.60) return bodyLight;
-				if (depth < 0.32) return bodyDeep;
-				return bodyMain;
+
+				double dist = Math.sqrt(distSq);
+				double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+				double ux = x * inv;
+				double uy = dist > 0.0 ? y * inv : 1.0;
+				double uz = z * inv;
+
+				double gDot = ux * gds.cx + uy * gds.cy + uz * gds.cz;
+				if (distSq >= minRadiusSq) {
+					double broadSwell = (SurfacePainter.smoothstep(0.22, 0.78,
+						SurfacePainter.fbm(ux * 2.8, uy * 2.8, uz * 2.8, 2, seed ^ 0x7EB1)) - 0.5) * 0.038;
+					double bandRelief = 0.007 * Math.cos(uy * Math.PI * 5.0);
+					double stormDome = gDot > 0.90 ? 0.015 * SurfacePainter.smoothstep(0.90, 0.985, gDot) : 0.0;
+					if (dist > reliefRadius(radius, broadSwell + bandRelief + stormDome)) {
+						return rings.voxelAt(x, y, z);
+					}
+				}
+
+				double eddy = SurfacePainter.warpedSphereFbm(ux, uy, uz, 4.0, 2, 2.6, 0.36, seed ^ 0x7E40);
+				double wLat = SurfacePainter.warpedLatitude(ux, uy, uz, 3.2, 0.065, 2, seed ^ 0x7E11)
+					+ (eddy - 0.5) * 0.075;
+				double bands = 0.24 * Math.cos(wLat * Math.PI * 5.5) + 0.14 * Math.sin(wLat * Math.PI * 10.0);
+				double bandVal = SurfacePainter.clamp01(0.42 + bands + (eddy - 0.5) * 0.42);
+				int mat = bodyRamp.sampleDithered(bandVal, 0.55, x, y, z, seed ^ 0x7E55);
+
+				double polar = SurfacePainter.latitudeGradient(uy, 0.70, 0.92);
+				if (polar > 0.01) {
+					int polarMat = polarRamp.sampleDithered(
+						SurfacePainter.clamp01(0.30 + 0.50 * eddy - 0.20 * polar),
+						0.50, x, y, z, seed ^ 0x7E90);
+					mat = SurfacePainter.blend(mat, polarMat, polar, 0.52, 0.36, x, y, z, seed ^ 0x7E91);
+				}
+
+				// Stretched horizontal high-altitude methane cirrus streaks.
+				double wX = ux + (eddy - 0.5) * 0.22;
+				double wZ = uz + (eddy - 0.5) * 0.22;
+				double cirrus = SurfacePainter.fbm(wX * 2.2, uy * 13.0, wZ * 2.2, 2, seed ^ 0x7EC1);
+				if (cirrus > 0.65 && Math.abs(uy) < 0.82) {
+					double cStrength = SurfacePainter.smoothstep(0.65, 0.80, cirrus);
+					int cMat = cirrusRamp.sampleDithered(
+						SurfacePainter.clamp01(0.25 + 0.75 * cStrength), 0.45, x, y, z, seed ^ 0x7EC2);
+					mat = SurfacePainter.blend(mat, cMat, cStrength, 0.36, 0.30, x, y, z, seed ^ 0x7EC3);
+				}
+
+				// Sculpted Great Dark Spot oval vortex + southern white companion cirrus streak.
+				if (gDot > 0.86) {
+					double dx = ux - gds.cx, dy = uy - gds.cy, dz = uz - gds.cz;
+					double du = dx * gds.t1x + dy * gds.t1y + dz * gds.t1z;
+					double dv = dx * gds.t2x + dy * gds.t2y + dz * gds.t2z;
+					double ex = du / gds.radiusA;
+					double ey = dv / gds.radiusB;
+					double rawRNorm = Math.hypot(ex, ey);
+					if (rawRNorm < 0.36) {
+						return spotEye;
+					}
+					double wx = ex + (eddy - 0.5) * 0.14;
+					double wy = ey + (eddy - 0.5) * 0.14;
+					double rNorm = Math.hypot(wx, wy);
+					// Southern companion methane cloud (t2y < 0 so dv > 0 is south).
+					if (dv > 0.03 && rNorm > 0.68 && rNorm < 1.38 && ex > -0.85 && ex < 0.85) {
+						double arcStr = (1.0 - Math.abs(rNorm - 1.02) / 0.36) * SurfacePainter.smoothstep(0.03, 0.08, dv);
+						if (arcStr > 0.15) {
+							int compMat = cirrusRamp.sampleDithered(arcStr, 0.42, x, y, z, gds.seed ^ 0xCC1);
+							mat = SurfacePainter.blend(mat, compMat, arcStr, 0.40, 0.28, x, y, z, gds.seed ^ 0xCC2);
+						}
+					}
+					if (rNorm < 1.05) {
+						double twist = 2.8 * (1.0 - Math.min(1.0, rNorm));
+						double sx = wx * Math.cos(twist) - wy * Math.sin(twist);
+						double sy = wx * Math.sin(twist) + wy * Math.cos(twist);
+						double sw = SurfacePainter.fbm(sx * 2.8, sy * 2.8, rNorm * 3.0, 2, gds.seed);
+						double st = SurfacePainter.clamp01(rNorm * 0.72 + (sw - 0.5) * 0.36);
+						int stormMat = stormRamp.sampleDithered(st, 0.42, x, y, z, gds.seed);
+						return SurfacePainter.blend(stormMat, mat, rNorm, 0.82, 0.30, x, y, z, gds.seed ^ 0x55);
+					}
+				}
+				return mat;
 			},
 			palette, scale, diameter);
 	}
@@ -1248,17 +1525,43 @@ final class BlueprintShapes {
 	// ================================================================== URANUS
 
 	/**
-	 * Uranus: pale cyan with subtle shading and a 97.77°-tilted dark charcoal ring system.
+	 * Uranus: serene 97.77°-aligned cyan-aqua bands with icy polar hood, subtle wisps,
+	 * undulating relief, and tilted dark charcoal rings.
 	 */
 	static Blueprint uranus(MaterialPalette palette, int diameter, double scale, int seed) {
-		int body     = palette.indexOf(Palette.CYAN_CONCRETE);
-		int pale     = palette.indexOf(Palette.PACKED_ICE);
-		int teal     = palette.indexOf(Palette.OXIDIZED_COPPER);
-		int shading  = palette.indexOf(Palette.CYAN_TERRACOTTA);
-		int rockCore = palette.indexOf(Palette.DEEPSLATE);
-		int iceMantle = palette.indexOf(Palette.BLUE_ICE);
+		// NASA Voyager 2 / Hubble (https://science.nasa.gov/uranus/facts/, axial tilt 97.77 deg):
+		// pale cyan-aquamarine methane atmosphere with soft tilted bands aligned to its spin axis,
+		// bright pale polar hood facing sunlight, subtle bright storm flecks, and 9 dark tilted rings.
+		int rockCore   = palette.indexOf(Palette.DEEPSLATE);
+		int iceMantle  = palette.indexOf(Palette.BLUE_ICE);
+		int outerLayer = palette.indexOf(Palette.CYAN_CONCRETE);
+
+		MaterialRamp bodyRamp = MaterialRamp.of(palette,
+			Palette.CYAN_TERRACOTTA,
+			Palette.PRISMARINE,
+			Palette.OXIDIZED_COPPER,
+			Palette.CYAN_CONCRETE,
+			Palette.LIGHT_BLUE_CONCRETE,
+			Palette.BLUE_ICE,
+			Palette.SEA_LANTERN);
+		MaterialRamp hoodRamp = MaterialRamp.of(palette,
+			Palette.LIGHT_BLUE_CONCRETE,
+			Palette.BLUE_ICE,
+			Palette.SEA_LANTERN,
+			Palette.WHITE_CONCRETE);
+
 		double bodyRadius = diameter / 2.0;
-		double bodyRadiusSq = bodyRadius * bodyRadius;
+		double innerLimit = interiorLimit(bodyRadius);
+		double innerRadiusSq = (bodyRadius * innerLimit) * (bodyRadius * innerLimit);
+		double minRadius = bodyRadius * (1.0 - BlueprintGenerator.MAX_RELIEF_FRAC);
+		double minRadiusSq = minRadius * minRadius;
+		double maxRadius = bodyRadius * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC);
+		double maxRadiusSq = maxRadius * maxRadius;
+
+		double tiltRad = Math.toRadians(97.77);
+		double spinAx = Math.sin(tiltRad);
+		double spinAy = Math.cos(tiltRad);
+
 		// NASA NSSDCA Uranian Rings Fact Sheet (https://nssdc.gsfc.nasa.gov/planetary/factsheet/uranringfact.html,
 		// 1 Ru = 25,559 km, axial tilt 97.77 deg): narrow dark rings 6 (1.637 Ru), 5 (1.652), 4 (1.666),
 		// alpha (1.750), beta (1.786), eta (1.846), gamma (1.863), delta (1.890), and widest outer
@@ -1286,23 +1589,54 @@ final class BlueprintShapes {
 		return new Blueprint(AstronomyClass.URANUS,
 			(x, y, z) -> {
 				double distSq = (double) x * x + (double) y * y + (double) z * z;
-				if (distSq <= bodyRadiusSq) {
-					double dist = Math.sqrt(distSq);
-					double nx = x / bodyRadius, ny = y / bodyRadius, nz = z / bodyRadius;
-					double norm = dist / bodyRadius;
-					// Quarter-sphere cutaway: ice-giant interior. The tilted ring
-					// sits outside the body sphere so this branch does not affect it.
+				if (distSq > maxRadiusSq) return rings.voxelAt(x, y, z);
+				if (distSq < innerRadiusSq) {
+					double norm = Math.sqrt(distSq) / bodyRadius;
+					if (norm < 0.25) return rockCore;
 					if (cutaway(x, z)) {
-						if (norm < 0.25) return rockCore;
-						if (norm < 0.75) return iceMantle;
+						return norm < 0.75 ? iceMantle : outerLayer;
 					}
-					double tint = VoxelNoise.noise3(nx * 2.0, ny * 2.0, nz * 2.0, seed);
-					if (tint > 0.70) return shading;
-					if (tint > 0.58) return teal;
-					if (tint < 0.28) return pale;
-					return body;
+					return norm < 0.75 ? iceMantle : outerLayer;
 				}
-				return rings.voxelAt(x, y, z);
+				double dist = Math.sqrt(distSq);
+				double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+				double ux = x * inv;
+				double uy = dist > 0.0 ? y * inv : 1.0;
+				double uz = z * inv;
+
+				// Latitude aligned with Uranus's 97.77-deg tilted spin axis (+axis = bright sunlit polar hood).
+				double tLat = ux * spinAx + uy * spinAy;
+				if (distSq >= minRadiusSq) {
+					double broadSwell = (SurfacePainter.smoothstep(0.22, 0.78,
+						SurfacePainter.fbm(ux * 2.7, uy * 2.7, uz * 2.7, 2, seed ^ 0x7A31)) - 0.5) * 0.038;
+					double bandRelief = 0.007 * Math.cos(tLat * Math.PI * 5.0);
+					if (dist > reliefRadius(bodyRadius, broadSwell + bandRelief)) {
+						return rings.voxelAt(x, y, z);
+					}
+				}
+
+				double haze = SurfacePainter.fbm(ux * 3.8, uy * 3.8, uz * 3.8, 2, seed ^ 0x7A20);
+				double wLat = tLat + (haze - 0.5) * 0.14;
+				double bands = 0.30 * Math.cos(wLat * Math.PI * 5.0) + 0.14 * Math.sin(wLat * Math.PI * 9.0);
+				double bandVal = SurfacePainter.clamp01(0.46 + bands + (haze - 0.5) * 0.34);
+				int mat = bodyRamp.sampleDithered(bandVal, 0.60, x, y, z, seed ^ 0x7A55);
+
+				// Soft luminous icy polar hood on the sunlit +spinAxis limb while letting inner cyan bands read through.
+				double hood = SurfacePainter.smoothstep(0.50, 0.98, tLat + (haze - 0.5) * 0.12) * 0.72;
+				if (hood > 0.02) {
+					double hoodVal = SurfacePainter.clamp01(0.25 + 0.55 * hood + (haze - 0.5) * 0.20);
+					int hoodMat = hoodRamp.sampleDithered(hoodVal, 0.55, x, y, z, seed ^ 0x7A90);
+					mat = SurfacePainter.blend(mat, hoodMat, hood, 0.50, 0.42, x, y, z, seed ^ 0x7A91);
+				}
+
+				// Subtle localized bright methane storm wisps stretched perpendicular to the spin axis.
+				double wisp = SurfacePainter.fbm(tLat * 11.0, uy * 2.8, uz * 2.8, 2, seed ^ 0x7AC1);
+				if (wisp > 0.75) {
+					double wStr = SurfacePainter.smoothstep(0.75, 0.87, wisp);
+					int wMat = hoodRamp.sampleDithered(SurfacePainter.clamp01(0.50 + 0.50 * wStr), 0.40, x, y, z, seed ^ 0x7AC2);
+					mat = SurfacePainter.blend(mat, wMat, wStr, 0.40, 0.32, x, y, z, seed ^ 0x7AC3);
+				}
+				return mat;
 			},
 			palette, scale, diameter);
 	}

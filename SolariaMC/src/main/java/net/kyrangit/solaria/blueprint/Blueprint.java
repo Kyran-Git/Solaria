@@ -12,7 +12,7 @@ package net.kyrangit.solaria.blueprint;
  * reproduce every voxel deterministically:
  * <ul>
  *   <li>{@code astronomyClass} — selects the generator and its 32-bit seed.</li>
- *   <li>{@code palette} — the single shared 69-block palette.</li>
+ *   <li>{@code palette} — the single shared 72-block palette.</li>
  *   <li>{@code blocksPerUnit} — the scale applied to the base diameter.</li>
  *   <li>{@code diameter} — primary-body diameter in blocks, always odd and ≥ 3.</li>
  * </ul>
@@ -22,7 +22,7 @@ package net.kyrangit.solaria.blueprint;
  *
  * @param astronomyClass the class this structure represents
  * @param fn             pure function: (x,y,z) relative to centre → palette index (0=air)
- * @param palette        the 69-block shared palette the indices refer to
+ * @param palette        the 72-block shared palette the indices refer to
  * @param blocksPerUnit  scale actually applied by the generator
  * @param diameter       diameter of the primary body in blocks, after scaling
  */

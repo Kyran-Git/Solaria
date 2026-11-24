@@ -109,6 +109,9 @@ public final class BlueprintPreview {
 		BLOCK_COLOURS.put("minecraft:coal_block",             0x131313);
 		BLOCK_COLOURS.put("minecraft:copper_block",           0xC05C32);
 		BLOCK_COLOURS.put("minecraft:redstone_block",         0xAD1717);
+		BLOCK_COLOURS.put("minecraft:orange_stained_glass",   0xF28C28);
+		BLOCK_COLOURS.put("minecraft:yellow_stained_glass",   0xF7E44C);
+		BLOCK_COLOURS.put("minecraft:red_stained_glass",      0xD63B27);
 	}
 
 	private BlueprintPreview() {

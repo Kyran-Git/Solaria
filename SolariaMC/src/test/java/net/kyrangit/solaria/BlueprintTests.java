@@ -51,6 +51,7 @@ public final class BlueprintTests {
 		testStep7SaturnRings();
 		testStep8UranusRings();
 		testStep9NeptuneRings();
+		testSunFlaresAndGiantPolishes();
 		System.out.println("Blueprint plumbing check (synthetic): " + assertions + " assertions passed.");
 	}
 
@@ -80,7 +81,7 @@ public final class BlueprintTests {
 
 	private static void testPaletteSafety() {
 		MaterialPalette palette = Palette.create();
-		check(palette.size() == 69, "palette has 69 entries");
+		check(palette.size() == 72, "palette has 72 entries");
 		for (String blockId : palette.allBlockIds()) {
 			check(!MaterialPalette.FORBIDDEN_BLOCKS.contains(blockId),
 				"palette entry is not forbidden: " + blockId);
@@ -89,10 +90,13 @@ public final class BlueprintTests {
 		check(palette.blockId(1).equals(Palette.GLOWSTONE),           "idx 1 = glowstone");
 		check(palette.blockId(10).equals(Palette.STONE),              "idx 10 = stone");
 		check(palette.blockId(19).equals(Palette.QUARTZ_BLOCK),       "idx 19 = quartz_block");
-		// Spot-check a few v2 entries
+		// Spot-check v2 and solar-flare stained glass entries
 		check(palette.blockId(20).equals(Palette.ORANGE_TERRACOTTA),  "idx 20 = orange_terracotta");
 		check(palette.blockId(31).equals(Palette.CYAN_CONCRETE),      "idx 31 = cyan_concrete");
 		check(palette.blockId(69).equals(Palette.REDSTONE_BLOCK),     "idx 69 = redstone_block");
+		check(palette.blockId(70).equals(Palette.ORANGE_STAINED_GLASS), "idx 70 = orange_stained_glass");
+		check(palette.blockId(71).equals(Palette.YELLOW_STAINED_GLASS), "idx 71 = yellow_stained_glass");
+		check(palette.blockId(72).equals(Palette.RED_STAINED_GLASS),  "idx 72 = red_stained_glass");
 		// Builder rejects forbidden blocks
 		try {
 			MaterialPalette.builder("minecraft:stone").add("minecraft:sand").build();
@@ -144,9 +148,18 @@ public final class BlueprintTests {
 			check(e.getMessage().contains("saturn"), "error message names the class");
 		}
 
-		// Sun at scale 1.0 has a 499-block diameter.
+		// Sun at scale 1.0 has a 415-block primary body and 498-block flare extent.
 		Blueprint sunOk = BlueprintGenerator.generate(AstronomyClass.SUN, 1.0);
-		check(sunOk != null && sunOk.diameter() == 499, "sun at 1.0 accepted with correct diameter");
+		check(sunOk != null && sunOk.diameter() == 415, "sun at 1.0 accepted with diameter 415");
+		check(BlueprintGenerator.blueprintExtent(AstronomyClass.SUN, sunOk.diameter()) == 498,
+			"sun at 1.0 extent with flares is 498 <= 500");
+		try {
+			BlueprintGenerator.generate(AstronomyClass.SUN, 1.1);
+			throw new AssertionError("sun at scale 1.1 should exceed cap");
+		} catch (BlueprintException e) {
+			check(e.reasonCode() == ReasonCode.CAP_EXCEEDED, "CAP_EXCEEDED for sun at 1.1");
+			check(e.getMessage().contains("sun"), "error message names the class");
+		}
 
 		// Uranus including rings fits the default envelope.
 		Blueprint uranusOk = BlueprintGenerator.generate(AstronomyClass.URANUS, 1.0);
@@ -242,7 +255,8 @@ public final class BlueprintTests {
 	private static void testStep3NaturalPatterns() {
 		AstronomyClass[] targets = {
 			AstronomyClass.SUN, AstronomyClass.MOON, AstronomyClass.MARS,
-			AstronomyClass.JUPITER, AstronomyClass.SATURN
+			AstronomyClass.JUPITER, AstronomyClass.SATURN,
+			AstronomyClass.URANUS, AstronomyClass.NEPTUNE
 		};
 		double goldenAngle = Math.PI * (3.0 - Math.sqrt(5.0));
 		for (AstronomyClass cls : targets) {
@@ -288,19 +302,24 @@ public final class BlueprintTests {
 
 		// Jupiter north & south polar rings must vary smoothly without repeating Cartesian wedges.
 		Blueprint jupiter = BlueprintGenerator.generate(AstronomyClass.JUPITER, 1.0);
-		double jr = jupiter.diameter() / 2.0 - 0.5;
+		double jr = jupiter.diameter() / 2.0;
+		double jMaxScan = Math.ceil(jr * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC)) + 2.0;
+		double jMinScan = Math.floor(jr * (1.0 - BlueprintGenerator.MAX_RELIEF_FRAC)) - 2.0;
 		for (int sign : new int[]{-1, 1}) {
 			double lat = sign * Math.toRadians(82.0);
+			double sinLat = Math.sin(lat);
 			double cosLat = Math.cos(lat);
-			int vy = (int) Math.round(jr * Math.sin(lat));
 			int distinctPolar = 0;
 			int prev = -1;
 			Set<Integer> seenPolar = new HashSet<>();
 			for (int step = 0; step < 36; step++) {
 				double lon = (2.0 * Math.PI * step) / 36.0;
-				int vx = (int) Math.round(jr * cosLat * Math.cos(lon));
-				int vz = (int) Math.round(jr * cosLat * Math.sin(lon));
-				int v = jupiter.voxelAt(vx, vy, vz);
+				double ux = cosLat * Math.cos(lon);
+				double uz = cosLat * Math.sin(lon);
+				int v = 0;
+				for (double rr = jMaxScan; rr >= jMinScan && v == 0; rr -= 0.5) {
+					v = jupiter.voxelAt((int) Math.round(rr * ux), (int) Math.round(rr * sinLat), (int) Math.round(rr * uz));
+				}
 				check(v != 0, "jupiter polar sample is solid");
 				seenPolar.add(v);
 				if (v != prev) {
@@ -450,31 +469,42 @@ public final class BlueprintTests {
 		check(olympusR > mr + 2.0, String.format("mars Olympus Mons %.2f > radius %.2f + 2.0", olympusR, mr));
 		check(vallesR < mr - 1.5, String.format("mars Valles Marineris %.2f < radius %.2f - 1.5", vallesR, mr));
 
-		// Non-rocky bodies: Sun and gas/ice giants have no solid hills.
-		AstronomyClass[] nonRocky = {
-			AstronomyClass.SUN, AstronomyClass.JUPITER, AstronomyClass.SATURN,
-			AstronomyClass.URANUS, AstronomyClass.NEPTUNE
+		// Gas/ice giants: Jupiter, Saturn, Uranus, and Neptune all feature bounded varying globe bulges.
+		AstronomyClass[] giants = {
+			AstronomyClass.JUPITER, AstronomyClass.SATURN, AstronomyClass.URANUS, AstronomyClass.NEPTUNE
 		};
-		for (AstronomyClass cls : nonRocky) {
-			Blueprint bp = BlueprintGenerator.generate(cls, 1.0);
-			double r = bp.diameter() / 2.0;
+		for (AstronomyClass cls : giants) {
+			Blueprint a = BlueprintGenerator.generate(cls, 1.0);
+			Blueprint b = BlueprintGenerator.generate(cls, 1.0);
+			double r = a.diameter() / 2.0;
+			double cap = BlueprintGenerator.MAX_RELIEF_FRAC;
 			double minHit = Double.MAX_VALUE;
 			double maxHit = 0.0;
-			for (int i = 0; i < 1_000; i++) {
-				double uy = 1.0 - (2.0 * (i + 0.5) / 1_000.0);
+			for (int i = 0; i < 1_500; i++) {
+				double uy = 1.0 - (2.0 * (i + 0.5) / 1_500.0);
 				if ((cls == AstronomyClass.SATURN || cls == AstronomyClass.NEPTUNE) && Math.abs(uy) <= 0.15) continue;
 				double ring = Math.sqrt(Math.max(0.0, 1.0 - uy * uy));
 				double theta = goldenAngle * i;
 				double ux = ring * Math.cos(theta);
 				if (cls == AstronomyClass.URANUS && Math.abs(ux) <= 0.18) continue;
 				double uz = ring * Math.sin(theta);
-				double hit = surfaceRadiusAlong(bp, ux, uy, uz);
+				double hit = surfaceRadiusAlong(a, ux, uy, uz);
 				if (hit < minHit) minHit = hit;
 				if (hit > maxHit) maxHit = hit;
+				if (i < 300) {
+					int vx = (int) Math.round(ux * hit);
+					int vy = (int) Math.round(uy * hit);
+					int vz = (int) Math.round(uz * hit);
+					check(a.voxelAt(vx, vy, vz) == b.voxelAt(vx, vy, vz), cls.id() + ": giant bulge deterministic");
+				}
 			}
-			// Cubic integer rounding can place the outermost inside-sphere voxel up to sqrt(3) inside r.
-			check(maxHit <= r + 0.5 && minHit >= r - 1.8,
-				String.format("%s non-rocky smoothness: [%.2f..%.2f] around %.2f", cls.id(), minHit, maxHit, r));
+			double minSpan = cls == AstronomyClass.JUPITER ? 4.5 : 3.0;
+			check(maxHit <= r * (1.0 + cap) + 1.0,
+				String.format("%s giant relief max %.2f <= %.2f", cls.id(), maxHit, r * (1.0 + cap) + 1.0));
+			check(minHit >= r * (1.0 - cap) - 1.0,
+				String.format("%s giant relief min %.2f >= %.2f", cls.id(), minHit, r * (1.0 - cap) - 1.0));
+			check(maxHit - minHit >= minSpan,
+				String.format("%s giant relief span %.2f >= %.1f blocks", cls.id(), maxHit - minHit, minSpan));
 		}
 	}
 
@@ -614,6 +644,74 @@ public final class BlueprintTests {
 			String.format("earth region %s: matched %d/%d non-cloud samples", label, matches, clearSamples));
 	}
 
+	private static void testSunFlaresAndGiantPolishes() {
+		Blueprint sunA = BlueprintGenerator.generate(AstronomyClass.SUN, 1.0);
+		Blueprint sunB = BlueprintGenerator.generate(AstronomyClass.SUN, 1.0);
+		MaterialPalette pal = sunA.palette();
+		double r = sunA.diameter() / 2.0;
+		int extent = BlueprintGenerator.blueprintExtent(AstronomyClass.SUN, sunA.diameter());
+		int bound = extent / 2;
+		check(bound == 249 && bound + 1 <= 256, "sun flare bound fits 512-block dimension");
+
+		int orangeGlass = pal.indexOf(Palette.ORANGE_STAINED_GLASS);
+		int yellowGlass = pal.indexOf(Palette.YELLOW_STAINED_GLASS);
+		int redGlass = pal.indexOf(Palette.RED_STAINED_GLASS);
+		Set<Integer> flareMaterials = new HashSet<>();
+		int beyond108 = 0;
+		int beyond115 = 0;
+		double maxObservedR = 0.0;
+
+		// Scan outer flare shell (1.04 r .. bound + 4) around the full Sun on a 2-block stride.
+		int scanMax = bound + 4;
+		double rMinSq = (r * 1.04) * (r * 1.04);
+		double rMaxSq = (double) scanMax * scanMax;
+		for (int x = -scanMax; x <= scanMax; x += 2) {
+			for (int y = -scanMax; y <= scanMax; y += 2) {
+				for (int z = -scanMax; z <= scanMax; z += 2) {
+					double d2 = (double) x * x + (double) y * y + (double) z * z;
+					if (d2 < rMinSq || d2 > rMaxSq) continue;
+					int v = sunA.voxelAt(x, y, z);
+					if (v == 0) continue;
+					double d = Math.sqrt(d2);
+					check(d <= bound + 0.5, "sun flare voxel stays inside extent bound " + bound + ", got " + d);
+					if (d > maxObservedR) maxObservedR = d;
+					if (d >= r * 1.08) beyond108++;
+					if (d >= r * 1.15) beyond115++;
+					flareMaterials.add(v);
+					check(v == sunB.voxelAt(x, y, z), "sun flare voxel deterministic across runs");
+				}
+			}
+		}
+		check(beyond108 >= 1_000, "sun flares protrude significantly beyond 1.08r (got " + beyond108 + ")");
+		check(beyond115 >= 150, "sun flare peaks extend beyond 1.15r (got " + beyond115 + ")");
+		check(flareMaterials.contains(orangeGlass) && flareMaterials.contains(yellowGlass) && flareMaterials.contains(redGlass),
+			"sun flares use orange, yellow, and red stained glass (" + flareMaterials + ")");
+		check(flareMaterials.size() >= 6, "sun flares combine stained glass with glowing plasma blocks");
+		System.out.printf("Sun flare check: beyond1.08r=%d, beyond1.15r=%d, maxR=%.1f (r=%.1f), materials=%d%n",
+			beyond108, beyond115, maxObservedR, r, flareMaterials.size());
+
+		// Neptune surface must not use mauve light_blue_terracotta.
+		Blueprint neptune = BlueprintGenerator.generate(AstronomyClass.NEPTUNE, 1.0);
+		int mauve = pal.indexOf(Palette.LIGHT_BLUE_TERRACOTTA);
+		double nr = neptune.diameter() / 2.0;
+		double goldenAngle = Math.PI * (3.0 - Math.sqrt(5.0));
+		for (int i = 0; i < 2_000; i++) {
+			double uy = 1.0 - (2.0 * (i + 0.5) / 2_000.0);
+			if (Math.abs(uy) <= 0.15) continue;
+			double ring = Math.sqrt(Math.max(0.0, 1.0 - uy * uy));
+			double theta = goldenAngle * i;
+			double ux = ring * Math.cos(theta);
+			double uz = ring * Math.sin(theta);
+			for (double s = nr * 1.04; s >= nr * 0.94; s -= 0.75) {
+				int v = neptune.voxelAt((int) Math.round(ux * s), (int) Math.round(uy * s), (int) Math.round(uz * s));
+				if (v != 0) {
+					check(v != mauve, "neptune uses pure blue/cyan/ice tones without mauve terracotta");
+					break;
+				}
+			}
+		}
+	}
+
 	private static void testStep7SaturnRings() {
 		Blueprint a = BlueprintGenerator.generate(AstronomyClass.SATURN, 1.0);
 		Blueprint b = BlueprintGenerator.generate(AstronomyClass.SATURN, 1.0);
@@ -652,12 +750,13 @@ public final class BlueprintTests {
 		check(fFill >= 0.15 && fFill <= 0.68, "saturn F ring visible fill=" + fFill);
 		check(outsideFill == 0.0, "saturn rings stay within extent");
 
-		// Thinness & full-scale determinism outside primary sphere.
+		// Thinness & full-scale determinism outside primary globe relief envelope.
+		double ringClearR = r * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC) + 2.0;
 		int bound = extent / 2;
 		for (int x = -bound; x <= bound; x += 2) {
 			for (int z = -bound; z <= bound; z += 2) {
 				double pr = Math.hypot(x, z);
-				if (pr > r + 2.0) {
+				if (pr > ringClearR) {
 					check(a.voxelAt(x, 1, z) == 0 && a.voxelAt(x, 2, z) == 0 && a.voxelAt(x, -2, z) == 0,
 						"saturn ring thickness <= 2 blocks");
 					check(a.voxelAt(x, 0, z) == b.voxelAt(x, 0, z) && a.voxelAt(x, -1, z) == b.voxelAt(x, -1, z),
@@ -734,13 +833,14 @@ public final class BlueprintTests {
 		}
 		check(tiltedHit, "uranus tilted 97.77-deg Epsilon ring hits offset x at z=0");
 
-		// Thinness & full-scale determinism across the tilted plane.
+		// Thinness & full-scale determinism across the tilted plane beyond primary globe relief.
+		double ringClearR = r * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC) + 2.0;
 		int bound = extent / 2;
 		for (int y = -bound; y <= bound; y += 2) {
 			for (int z = -bound; z <= bound; z += 2) {
 				int x = (int) Math.ceil(-0.5 - (y * ny) / nx);
 				double pr = Math.hypot(x * ux + y * uy, z);
-				if (pr > r + 2.0) {
+				if (pr > ringClearR) {
 					check(a.voxelAt(x - 1, y, z) == 0 && a.voxelAt(x + 1, y, z) == 0,
 						"uranus ring thickness <= 1 block across columns");
 					check(a.voxelAt(x, y, z) == b.voxelAt(x, y, z),
@@ -802,12 +902,13 @@ public final class BlueprintTests {
 		check(galleFill < 0.35 && leVerrierFill < 0.35 && lassellFill < 0.35 && aragoFill < 0.35 && nonArcFill < 0.35,
 			"neptune non-arc rings much fainter than Saturn B ring");
 
-		// Thinness & full-scale determinism outside primary sphere.
+		// Thinness & full-scale determinism outside primary globe relief envelope.
+		double ringClearR = r * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC) + 2.0;
 		int bound = extent / 2;
 		for (int x = -bound; x <= bound; x += 2) {
 			for (int z = -bound; z <= bound; z += 2) {
 				double pr = Math.hypot(x, z);
-				if (pr > r + 2.0) {
+				if (pr > ringClearR) {
 					check(a.voxelAt(x, 1, z) == 0 && a.voxelAt(x, -1, z) == 0
 							&& a.voxelAt(x, 2, z) == 0 && a.voxelAt(x, -2, z) == 0,
 						"neptune ring thickness <= 1 block");

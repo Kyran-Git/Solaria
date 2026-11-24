@@ -1,7 +1,7 @@
 package net.kyrangit.solaria.blueprint;
 
 /**
- * The single hardcoded 69-block material palette for all Solaria blueprints.
+ * The single hardcoded 72-block material palette for all Solaria blueprints.
  * All blocks are safe: no gravity, fluids, fire, or support-dependent blocks.
  * Palette indices are 1-based; 0 is always air.
  * Each block ID appears at most once. Generators look up indices via
@@ -86,11 +86,14 @@ public final class Palette {
 	public static final String COAL_BLOCK            = "minecraft:coal_block";            // 67
 	public static final String COPPER_BLOCK          = "minecraft:copper_block";          // 68
 	public static final String REDSTONE_BLOCK        = "minecraft:redstone_block";        // 69
+	public static final String ORANGE_STAINED_GLASS  = "minecraft:orange_stained_glass";  // 70
+	public static final String YELLOW_STAINED_GLASS  = "minecraft:yellow_stained_glass";  // 71
+	public static final String RED_STAINED_GLASS     = "minecraft:red_stained_glass";     // 72
 
 	/** Fallback block for unknown palette indices. */
 	public static final String FALLBACK = STONE;
 
-	/** Build the shared 69-entry palette instance. Entry order is fixed for determinism. */
+	/** Build the shared 72-entry palette instance. Entry order is fixed for determinism. */
 	public static MaterialPalette create() {
 		return MaterialPalette.builder(FALLBACK)
 			// indices 1–19 (frozen)
@@ -164,6 +167,9 @@ public final class Palette {
 			.add(COAL_BLOCK)             // 67 reserved
 			.add(COPPER_BLOCK)           // 68 reserved
 			.add(REDSTONE_BLOCK)         // 69 reserved
+			.add(ORANGE_STAINED_GLASS)   // 70 sun solar flares
+			.add(YELLOW_STAINED_GLASS)   // 71 sun solar flares
+			.add(RED_STAINED_GLASS)      // 72 sun solar flares
 			.build();
 	}
 }

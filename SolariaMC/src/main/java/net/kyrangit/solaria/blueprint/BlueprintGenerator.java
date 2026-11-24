@@ -38,11 +38,14 @@ public final class BlueprintGenerator {
 	public static final int MAX_EXTENT_BLOCKS = 500;
 
 	/**
-	 * Maximum radial relief fraction (±3.5% of body radius) for rocky bodies.
+	 * Maximum radial relief fraction (±3.5% of body radius) for relief-sculpted bodies.
 	 * Gives 5–10 blocks of peak-to-trough relief at default scale while keeping
 	 * a believable spherical silhouette and staying well inside MAX_EXTENT_BLOCKS.
 	 */
 	public static final double MAX_RELIEF_FRAC = 0.035;
+
+	/** Bounding multiplier for the Sun including protruding magnetic prominence loops and flares. */
+	public static final double SUN_FLARE_EXTENT_MULT = 1.20;
 
 	/**
 	 * Base diameters for each class at {@code blocks_per_unit = 1.0}.
@@ -55,7 +58,7 @@ public final class BlueprintGenerator {
 	private static final Map<AstronomyClass, Integer> SEEDS = new EnumMap<>(AstronomyClass.class);
 
 	static {
-		BASE_DIAMETERS.put(AstronomyClass.SUN,     499);
+		BASE_DIAMETERS.put(AstronomyClass.SUN,     415); // including solar flares (1.20 Rsun): ceil(415 * 1.20) = 498
 		BASE_DIAMETERS.put(AstronomyClass.EARTH,   285);
 		BASE_DIAMETERS.put(AstronomyClass.MOON,    175);
 		BASE_DIAMETERS.put(AstronomyClass.MARS,    211);
@@ -143,14 +146,15 @@ public final class BlueprintGenerator {
 	 */
 	public static int blueprintExtent(AstronomyClass cls, int diameter) {
 		return switch (cls) {
+			// Sun solar flares reach 1.20 × body radius → ceil(415 * 1.20) = 498
+			case SUN -> (int) Math.ceil(diameter * SUN_FLARE_EXTENT_MULT);
 			// Saturn ring outer edge (F ring ~2.32 Rs, padded to 2.34 Rs) → ceil(213 * 2.34) = 499
 			case SATURN -> (int) Math.ceil(diameter * 2.34);
 			// Uranus ring outer edge (Epsilon ring ~2.018 Ru, padded to 2.04 Ru) → ceil(245 * 2.04) = 500
 			case URANUS -> (int) Math.ceil(diameter * 2.04);
 			// Neptune ring outer edge (Adams ring ~2.558 Rn, padded to 2.58 Rn) → ceil(193 * 2.58) = 498
 			case NEPTUNE -> (int) Math.ceil(diameter * 2.58);
-			case EARTH, MOON, MARS, VENUS, MERCURY -> (int) Math.ceil(diameter * (1.0 + MAX_RELIEF_FRAC));
-			default     -> diameter;
+			case EARTH, MOON, MARS, VENUS, MERCURY, JUPITER -> (int) Math.ceil(diameter * (1.0 + MAX_RELIEF_FRAC));
 		};
 	}
 }

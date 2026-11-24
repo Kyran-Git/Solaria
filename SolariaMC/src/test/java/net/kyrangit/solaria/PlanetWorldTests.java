@@ -157,8 +157,9 @@ public final class PlanetWorldTests {
         for (var cls : new AstronomyClass[]{AstronomyClass.SATURN, AstronomyClass.URANUS, AstronomyClass.NEPTUNE}) {
             var generator = new PlanetChunkGenerator(biome, cls.id(), 1.0);
             int bound = generator.halfExtent();
-            // Strictly outside the primary body: anything solid here can only be ring.
-            int beyondBody = generator.blueprint().diameter() / 2 + 1;
+            // Strictly outside the primary globe relief envelope: anything solid here can only be ring.
+            int beyondBody = (int) Math.ceil((generator.blueprint().diameter() / 2.0)
+                * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC)) + 2;
             check(bound > beyondBody, cls.id() + ": ring extends the bounds past the body");
             boolean ringFound = false;
             for (int a = beyondBody; a <= bound && !ringFound; a++) {
