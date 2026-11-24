@@ -6,6 +6,9 @@ import net.kyrangit.solaria.blueprint.BlueprintGenerator;
 import net.kyrangit.solaria.blueprint.MaterialPalette;
 import net.kyrangit.solaria.blueprint.MaterialRamp;
 import net.kyrangit.solaria.blueprint.Palette;
+import net.kyrangit.solaria.blueprint.RingSystem;
+import net.kyrangit.solaria.blueprint.RingSystem.Band;
+import net.kyrangit.solaria.blueprint.RingSystem.DensityProfile;
 import net.kyrangit.solaria.blueprint.SurfacePainter;
 
 import javax.imageio.ImageIO;
@@ -28,6 +31,7 @@ import java.util.Map;
 public final class BlueprintPreview {
 	private static final int BACKDROP = 0x10141A;
 	private static final int ORTHO_MAX_PX = 256;
+	private static final int RING_VIEW_MAX_PX = 512;
 	private static final int MAP_WIDTH = 360;
 	private static final int MAP_HEIGHT = 180;
 	private static final int SURFACE_SAMPLES = 20_000;
@@ -163,6 +167,45 @@ public final class BlueprintPreview {
 		}, palette, 1.0, diameter);
 	}
 
+	/**
+	 * Synthetic test blueprint showcasing {@link RingSystem}: faint inner band, dense main band with ringlets,
+	 * speckled gap, mid-density outer band, and thin outer ringlet around a neutral sphere.
+	 */
+	public static Blueprint testRingSystem(int bodyDiameter) {
+		MaterialPalette palette = Palette.create();
+		double bodyRadius = bodyDiameter / 2.0;
+		double bodyRadiusSq = bodyRadius * bodyRadius;
+		int sphereA = palette.indexOf(Palette.SMOOTH_STONE);
+		int sphereB = palette.indexOf(Palette.ANDESITE);
+
+		MaterialRamp faintRamp = MaterialRamp.of(palette,
+			Palette.GRAY_TERRACOTTA, Palette.LIGHT_GRAY_TERRACOTTA, Palette.LIGHT_GRAY_CONCRETE);
+		MaterialRamp mainRamp = MaterialRamp.of(palette,
+			Palette.WHITE_TERRACOTTA, Palette.END_STONE, Palette.SMOOTH_QUARTZ, Palette.WHITE_CONCRETE);
+		MaterialRamp gapRamp = MaterialRamp.of(palette,
+			Palette.GRAY_TERRACOTTA, Palette.LIGHT_GRAY_TERRACOTTA);
+		MaterialRamp outerRamp = MaterialRamp.of(palette,
+			Palette.LIGHT_GRAY_CONCRETE, Palette.QUARTZ_BLOCK, Palette.SMOOTH_QUARTZ);
+		MaterialRamp thinRamp = MaterialRamp.of(palette,
+			Palette.QUARTZ_BLOCK, Palette.WHITE_CONCRETE);
+
+		RingSystem rings = RingSystem.of(0.0, bodyRadius,
+			new Band(1.20, 1.45, DensityProfile.constant(0.20), faintRamp, 1, 0x6101),
+			new Band(1.45, 1.85, DensityProfile.ringlets(0.84, 0.14, 7.0, 0.06), mainRamp, 2, 0x6102),
+			new Band(1.85, 1.98, DensityProfile.constant(0.06), gapRamp, 1, 0x6103),
+			new Band(1.98, 2.22, DensityProfile.ringlets(0.55, 0.18, 5.0, 0.08), outerRamp, 1, 0x6104),
+			new Band(2.28, 2.34, DensityProfile.smoothBand(0.48, 0.25), thinRamp, 1, 0x6105)
+		);
+
+		return new Blueprint(AstronomyClass.SATURN, (x, y, z) -> {
+			double distSq = (double) x * x + (double) y * y + (double) z * z;
+			if (distSq <= bodyRadiusSq) {
+				return ((x + y + z) & 1) == 0 ? sphereA : sphereB;
+			}
+			return rings.voxelAt(x, y, z);
+		}, palette, 1.0, bodyDiameter);
+	}
+
 	public static void main(String[] args) throws IOException {
 		verifyPaletteColours();
 		Path outDir = Path.of("build", "previews");
@@ -171,6 +214,11 @@ public final class BlueprintPreview {
 		boolean renderAll = args.length == 0;
 		if (renderAll || containsArg(args, "test_sphere")) {
 			renderTarget("test_sphere", testSphere(161), 161, outDir);
+		}
+		if (renderAll || containsArg(args, "test_ring")) {
+			int diameter = 101;
+			int halfExt = (int) Math.ceil((diameter / 2.0) * 2.34) + 4;
+			renderRingTarget("test_ring", testRingSystem(diameter), halfExt, outDir);
 		}
 		for (AstronomyClass cls : AstronomyClass.values()) {
 			if (renderAll || containsArg(args, cls.id())) {
@@ -222,11 +270,95 @@ public final class BlueprintPreview {
 
 		VarietyReport variety = measureVariety(bp, map);
 		long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+		if (name.equals("saturn") || name.equals("uranus")) {
+			boolean vertical = name.equals("uranus");
+			for (boolean edge : new boolean[]{false, true}) {
+				BufferedImage ring = new BufferedImage(2 * halfExt + 1, 2 * halfExt + 1, BufferedImage.TYPE_INT_RGB);
+				for (int v = -halfExt; v <= halfExt; v++) {
+					for (int u = -halfExt; u <= halfExt; u++) {
+						int material = 0;
+						for (int d = halfExt; d >= -halfExt && material == 0; d--) {
+							material = edge ? bp.voxelAt(u, v, d)
+								: vertical ? bp.voxelAt(d, v, u) : bp.voxelAt(u, d, v);
+						}
+						ring.setRGB(u + halfExt, halfExt - v, colours[material]);
+					}
+				}
+				ImageIO.write(ring, "png", itemDir.resolve(edge ? "ring-side.png" : "ring-top.png").toFile());
+			}
+		}
 		System.out.printf(
 			"[%s] distinctBlocks=%d, topBlock=%s (%.1f%%), smoothTransitions=%.1f%%, reliefR=[%.1f..%.1f] (span=%.1f), rendered in %d ms -> %s%n",
 			name, variety.distinctBlocks, variety.topBlock, variety.topSharePct,
 			variety.smoothTransitionPct, variety.minHitR, variety.maxHitR,
 			variety.maxHitR - variety.minHitR, elapsedMs, outDir.resolve(name + ".png").toAbsolutePath());
+	}
+
+	private static void renderRingTarget(String name, Blueprint bp, int halfExt, Path outDir) throws IOException {
+		long start = System.nanoTime();
+		int[] colours = buildColourLookup(bp.palette());
+		BufferedImage topdown = renderTopDown(bp, halfExt, colours);
+		BufferedImage side = renderSide(bp, halfExt, colours);
+
+		Path itemDir = outDir.resolve(name);
+		Files.createDirectories(itemDir);
+		ImageIO.write(topdown, "png", itemDir.resolve("topdown.png").toFile());
+		ImageIO.write(side, "png", itemDir.resolve("side.png").toFile());
+
+		int pad = 8;
+		int rowH = Math.max(topdown.getHeight(), side.getHeight());
+		BufferedImage sheet = blankImage(pad + topdown.getWidth() + pad + side.getWidth() + pad, pad + rowH + pad);
+		Graphics2D g = sheet.createGraphics();
+		g.drawImage(topdown, pad, pad + (rowH - topdown.getHeight()) / 2, null);
+		g.drawImage(side, pad + topdown.getWidth() + pad, pad + (rowH - side.getHeight()) / 2, null);
+		g.dispose();
+		ImageIO.write(sheet, "png", outDir.resolve(name + ".png").toFile());
+
+		long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+		System.out.printf("[%s] ring top-down + side rendered in %d ms -> %s%n",
+			name, elapsedMs, outDir.resolve(name + ".png").toAbsolutePath());
+	}
+
+	private static BufferedImage renderTopDown(Blueprint bp, int halfExt, int[] colours) {
+		int span = halfExt * 2 + 1;
+		int step = Math.max(1, (span + RING_VIEW_MAX_PX - 1) / RING_VIEW_MAX_PX);
+		int size = (span + step - 1) / step;
+		BufferedImage img = blankImage(size, size);
+		for (int py = 0; py < size; py++) {
+			int z = -halfExt + py * step;
+			for (int px = 0; px < size; px++) {
+				int x = -halfExt + px * step;
+				for (int y = halfExt; y >= -halfExt; y -= step) {
+					int idx = bp.voxelAt(x, y, z);
+					if (idx != 0) {
+						img.setRGB(px, py, colours[idx]);
+						break;
+					}
+				}
+			}
+		}
+		return img;
+	}
+
+	private static BufferedImage renderSide(Blueprint bp, int halfExt, int[] colours) {
+		int span = halfExt * 2 + 1;
+		int step = Math.max(1, (span + RING_VIEW_MAX_PX - 1) / RING_VIEW_MAX_PX);
+		int size = (span + step - 1) / step;
+		BufferedImage img = blankImage(size, size);
+		for (int py = 0; py < size; py++) {
+			int y = halfExt - py * step;
+			for (int px = 0; px < size; px++) {
+				int x = -halfExt + px * step;
+				for (int z = halfExt; z >= -halfExt; z -= step) {
+					int idx = bp.voxelAt(x, y, z);
+					if (idx != 0) {
+						img.setRGB(px, py, colours[idx]);
+						break;
+					}
+				}
+			}
+		}
+		return img;
 	}
 
 	private static int[] buildColourLookup(MaterialPalette palette) {

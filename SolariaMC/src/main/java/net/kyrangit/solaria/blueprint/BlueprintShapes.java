@@ -1040,10 +1040,6 @@ final class BlueprintShapes {
 		// NASA Cassini / Hubble (https://science.nasa.gov/saturn/facts/): subtle pale butter-gold
 		// and cream atmospheric bands with soft edges, a dusty bluish-grey polar tone shift, and
 		// the north polar hexagonal jet stream (~75-80 deg N).
-		int ringMain = palette.indexOf(Palette.QUARTZ_BLOCK);
-		int ringBrt  = palette.indexOf(Palette.SMOOTH_QUARTZ);
-		int ringEdge = palette.indexOf(Palette.LIGHT_GRAY_CONCRETE);
-		int ringGap  = palette.indexOf(Palette.GRAY_TERRACOTTA);
 		int rockCore = palette.indexOf(Palette.DEEPSLATE);
 		int metalH   = palette.indexOf(Palette.IRON_BLOCK);
 		int molecH   = palette.indexOf(Palette.LAPIS_BLOCK);
@@ -1067,8 +1063,12 @@ final class BlueprintShapes {
 
 		double bodyRadius = diameter / 2.0;
 		double innerLimit = interiorLimit(bodyRadius);
-		double ringInner  = bodyRadius * 1.25;
-		double ringOuter  = bodyRadius * 1.9;
+		MaterialRamp ringRamp = MaterialRamp.of(palette, Palette.LIGHT_GRAY_CONCRETE, Palette.QUARTZ_BLOCK, Palette.SMOOTH_QUARTZ);
+		MaterialRamp gapRamp = MaterialRamp.of(palette, Palette.GRAY_TERRACOTTA);
+		RingSystem rings = RingSystem.of(0.0, bodyRadius,
+			new RingSystem.Band(1.25, 1.52, (t, a) -> 0.81 + 0.16 * Math.cos(t * 45), ringRamp, 1, seed ^ 0x5A1),
+			new RingSystem.Band(1.52, 1.58, RingSystem.DensityProfile.constant(0.08), gapRamp, 1, seed ^ 0x5A2),
+			new RingSystem.Band(1.58, 1.9, (t, a) -> 0.70 + 0.20 * Math.cos(t * 56), ringRamp, 1, seed ^ 0x5A3));
 		return new Blueprint(AstronomyClass.SATURN,
 			(x, y, z) -> {
 				double dist2 = (double) x * x + (double) y * y + (double) z * z;
@@ -1110,19 +1110,7 @@ final class BlueprintShapes {
 					}
 					return goldMat;
 				}
-				// Ring: flat annulus in the y ≈ 0 plane (|y| < 0.5) — left for Steps 6-7.
-				if (Math.abs(y) < 0.6 && dist > bodyRadius) {
-					double planar = Math.sqrt((double) x * x + (double) z * z);
-					if (planar >= ringInner && planar <= ringOuter) {
-						// Cassini-like gap at ~1.55× body radius
-						if (planar > bodyRadius * 1.52 && planar < bodyRadius * 1.58) return ringGap;
-						boolean edge = planar < ringInner + 1.2 || planar > ringOuter - 1.2;
-						if (edge) return ringEdge;
-						double rn = VoxelNoise.noise3(x * 0.05, 0, z * 0.05, seed ^ 0x5A5A);
-						return rn > 0.55 ? ringBrt : ringMain;
-					}
-				}
-				return 0;
+				return rings.voxelAt(x, y, z);
 			},
 			palette, scale, diameter);
 	}
@@ -1192,12 +1180,12 @@ final class BlueprintShapes {
 		int pale     = palette.indexOf(Palette.PACKED_ICE);
 		int teal     = palette.indexOf(Palette.OXIDIZED_COPPER);
 		int shading  = palette.indexOf(Palette.CYAN_TERRACOTTA);
-		int ringBlk  = palette.indexOf(Palette.QUARTZ_BLOCK);
 		int rockCore = palette.indexOf(Palette.DEEPSLATE);
 		int iceMantle = palette.indexOf(Palette.BLUE_ICE);
 		double bodyRadius = diameter / 2.0;
-		double ringInner  = bodyRadius * 1.2;
-		double ringOuter  = bodyRadius * 1.6;
+		MaterialRamp ringRamp = MaterialRamp.of(palette, Palette.QUARTZ_BLOCK);
+		RingSystem rings = RingSystem.of(90.0, bodyRadius,
+			new RingSystem.Band(1.2, 1.6, (t, a) -> 0.72 + 0.24 * Math.cos(t * 35), ringRamp, 1, seed ^ 0x7A1));
 		return new Blueprint(AstronomyClass.URANUS,
 			(x, y, z) -> {
 				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
@@ -1216,12 +1204,7 @@ final class BlueprintShapes {
 					if (tint < 0.28) return pale;
 					return body;
 				}
-				// Near-vertical ring: thin in X, extends in Y and Z
-				if (Math.abs(x) < 0.6) {
-					double planar = Math.sqrt((double) y * y + (double) z * z);
-					if (planar >= ringInner && planar <= ringOuter) return ringBlk;
-				}
-				return 0;
+				return rings.voxelAt(x, y, z);
 			},
 			palette, scale, diameter);
 	}
