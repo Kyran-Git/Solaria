@@ -46,6 +46,7 @@ public final class BlueprintTests {
 		testAllClassesEmitVoxels();
 		testColourCoverage();
 		testStep3NaturalPatterns();
+		testStep4SurfaceRelief();
 		System.out.println("Blueprint plumbing check (synthetic): " + assertions + " assertions passed.");
 	}
 
@@ -119,8 +120,9 @@ public final class BlueprintTests {
 	private static void testCapEnforced() {
 		for (AstronomyClass cls : AstronomyClass.values()) {
 			Blueprint bp = BlueprintGenerator.generate(cls, 1.0);
-			double factor = cls == AstronomyClass.SATURN ? 1.9 : cls == AstronomyClass.URANUS ? 1.6 : 1.0;
-			check(Math.ceil(bp.diameter() * factor) <= 500, "default including rings fits 500: " + cls.id());
+			int extent = BlueprintGenerator.blueprintExtent(cls, bp.diameter());
+			check(extent <= BlueprintGenerator.MAX_EXTENT_BLOCKS,
+				"default including relief/rings fits 500: " + cls.id() + " (extent=" + extent + ")");
 		}
 	}
 
@@ -242,7 +244,9 @@ public final class BlueprintTests {
 		for (AstronomyClass cls : targets) {
 			Blueprint a = BlueprintGenerator.generate(cls, 1.0);
 			Blueprint b = BlueprintGenerator.generate(cls, 1.0);
-			double r = a.diameter() / 2.0 - 0.5;
+			double baseR = a.diameter() / 2.0;
+			double maxR = Math.ceil(baseR * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC)) + 1.0;
+			double minR = Math.max(1.0, Math.floor(baseR * 0.90));
 			Map<Integer, Integer> counts = new HashMap<>();
 			int total = 0;
 
@@ -250,16 +254,21 @@ public final class BlueprintTests {
 				double uy = 1.0 - (2.0 * (i + 0.5) / 10_000.0);
 				double ring = Math.sqrt(Math.max(0.0, 1.0 - uy * uy));
 				double theta = goldenAngle * i;
-				int vx = (int) Math.round(r * ring * Math.cos(theta));
-				int vy = (int) Math.round(r * uy);
-				int vz = (int) Math.round(r * ring * Math.sin(theta));
-				int va = a.voxelAt(vx, vy, vz);
-				if (i < 2_000) {
-					check(va == b.voxelAt(vx, vy, vz), cls.id() + ": deterministic full-scale surface voxel");
-				}
-				if (va != 0) {
-					counts.merge(va, 1, Integer::sum);
-					total++;
+				double ux = ring * Math.cos(theta);
+				double uz = ring * Math.sin(theta);
+				for (double r = maxR; r >= minR; r -= 0.75) {
+					int vx = (int) Math.round(r * ux);
+					int vy = (int) Math.round(r * uy);
+					int vz = (int) Math.round(r * uz);
+					int va = a.voxelAt(vx, vy, vz);
+					if (va != 0) {
+						if (i < 2_000) {
+							check(va == b.voxelAt(vx, vy, vz), cls.id() + ": deterministic full-scale surface voxel");
+						}
+						counts.merge(va, 1, Integer::sum);
+						total++;
+						break;
+					}
 				}
 			}
 
@@ -298,6 +307,173 @@ public final class BlueprintTests {
 			check(!seenPolar.isEmpty() && distinctPolar <= 28,
 				"jupiter polar cap transitions naturally without wedge stripes (transitions=" + distinctPolar + ")");
 		}
+	}
+
+	private static void testStep4SurfaceRelief() {
+		AstronomyClass[] rocky = {
+			AstronomyClass.MOON, AstronomyClass.MARS, AstronomyClass.EARTH,
+			AstronomyClass.VENUS, AstronomyClass.MERCURY
+		};
+		double goldenAngle = Math.PI * (3.0 - Math.sqrt(5.0));
+
+		for (AstronomyClass cls : rocky) {
+			Blueprint a = BlueprintGenerator.generate(cls, 1.0);
+			Blueprint b = BlueprintGenerator.generate(cls, 1.0);
+			double radius = a.diameter() / 2.0;
+			double cap = BlueprintGenerator.MAX_RELIEF_FRAC;
+			int extent = BlueprintGenerator.blueprintExtent(cls, a.diameter());
+			int bound = extent / 2 + 1;
+			check(bound <= 256, cls.id() + ": relief halfExtent fits 512-block dimension");
+
+			double maxScanR = Math.ceil(radius * (1.0 + cap)) + 3.0;
+			double minScanR = Math.max(1.0, Math.floor(radius * (1.0 - cap)) - 4.0);
+			double minHitR = Double.MAX_VALUE;
+			double maxHitR = 0.0;
+
+			for (int i = 0; i < 6_000; i++) {
+				double uy = 1.0 - (2.0 * (i + 0.5) / 6_000.0);
+				double ring = Math.sqrt(Math.max(0.0, 1.0 - uy * uy));
+				double theta = goldenAngle * i;
+				double ux = ring * Math.cos(theta);
+				double uz = ring * Math.sin(theta);
+				for (double r = maxScanR; r >= minScanR; r -= 0.5) {
+					int vx = (int) Math.round(ux * r);
+					int vy = (int) Math.round(uy * r);
+					int vz = (int) Math.round(uz * r);
+					int va = a.voxelAt(vx, vy, vz);
+					if (va != 0) {
+						check(va == b.voxelAt(vx, vy, vz), cls.id() + ": deterministic relief voxel");
+						double hitR = Math.sqrt((double) vx * vx + (double) vy * vy + (double) vz * vz);
+						if (hitR < minHitR) minHitR = hitR;
+						if (hitR > maxHitR) maxHitR = hitR;
+						break;
+					}
+				}
+			}
+
+			check(maxHitR <= radius * (1.0 + cap) + 1.0,
+				String.format("%s: max relief %.2f <= cap %.2f", cls.id(), maxHitR, radius * (1.0 + cap) + 1.0));
+			check(minHitR >= radius * (1.0 - cap) - 1.0,
+				String.format("%s: min relief %.2f >= cap %.2f", cls.id(), minHitR, radius * (1.0 - cap) - 1.0));
+			check(maxHitR - minHitR >= 4.0,
+				String.format("%s: relief span %.2f >= 4.0 blocks", cls.id(), maxHitR - minHitR));
+			check(maxHitR <= bound - 0.5,
+				String.format("%s: max relief %.2f fits inside bound %d", cls.id(), maxHitR, bound));
+
+			// Zero solids just outside bound on axial and spherical samples.
+			check(a.voxelAt(bound + 1, 0, 0) == 0 && a.voxelAt(-(bound + 1), 0, 0) == 0, cls.id() + ": X bound clean");
+			check(a.voxelAt(0, bound + 1, 0) == 0 && a.voxelAt(0, -(bound + 1), 0) == 0, cls.id() + ": Y bound clean");
+			check(a.voxelAt(0, 0, bound + 1) == 0 && a.voxelAt(0, 0, -(bound + 1)) == 0, cls.id() + ": Z bound clean");
+			for (int i = 0; i < 500; i++) {
+				double uy = 1.0 - (2.0 * (i + 0.5) / 500.0);
+				double ring = Math.sqrt(Math.max(0.0, 1.0 - uy * uy));
+				double theta = goldenAngle * i;
+				int vx = (int) Math.round((bound + 1.0) * ring * Math.cos(theta));
+				int vy = (int) Math.round((bound + 1.0) * uy);
+				int vz = (int) Math.round((bound + 1.0) * ring * Math.sin(theta));
+				check(a.voxelAt(vx, vy, vz) == 0, cls.id() + ": outside bound is air");
+			}
+		}
+
+		// Earth: land sits higher than oceans.
+		Blueprint earth = BlueprintGenerator.generate(AstronomyClass.EARTH, 1.0);
+		MaterialPalette pal = earth.palette();
+		Set<Integer> oceanIds = Set.of(
+			pal.indexOf(Palette.BLUE_CONCRETE),
+			pal.indexOf(Palette.DARK_PRISMARINE),
+			pal.indexOf(Palette.PRISMARINE));
+		Set<Integer> landIds = Set.of(
+			pal.indexOf(Palette.GREEN_CONCRETE),
+			pal.indexOf(Palette.GREEN_TERRACOTTA),
+			pal.indexOf(Palette.LIME_CONCRETE),
+			pal.indexOf(Palette.LIME_TERRACOTTA),
+			pal.indexOf(Palette.TERRACOTTA));
+		double er = earth.diameter() / 2.0;
+		double landRSum = 0.0, oceanRSum = 0.0;
+		int landCount = 0, oceanCount = 0;
+		for (int i = 0; i < 4_000; i++) {
+			double uy = 1.0 - (2.0 * (i + 0.5) / 4_000.0);
+			if (Math.abs(uy) > 0.78) continue;
+			double ring = Math.sqrt(Math.max(0.0, 1.0 - uy * uy));
+			double theta = goldenAngle * i;
+			double ux = ring * Math.cos(theta);
+			double uz = ring * Math.sin(theta);
+			if (ux > 0.0 && uz > 0.0) continue; // skip cutaway quadrant
+			for (double r = Math.ceil(er * 1.05); r >= Math.floor(er * 0.94); r -= 0.5) {
+				int vx = (int) Math.round(ux * r);
+				int vy = (int) Math.round(uy * r);
+				int vz = (int) Math.round(uz * r);
+				int idx = earth.voxelAt(vx, vy, vz);
+				if (idx != 0) {
+					double hitR = Math.sqrt((double) vx * vx + (double) vy * vy + (double) vz * vz);
+					if (oceanIds.contains(idx)) {
+						oceanRSum += hitR;
+						oceanCount++;
+					} else if (landIds.contains(idx)) {
+						landRSum += hitR;
+						landCount++;
+					}
+					break;
+				}
+			}
+		}
+		check(landCount > 100 && oceanCount > 100, "earth sampled enough land and ocean voxels");
+		double landMean = landRSum / landCount;
+		double oceanMean = oceanRSum / oceanCount;
+		check(landMean - oceanMean >= 1.0,
+			String.format("earth land mean %.2f sits above ocean mean %.2f by >= 1.0", landMean, oceanMean));
+
+		// Mars: Olympus Mons rises sharply and Valles Marineris cuts a deep canyon.
+		Blueprint mars = BlueprintGenerator.generate(AstronomyClass.MARS, 1.0);
+		double mr = mars.diameter() / 2.0;
+		double olympusR = surfaceRadiusAlong(mars, 0.76, 0.33, 0.56);
+		double vallesR = surfaceRadiusAlong(mars, 0.95, -0.18, -0.25);
+		check(olympusR > mr + 2.0, String.format("mars Olympus Mons %.2f > radius %.2f + 2.0", olympusR, mr));
+		check(vallesR < mr - 1.5, String.format("mars Valles Marineris %.2f < radius %.2f - 1.5", vallesR, mr));
+
+		// Non-rocky bodies: Sun and gas/ice giants have no solid hills.
+		AstronomyClass[] nonRocky = {
+			AstronomyClass.SUN, AstronomyClass.JUPITER, AstronomyClass.SATURN,
+			AstronomyClass.URANUS, AstronomyClass.NEPTUNE
+		};
+		for (AstronomyClass cls : nonRocky) {
+			Blueprint bp = BlueprintGenerator.generate(cls, 1.0);
+			double r = bp.diameter() / 2.0;
+			double minHit = Double.MAX_VALUE;
+			double maxHit = 0.0;
+			for (int i = 0; i < 1_000; i++) {
+				double uy = 1.0 - (2.0 * (i + 0.5) / 1_000.0);
+				if (cls == AstronomyClass.SATURN && Math.abs(uy) <= 0.15) continue;
+				double ring = Math.sqrt(Math.max(0.0, 1.0 - uy * uy));
+				double theta = goldenAngle * i;
+				double ux = ring * Math.cos(theta);
+				if (cls == AstronomyClass.URANUS && Math.abs(ux) <= 0.15) continue;
+				double uz = ring * Math.sin(theta);
+				double hit = surfaceRadiusAlong(bp, ux, uy, uz);
+				if (hit < minHit) minHit = hit;
+				if (hit > maxHit) maxHit = hit;
+			}
+			// Cubic integer rounding can place the outermost inside-sphere voxel up to sqrt(3) inside r.
+			check(maxHit <= r + 0.5 && minHit >= r - 1.8,
+				String.format("%s non-rocky smoothness: [%.2f..%.2f] around %.2f", cls.id(), minHit, maxHit, r));
+		}
+	}
+
+	private static double surfaceRadiusAlong(Blueprint bp, double x, double y, double z) {
+		double len = Math.sqrt(x * x + y * y + z * z);
+		double ux = x / len, uy = y / len, uz = z / len;
+		double radius = bp.diameter() / 2.0;
+		double maxScan = Math.ceil(radius * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC)) + 2.0;
+		double minScan = Math.max(1.0, Math.floor(radius * (1.0 - BlueprintGenerator.MAX_RELIEF_FRAC)) - 2.0);
+		for (double r = maxScan; r >= minScan; r -= 0.5) {
+			int vx = (int) Math.round(ux * r);
+			int vy = (int) Math.round(uy * r);
+			int vz = (int) Math.round(uz * r);
+			if (bp.voxelAt(vx, vy, vz) != 0) {
+				return Math.sqrt((double) vx * vx + (double) vy * vy + (double) vz * vz);
+			}
+		}
+		return 0.0;
 	}
 
 	// ------------------------------------------------------------------ util

@@ -38,6 +38,13 @@ public final class BlueprintGenerator {
 	public static final int MAX_EXTENT_BLOCKS = 500;
 
 	/**
+	 * Maximum radial relief fraction (±3.5% of body radius) for rocky bodies.
+	 * Gives 5–10 blocks of peak-to-trough relief at default scale while keeping
+	 * a believable spherical silhouette and staying well inside MAX_EXTENT_BLOCKS.
+	 */
+	public static final double MAX_RELIEF_FRAC = 0.035;
+
+	/**
 	 * Base diameters for each class at {@code blocks_per_unit = 1.0}.
 	 * These are NOT proportional to real astronomical sizes; they are chosen so each
 	 * shape is large enough for a student to fly around and identify features.
@@ -140,6 +147,7 @@ public final class BlueprintGenerator {
 			case SATURN -> (int) Math.ceil(diameter * 1.9);
 			// Uranus ring outer radius ≈ 1.6 × body radius → full extent ≈ 3.2r
 			case URANUS -> (int) Math.ceil(diameter * 1.6);
+			case EARTH, MOON, MARS, VENUS, MERCURY -> (int) Math.ceil(diameter * (1.0 + MAX_RELIEF_FRAC));
 			default     -> diameter;
 		};
 	}

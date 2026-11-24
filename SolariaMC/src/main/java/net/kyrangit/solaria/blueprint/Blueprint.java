@@ -69,8 +69,8 @@ public record Blueprint(
 		if (other == null || astronomyClass != other.astronomyClass || diameter != other.diameter) {
 			return false;
 		}
-		int step = Math.max(1, diameter / 20);
-		int half = diameter / 2;
+		int half = BlueprintGenerator.blueprintExtent(astronomyClass, diameter) / 2;
+		int step = Math.max(1, (half * 2) / 20);
 		for (int x = -half; x <= half; x += step) {
 			for (int y = -half; y <= half; y += step) {
 				for (int z = -half; z <= half; z += step) {

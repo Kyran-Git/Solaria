@@ -222,9 +222,11 @@ public final class BlueprintPreview {
 
 		VarietyReport variety = measureVariety(bp, map);
 		long elapsedMs = (System.nanoTime() - start) / 1_000_000;
-		System.out.printf("[%s] distinctBlocks=%d, topBlock=%s (%.1f%%), smoothTransitions=%.1f%%, rendered in %d ms -> %s%n",
+		System.out.printf(
+			"[%s] distinctBlocks=%d, topBlock=%s (%.1f%%), smoothTransitions=%.1f%%, reliefR=[%.1f..%.1f] (span=%.1f), rendered in %d ms -> %s%n",
 			name, variety.distinctBlocks, variety.topBlock, variety.topSharePct,
-			variety.smoothTransitionPct, elapsedMs, outDir.resolve(name + ".png").toAbsolutePath());
+			variety.smoothTransitionPct, variety.minHitR, variety.maxHitR,
+			variety.maxHitR - variety.minHitR, elapsedMs, outDir.resolve(name + ".png").toAbsolutePath());
 	}
 
 	private static int[] buildColourLookup(MaterialPalette palette) {
@@ -246,7 +248,8 @@ public final class BlueprintPreview {
 		int step = Math.max(1, (span + ORTHO_MAX_PX - 1) / ORTHO_MAX_PX);
 		int size = (span + step - 1) / step;
 		BufferedImage img = blankImage(size, size);
-		double radius = bp.diameter() / 2.0;
+		int[][] hitIdx = new int[size][size];
+		int[][] hitX = new int[size][size];
 
 		for (int py = 0; py < size; py++) {
 			int y = halfExt - py * step;
@@ -255,11 +258,51 @@ public final class BlueprintPreview {
 				for (int x = halfExt; x >= -halfExt; x -= step) {
 					int idx = bp.voxelAt(x, y, z);
 					if (idx != 0) {
-						double shade = Math.max(0.76, Math.min(1.0, 0.80 + 0.20 * (x / Math.max(1.0, radius))));
-						img.setRGB(px, py, scaleRgb(colours[idx], shade));
+						int exactX = x;
+						int exactIdx = idx;
+						for (int probe = Math.min(halfExt, x + step - 1); probe > x; probe--) {
+							int pIdx = bp.voxelAt(probe, y, z);
+							if (pIdx != 0) {
+								exactX = probe;
+								exactIdx = pIdx;
+								break;
+							}
+						}
+						hitIdx[py][px] = exactIdx;
+						hitX[py][px] = exactX;
 						break;
 					}
 				}
+			}
+		}
+
+		// Normalized key light from (+X, +Y, -Z) so hills, ridges, and craters cast readable relief shading.
+		double lLen = Math.sqrt(0.70 * 0.70 + 0.45 * 0.45 + 0.55 * 0.55);
+		double lx = 0.70 / lLen;
+		double ly = 0.45 / lLen;
+		double lz = -0.55 / lLen;
+
+		for (int py = 0; py < size; py++) {
+			for (int px = 0; px < size; px++) {
+				int idx = hitIdx[py][px];
+				if (idx == 0) continue;
+				int x0 = hitX[py][px];
+				boolean hasL = px > 0 && hitIdx[py][px - 1] != 0;
+				boolean hasR = px + 1 < size && hitIdx[py][px + 1] != 0;
+				boolean hasU = py > 0 && hitIdx[py - 1][px] != 0;
+				boolean hasD = py + 1 < size && hitIdx[py + 1][px] != 0;
+				int xL = hasL ? hitX[py][px - 1] : x0;
+				int xR = hasR ? hitX[py][px + 1] : x0;
+				int xU = hasU ? hitX[py - 1][px] : x0;
+				int xD = hasD ? hitX[py + 1][px] : x0;
+				double dzSpan = (hasL && hasR) ? 2.0 * step : (double) step;
+				double dySpan = (hasU && hasD) ? 2.0 * step : (double) step;
+				double ny = -(xU - xD) / dySpan;
+				double nz = -(xR - xL) / dzSpan;
+				double invN = 1.0 / Math.sqrt(1.0 + ny * ny + nz * nz);
+				double ndl = Math.max(0.0, (lx + ny * ly + nz * lz) * invN);
+				double shade = Math.max(0.55, Math.min(1.05, 0.56 + 0.48 * ndl));
+				img.setRGB(px, py, scaleRgb(colours[idx], shade));
 			}
 		}
 		return img;
@@ -287,8 +330,8 @@ public final class BlueprintPreview {
 	private static BufferedImage renderMap(Blueprint bp, int[] colours) {
 		BufferedImage img = blankImage(MAP_WIDTH, MAP_HEIGHT);
 		double radius = bp.diameter() / 2.0;
-		double maxR = Math.ceil(radius) + 8.0;
-		double minR = Math.max(1.0, radius - 16.0);
+		double maxR = Math.ceil(radius * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC)) + 2.0;
+		double minR = Math.max(1.0, Math.floor(radius * (1.0 - BlueprintGenerator.MAX_RELIEF_FRAC)) - 4.0);
 
 		for (int py = 0; py < MAP_HEIGHT; py++) {
 			double lat = Math.toRadians(90.0 - ((py + 0.5) * 180.0 / MAP_HEIGHT));
@@ -332,10 +375,12 @@ public final class BlueprintPreview {
 
 	private static VarietyReport measureVariety(Blueprint bp, BufferedImage map) {
 		double radius = bp.diameter() / 2.0;
-		double maxR = Math.ceil(radius) + 8.0;
-		double minR = Math.max(1.0, radius - 16.0);
+		double maxR = Math.ceil(radius * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC)) + 2.0;
+		double minR = Math.max(1.0, Math.floor(radius * (1.0 - BlueprintGenerator.MAX_RELIEF_FRAC)) - 4.0);
 		Map<Integer, Integer> counts = new HashMap<>();
 		int total = 0;
+		double minHitR = Double.MAX_VALUE;
+		double maxHitR = 0.0;
 		double goldenAngle = Math.PI * (3.0 - Math.sqrt(5.0));
 
 		for (int i = 0; i < SURFACE_SAMPLES; i++) {
@@ -345,10 +390,16 @@ public final class BlueprintPreview {
 			double ux = ring * Math.cos(theta);
 			double uz = ring * Math.sin(theta);
 			for (double r = maxR; r >= minR; r -= 0.75) {
-				int idx = bp.voxelAt((int) Math.round(ux * r), (int) Math.round(uy * r), (int) Math.round(uz * r));
+				int vx = (int) Math.round(ux * r);
+				int vy = (int) Math.round(uy * r);
+				int vz = (int) Math.round(uz * r);
+				int idx = bp.voxelAt(vx, vy, vz);
 				if (idx != 0) {
 					counts.merge(idx, 1, Integer::sum);
 					total++;
+					double hitR = Math.sqrt((double) vx * vx + (double) vy * vy + (double) vz * vz);
+					if (hitR < minHitR) minHitR = hitR;
+					if (hitR > maxHitR) maxHitR = hitR;
 					break;
 				}
 			}
@@ -382,7 +433,8 @@ public final class BlueprintPreview {
 			}
 		}
 		double smoothPct = transitions == 0 ? 100.0 : (100.0 * blended) / transitions;
-		return new VarietyReport(counts.size(), topBlock, topSharePct, smoothPct);
+		if (total == 0) minHitR = 0.0;
+		return new VarietyReport(counts.size(), topBlock, topSharePct, smoothPct, minHitR, maxHitR);
 	}
 
 	private static BufferedImage blankImage(int width, int height) {
@@ -402,6 +454,7 @@ public final class BlueprintPreview {
 		return (r << 16) | (g << 8) | b;
 	}
 
-	private record VarietyReport(int distinctBlocks, String topBlock, double topSharePct, double smoothTransitionPct) {
+	private record VarietyReport(int distinctBlocks, String topBlock, double topSharePct,
+	                             double smoothTransitionPct, double minHitR, double maxHitR) {
 	}
 }

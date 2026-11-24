@@ -1,5 +1,8 @@
 package net.kyrangit.solaria.blueprint;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Per-class voxel shape generators used by {@link BlueprintGenerator}.
  *
@@ -63,35 +66,58 @@ final class BlueprintShapes {
 		}
 	}
 
-	/** Scatter crater positions from a seed; returns the centre of crater {@code i}. */
-	private static double[] craterCentre(int i, int seed, double radius) {
-		double[] dir = VoxelNoise.unitVector(seed ^ (i * 0x9E3779B1));
-		return new double[]{dir[0] * radius, dir[1] * radius, dir[2] * radius};
+	/** Clamp {@code reliefFrac} to {@code ±MAX_RELIEF_FRAC} and scale {@code baseRadius}. */
+	private static double reliefRadius(double baseRadius, double reliefFrac) {
+		double cap = BlueprintGenerator.MAX_RELIEF_FRAC;
+		double clamped = Math.max(-cap, Math.min(cap, reliefFrac));
+		return baseRadius * (1.0 + clamped);
 	}
 
-	/**
-	 * Returns the crater-rim palette index if (x,y,z) falls on a crater rim,
-	 * or 0 if it falls inside a crater pit (air), or -1 if unaffected.
-	 * craterRadius is expressed as a fraction of the body radius.
-	 */
-	private static int craterEffect(int x, int y, int z, int count, int seed,
-	                                double bodyRadius, double craterFrac, int rimPalette) {
-		double cr = bodyRadius * craterFrac;
-		double rimWidth = Math.max(1.0, cr * 0.3);
-		for (int i = 0; i < count; i++) {
-			double[] c = craterCentre(i, seed ^ 0xC4A7, bodyRadius > 0 ? (int) bodyRadius : 1);
-			double dx = x - c[0];
-			double dy = y - c[1];
-			double dz = z - c[2];
-			double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-			if (dist <= cr) {
-				return 0; // air — pit
-			}
-			if (dist <= cr + rimWidth) {
-				return rimPalette; // raised rim
-			}
+	/** Spherical crater profile: parabolic bowl + raised rim + optional central peak. */
+	private record ReliefCrater(
+		double cx, double cy, double cz,
+		double angularRadius, double cosOuter,
+		double depthFrac, double rimFrac,
+		boolean centralPeak
+	) {
+		static ReliefCrater of(double x, double y, double z, double angularRadius,
+		                       double depthFrac, double rimFrac, boolean centralPeak) {
+			double len = Math.sqrt(x * x + y * y + z * z);
+			return new ReliefCrater(
+				x / len, y / len, z / len,
+				angularRadius, Math.cos(angularRadius * 1.50),
+				depthFrac, rimFrac, centralPeak
+			);
 		}
-		return -1; // unaffected
+
+		double reliefAt(double ux, double uy, double uz) {
+			double dot = ux * cx + uy * cy + uz * cz;
+			if (dot <= cosOuter) return 0.0;
+			double ang = Math.sqrt(Math.max(0.0, 2.0 * (1.0 - dot)));
+			double t = ang / angularRadius;
+			if (t < 1.0) {
+				double u = t * t;
+				double h = -depthFrac * (1.0 - u) + rimFrac * u * u;
+				if (centralPeak && t < 0.26) {
+					double p = t / 0.26;
+					h += depthFrac * 0.35 * (1.0 - p * p);
+				}
+				return h;
+			}
+			if (t < 1.50) {
+				double s = (t - 1.0) / 0.50;
+				return rimFrac * (1.0 - s) * (1.0 - s);
+			}
+			return 0.0;
+		}
+	}
+
+	private static double sumCraterRelief(double ux, double uy, double uz, ReliefCrater[] craters) {
+		double total = 0.0;
+		for (ReliefCrater c : craters) {
+			total += c.reliefAt(ux, uy, uz);
+		}
+		return total;
 	}
 
 	// ================================================================== SUN
@@ -238,35 +264,62 @@ final class BlueprintShapes {
 		int mantleAlt= palette.indexOf(Palette.GRANITE);
 		int crust    = palette.indexOf(Palette.STONE);
 		double radius = diameter / 2.0;
+		double minRadius = radius * (1.0 - BlueprintGenerator.MAX_RELIEF_FRAC);
+		double minRadiusSq = minRadius * minRadius;
+		double maxRadius = radius * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC);
+		double maxRadiusSq = maxRadius * maxRadius;
 		return new Blueprint(AstronomyClass.EARTH,
 			(x, y, z) -> {
-				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
-				if (dist > radius) return 0;
+				double distSq = (double) x * x + (double) y * y + (double) z * z;
+				if (distSq > maxRadiusSq) return 0;
+				double dist = Math.sqrt(distSq);
 				double norm = dist / radius;
-				double nx = x / radius, ny = y / radius, nz = z / radius;
 				// Quarter-sphere cutaway: layered interior (inner core → crust).
-				if (cutaway(x, z)) {
+				if (cutaway(x, z) && norm < 0.94) {
+					double nx = x / radius, ny = y / radius, nz = z / radius;
 					double tex = VoxelNoise.noise3(nx * 3.5, ny * 3.5, nz * 3.5, seed ^ 0xEA12);
 					if (norm < 0.20) return inner;
 					if (norm < 0.55) return tex > 0.50 ? outerAlt : outer;
 					if (norm < 0.88) return tex > 0.55 ? mantleAlt : mantle;
-					if (norm < 0.94) return crust;
-					// fall through to surface shell so continents/oceans are visible at the rim
+					return crust;
 				}
-				// Polar ice caps: |ny| > 0.82
-				double absy = Math.abs(ny);
-				if (absy > 0.82) return (norm > 0.94 && absy > 0.9) ? glacier : ice;
+				double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+				double ux = x * inv;
+				double uy = dist > 0.0 ? y * inv : 1.0;
+				double uz = z * inv;
+
+				// NASA Earth / ETOPO topography (https://science.nasa.gov/earth/facts/):
+				// oceanic basins sit lower than continental shelves, with mountain belts inland.
+				double continent = VoxelNoise.noise3(ux * 1.8, uy * 1.8, uz * 1.8, seed);
+				double localRadius = radius;
+				if (distSq >= minRadiusSq) {
+					double polarIceH = SurfacePainter.latitudeGradient(uy, 0.82, 0.94) * 0.002;
+					double relief;
+					if (continent <= 0.530) {
+						relief = -0.008 + polarIceH;
+					} else {
+						double landMask = SurfacePainter.smoothstep(0.530, 0.575, continent);
+						double rBase = SurfacePainter.sphereFbm(ux, uy, uz, 4.5, 3, seed ^ 0x4007);
+						double rCurve = 1.0 - Math.abs(SurfacePainter.smoothstep(0.24, 0.76, rBase) * 2.0 - 1.0);
+						double landH = 0.002 + (rCurve * rCurve) * 0.025 + rBase * 0.004;
+						relief = -0.008 * (1.0 - landMask) + landH * landMask + polarIceH;
+					}
+					localRadius = reliefRadius(radius, relief);
+					if (dist > localRadius) return 0;
+				}
+
+				// Polar ice caps: |uy| > 0.82
+				double absy = Math.abs(uy);
+				if (absy > 0.82) return (dist / localRadius > 0.94 && absy > 0.9) ? glacier : ice;
 				// Thin cloud shell (outermost 4%) — only render clouds where noise says so; otherwise
 				// fall through so continents and oceans beneath remain visible.
-				if (norm > 0.96) {
-					double c = VoxelNoise.noise3(nx * 4.5, ny * 4.5, nz * 4.5, seed ^ 0xCCDD);
+				if (dist / localRadius > 0.96) {
+					double c = VoxelNoise.noise3(ux * 4.5, uy * 4.5, uz * 4.5, seed ^ 0xCCDD);
 					if (c > 0.62) return cloud;
 				}
-				// Continent noise
-				double continent = VoxelNoise.noise3(nx * 1.8, ny * 1.8, nz * 1.8, seed);
 				if (continent > 0.54) {
 					// Land biome
-					double biome = VoxelNoise.noise3(nx * 3.5, ny * 3.5, nz * 3.5, seed ^ 0xAB12);
+					double biome = VoxelNoise.noise3(ux * 3.5, uy * 3.5, uz * 3.5, seed ^ 0xAB12);
 					if (biome > 0.65) return forest;
 					if (biome > 0.52) return grass;
 					if (biome > 0.42) return dry;
@@ -274,7 +327,7 @@ final class BlueprintShapes {
 					return land;
 				}
 				// Ocean depth
-				double depth = VoxelNoise.noise3(nx * 2.5, ny * 2.5, nz * 2.5, seed ^ 0x5F5F);
+				double depth = VoxelNoise.noise3(ux * 2.5, uy * 2.5, uz * 2.5, seed ^ 0x5F5F);
 				return depth > 0.58 ? shallow : (depth < 0.35 ? deep : ocean);
 			},
 			palette, scale, diameter);
@@ -283,12 +336,12 @@ final class BlueprintShapes {
 	// ================================================================== MOON
 
 	/**
-	 * Moon: dark basaltic maria against bright anorthositic highlands with rayed impact craters.
+	 * Moon: dark basaltic maria against bright anorthositic highlands with rayed impact craters and basin relief.
 	 */
 	static Blueprint moon(MaterialPalette palette, int diameter, double scale, int seed) {
-		// NASA LRO / Moon Facts (https://science.nasa.gov/moon/facts/): dark basaltic maria
-		// (~16% globally, concentrated on near side), bright anorthositic highlands, and
-		// rayed impact craters such as Tycho (43.4 deg S).
+		// NASA LRO / LOLA / Moon Facts (https://science.nasa.gov/moon/facts/): dark smooth
+		// low-lying basaltic maria (~16% globally), rugged cratered anorthositic highlands,
+		// and rayed impact craters such as Tycho (43.4 deg S).
 		int ironCore  = palette.indexOf(Palette.IRON_BLOCK);
 		int mantle    = palette.indexOf(Palette.DEEPSLATE);
 		int crustIn   = palette.indexOf(Palette.STONE);
@@ -331,40 +384,75 @@ final class BlueprintShapes {
 			TangentFeature.of(-0.78, 0.35, 0.52, 0.060, 0.52, seed ^ 0x203),
 			TangentFeature.of(-0.62, -0.45, -0.64, 0.052, 0.46, seed ^ 0x204)
 		};
+		ReliefCrater[] rayRelief = new ReliefCrater[rayCraters.length];
+		for (int i = 0; i < rayCraters.length; i++) {
+			TangentFeature rc = rayCraters[i];
+			rayRelief[i] = ReliefCrater.of(rc.cx, rc.cy, rc.cz, rc.radiusA, 0.026, 0.012, true);
+		}
 
-		// 28 painted background impact craters.
+		// 28 background impact craters (shared placement between shading and 3D relief).
 		TangentFeature[] smallCraters = new TangentFeature[28];
+		ReliefCrater[] smallRelief = new ReliefCrater[28];
 		for (int i = 0; i < smallCraters.length; i++) {
 			int fs = seed ^ ((i + 1) * 0x9E3779B1);
 			double[] v = VoxelNoise.unitVector(fs);
 			double r = 0.042 + 0.068 * VoxelNoise.hashUnit(i, 3, 0, seed ^ 0xC4A7);
 			smallCraters[i] = TangentFeature.of(v[0], v[1], v[2], r, r, fs ^ 0x7711);
+			double depth = 0.012 + 0.010 * (r - 0.042) / 0.068;
+			smallRelief[i] = ReliefCrater.of(v[0], v[1], v[2], r, depth, depth * 0.50, r > 0.085);
 		}
 
 		double radius = diameter / 2.0;
 		double innerLimit = interiorLimit(radius);
+		double innerRadiusSq = (radius * innerLimit) * (radius * innerLimit);
+		double minRadius = radius * (1.0 - BlueprintGenerator.MAX_RELIEF_FRAC);
+		double minRadiusSq = minRadius * minRadius;
+		double maxRadius = radius * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC);
+		double maxRadiusSq = maxRadius * maxRadius;
 		return new Blueprint(AstronomyClass.MOON,
 			(x, y, z) -> {
 				double distSq = (double) x * x + (double) y * y + (double) z * z;
-				if (distSq > radius * radius) return 0;
+				if (distSq > maxRadiusSq) return 0;
+				if (distSq < innerRadiusSq) {
+					double norm = Math.sqrt(distSq) / radius;
+					if (norm < 0.25) return ironCore;
+					if (norm < 0.85) return mantle;
+					return crustIn;
+				}
 				double dist = Math.sqrt(distSq);
-				double norm = dist / radius;
 				double inv = dist > 0.0 ? 1.0 / dist : 0.0;
 				double ux = x * inv;
 				double uy = dist > 0.0 ? y * inv : 1.0;
 				double uz = z * inv;
 
-				if (norm < innerLimit) {
-					if (norm < 0.25) return ironCore;
-					if (norm < 0.85) return mantle;
-					return crustIn;
+				if (distSq >= minRadiusSq) {
+					double mareApprox = SurfacePainter.sphereFbm(ux, uy, uz, 2.4, 2, seed ^ 0x1A2B);
+					double approxBasin = 0.0;
+					for (TangentFeature m : maria) {
+						double dot = ux * m.cx + uy * m.cy + uz * m.cz;
+						if (dot > 0.70) {
+							double ang = Math.sqrt(Math.max(0.0, 2.0 * (1.0 - dot)));
+							double s = SurfacePainter.smoothstep(m.radiusA * 1.25, m.radiusA * 0.20,
+								ang + (mareApprox - 0.5) * 0.30);
+							if (s > approxBasin) approxBasin = s;
+						}
+					}
+					double mareSmooth = SurfacePainter.smoothstep(0.46, 0.72,
+						SurfacePainter.clamp01(approxBasin * 0.48 + mareApprox * 0.66));
+					double highlandH = 0.008;
+					if (mareSmooth < 0.99) {
+						double highlandNoise = SurfacePainter.sphereFbm(ux, uy, uz, 4.2, 2, seed ^ 0x416E);
+						highlandH = 0.008 + (highlandNoise - 0.5) * 0.036;
+					}
+					double mareH = -0.010 + (mareApprox - 0.5) * 0.004;
+					double rayH = sumCraterRelief(ux, uy, uz, rayRelief);
+					double smallH = sumCraterRelief(ux, uy, uz, smallRelief);
+					double localRadius = reliefRadius(radius,
+						highlandH * (1.0 - mareSmooth) + mareH * mareSmooth + rayH + smallH * (1.0 - 0.55 * mareSmooth));
+					if (dist > localRadius) return 0;
 				}
 
 				double mareNoise = SurfacePainter.warpedSphereFbm(ux, uy, uz, 2.4, 3, 2.0, 0.38, seed ^ 0x1A2B);
-				double hTex = SurfacePainter.warpedSphereFbm(ux, uy, uz, 5.5, 3, 2.5, 0.25, seed ^ 0xF00F);
-				double micro = SurfacePainter.sphereFbm(ux, uy, uz, 16.0, 2, seed ^ 0x3C4D);
-				double regolithField = SurfacePainter.smoothstep(0.28, 0.72, 0.60 * hTex + 0.40 * micro);
-
 				double basinScore = 0.0;
 				for (TangentFeature m : maria) {
 					double dot = ux * m.cx + uy * m.cy + uz * m.cz;
@@ -376,6 +464,10 @@ final class BlueprintShapes {
 					}
 				}
 				double mareField = SurfacePainter.clamp01(basinScore * 0.48 + mareNoise * 0.66);
+				double hTex = SurfacePainter.warpedSphereFbm(ux, uy, uz, 5.5, 3, 2.5, 0.25, seed ^ 0xF00F);
+				double micro = SurfacePainter.sphereFbm(ux, uy, uz, 16.0, 2, seed ^ 0x3C4D);
+				double regolithField = SurfacePainter.smoothstep(0.28, 0.72, 0.60 * hTex + 0.40 * micro);
+
 				int mareMat = mareRamp.sampleDithered(regolithField, 0.40,
 					x, y, z, seed ^ 0x4A2E);
 				int highMat = highlandRamp.sampleDithered(regolithField, 0.45,
@@ -443,12 +535,13 @@ final class BlueprintShapes {
 	// ================================================================== MARS
 
 	/**
-	 * Mars: rust-red plains, dark basaltic albedo provinces, Valles Marineris, Hellas Basin, and polar caps.
+	 * Mars: rust-red plains, dark basaltic albedo provinces, Olympus Mons, Valles Marineris, Hellas Basin, and polar caps.
 	 */
 	static Blueprint mars(MaterialPalette palette, int diameter, double scale, int seed) {
-		// NASA Mars Facts / MRO (https://science.nasa.gov/mars/facts/): rusty iron-oxide plains,
-		// dark basaltic albedo regions, Valles Marineris (~3,000-4,000 km canyon at 0-20 deg S),
-		// Hellas Planitia (~2,200 km basin at ~35-42 deg S), and polar ice caps.
+		// NASA Mars Facts / MOLA / MRO (https://science.nasa.gov/mars/facts/): rusty iron-oxide
+		// plains, lower northern lowlands vs southern cratered highlands, Olympus Mons (~21.9 km
+		// shield volcano on Tharsis), Valles Marineris (~7 km deep canyon), Hellas Planitia (~7 km
+		// deep basin), and polar ice caps.
 		int ironCore   = palette.indexOf(Palette.RAW_IRON_BLOCK);
 		int mantleIn   = palette.indexOf(Palette.NETHERRACK);
 		int crustIn    = palette.indexOf(Palette.STONE);
@@ -491,28 +584,44 @@ final class BlueprintShapes {
 		TangentFeature valles  = TangentFeature.of(0.95, -0.18, -0.25, 0.46, 0.055, seed ^ 0xCA47);
 		TangentFeature hellas  = TangentFeature.of(-0.28, -0.62, -0.73, 0.28, 0.22, seed ^ 0x4E11);
 		TangentFeature tharsis = TangentFeature.of(0.55, 0.14, 0.82, 0.36, 0.32, seed ^ 0x74A2);
+		TangentFeature olympus = TangentFeature.of(0.76, 0.33, 0.56, 0.17, 0.17, seed ^ 0x01A9);
+
+		List<ReliefCrater> craterList = new ArrayList<>(24);
+		for (int i = 0; i < 40 && craterList.size() < 24; i++) {
+			int fs = seed ^ ((i + 1) * 0x9E3779B1);
+			double[] v = VoxelNoise.unitVector(fs);
+			double oDot = v[0] * olympus.cx + v[1] * olympus.cy + v[2] * olympus.cz;
+			double vDot = v[0] * valles.cx + v[1] * valles.cy + v[2] * valles.cz;
+			if (oDot > 0.96 || vDot > 0.94) continue;
+			double r = 0.038 + 0.057 * VoxelNoise.hashUnit(i, 7, 0, seed ^ 0xCA7E);
+			double depth = 0.011 + 0.010 * VoxelNoise.hashUnit(i, 11, 0, seed ^ 0xCA7E);
+			craterList.add(ReliefCrater.of(v[0], v[1], v[2], r, depth, depth * 0.45, r > 0.075));
+		}
+		ReliefCrater[] craters = craterList.toArray(ReliefCrater[]::new);
 
 		double radius = diameter / 2.0;
 		double innerLimit = interiorLimit(radius);
+		double innerRadiusSq = (radius * innerLimit) * (radius * innerLimit);
+		double minRadius = radius * (1.0 - BlueprintGenerator.MAX_RELIEF_FRAC);
+		double minRadiusSq = minRadius * minRadius;
+		double maxRadius = radius * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC);
+		double maxRadiusSq = maxRadius * maxRadius;
 		return new Blueprint(AstronomyClass.MARS,
 			(x, y, z) -> {
 				double distSq = (double) x * x + (double) y * y + (double) z * z;
-				if (distSq > radius * radius) return 0;
+				if (distSq > maxRadiusSq) return 0;
+				if (distSq < innerRadiusSq) {
+					double norm = Math.sqrt(distSq) / radius;
+					if (norm < 0.45) return ironCore;
+					if (norm < 0.85) return mantleIn;
+					return crustIn;
+				}
 				double dist = Math.sqrt(distSq);
-				double norm = dist / radius;
 				double inv = dist > 0.0 ? 1.0 / dist : 0.0;
 				double ux = x * inv;
 				double uy = dist > 0.0 ? y * inv : 1.0;
 				double uz = z * inv;
 
-				if (norm < innerLimit) {
-					if (norm < 0.45) return ironCore;
-					if (norm < 0.85) return mantleIn;
-					return crustIn;
-				}
-
-				double macro = SurfacePainter.warpedSphereFbm(ux, uy, uz, 2.3, 3, 2.0, 0.42, seed);
-				double detail = SurfacePainter.sphereFbm(ux, uy, uz, 7.5, 3, 0.5, 2.0, seed ^ 0x9191);
 				double tharsisBoost = 0.0;
 				if (ux * tharsis.cx + uy * tharsis.cy + uz * tharsis.cz > 0.82) {
 					double dx = ux - tharsis.cx, dy = uy - tharsis.cy, dz = uz - tharsis.cz;
@@ -521,43 +630,89 @@ final class BlueprintShapes {
 					tharsisBoost = 0.20 * SurfacePainter.smoothstep(1.25, 0.25, Math.hypot(du, dv));
 				}
 
+				double oAng = Double.MAX_VALUE;
+				double oDot = ux * olympus.cx + uy * olympus.cy + uz * olympus.cz;
+				if (oDot > 0.95) {
+					oAng = Math.sqrt(Math.max(0.0, 2.0 * (1.0 - oDot)));
+				}
+
+				// Hellas Planitia geometry (shared between relief and basin shading).
+				double eR = Double.MAX_VALUE;
+				if (ux * hellas.cx + uy * hellas.cy + uz * hellas.cz > 0.85) {
+					double hellasNoise = VoxelNoise.noise3(ux * 7.5, uy * 7.5, uz * 7.5, seed ^ 0x9191);
+					double dx = ux - hellas.cx, dy = uy - hellas.cy, dz = uz - hellas.cz;
+					double du = (dx * hellas.t1x + dy * hellas.t1y + dz * hellas.t1z) / hellas.radiusA;
+					double dv = (dx * hellas.t2x + dy * hellas.t2y + dz * hellas.t2z) / hellas.radiusB;
+					eR = Math.hypot(du, dv) + (hellasNoise - 0.5) * 0.14;
+				}
+
+				// Valles Marineris geometry (shared between relief and canyon shading).
+				double halfW = 0.0;
+				double distSpine = Double.MAX_VALUE;
+				if (ux * valles.cx + uy * valles.cy + uz * valles.cz > 0.70) {
+					double dx = ux - valles.cx, dy = uy - valles.cy, dz = uz - valles.cz;
+					double du = dx * valles.t1x + dy * valles.t1y + dz * valles.t1z;
+					double dv = dx * valles.t2x + dy * valles.t2y + dz * valles.t2z;
+					if (Math.abs(du) < valles.radiusA) {
+						double canyonNoise = VoxelNoise.noise3(ux * 7.5, uy * 7.5, uz * 7.5, seed ^ 0x9191);
+						double spine = dv + (canyonNoise - 0.5) * 0.055 + 0.025 * Math.sin(du * 9.0);
+						double uNorm = du / valles.radiusA;
+						halfW = valles.radiusB * (1.0 - Math.min(1.0, uNorm * uNorm)) * (0.7 + 0.6 * canyonNoise);
+						distSpine = Math.abs(spine);
+					}
+				}
+
+				if (distSq >= minRadiusSq) {
+					double baseH = SurfacePainter.sphereFbm(ux, uy, uz, 2.5, 2, seed ^ 0x7E22);
+					double dichotomy = -0.007 * SurfacePainter.smoothstep(-0.15, 0.35, uy)
+						* Math.max(0.0, 1.0 - tharsisBoost * 4.5);
+					double terrain = dichotomy + (baseH - 0.5) * 0.024 + tharsisBoost * 0.07;
+
+					if (oAng < Double.MAX_VALUE) {
+						double oT = oAng / olympus.radiusA;
+						double shield = 0.035 * SurfacePainter.smoothstep(1.0, 0.08, oT);
+						double caldera = oAng < 0.028 ? 0.005 * (1.0 - (oAng / 0.028) * (oAng / 0.028)) : 0.0;
+						terrain += shield - caldera;
+					}
+					if (eR < 1.0) {
+						terrain -= 0.024 * SurfacePainter.smoothstep(1.0, 0.18, eR);
+					} else if (eR < 1.25) {
+						terrain += 0.007 * (1.0 - (eR - 1.0) / 0.25);
+					}
+					if (halfW > 1e-4 && distSpine < halfW * 1.45) {
+						terrain -= 0.032 * SurfacePainter.smoothstep(1.45, 0.15, distSpine / halfW);
+					}
+					terrain += sumCraterRelief(ux, uy, uz, craters);
+					double localRadius = reliefRadius(radius, terrain);
+					if (dist > localRadius) return 0;
+				}
+
+				double macro = SurfacePainter.warpedSphereFbm(ux, uy, uz, 2.3, 3, 2.0, 0.42, seed);
+				double detail = SurfacePainter.sphereFbm(ux, uy, uz, 7.5, 3, 0.5, 2.0, seed ^ 0x9191);
+
 				double albedo = SurfacePainter.smoothstep(0.24, 0.78, macro * 0.70 + detail * 0.30 + tharsisBoost);
 				int rustMat = rustRamp.sampleDithered(albedo, 0.45, x, y, z, seed ^ 0x2057);
 				int darkMat = darkRamp.sampleDithered(detail, 0.45, x, y, z, seed ^ 0xDA2C);
 				int mat = SurfacePainter.blend(darkMat, rustMat, macro + tharsisBoost * 0.5, 0.40, 0.18,
 					x, y, z, seed ^ 0xB1E4);
 
-				// Hellas Planitia: bright dust-filled basin with a darker rim collar.
-				if (ux * hellas.cx + uy * hellas.cy + uz * hellas.cz > 0.85) {
-					double dx = ux - hellas.cx, dy = uy - hellas.cy, dz = uz - hellas.cz;
-					double du = (dx * hellas.t1x + dy * hellas.t1y + dz * hellas.t1z) / hellas.radiusA;
-					double dv = (dx * hellas.t2x + dy * hellas.t2y + dz * hellas.t2z) / hellas.radiusB;
-					double eR = Math.hypot(du, dv) + (detail - 0.5) * 0.14;
-					if (eR < 1.0) {
-						int basinMat = hellasRamp.sampleDithered(1.0 - eR * 0.85, 0.40, x, y, z, hellas.seed);
-						mat = SurfacePainter.blend(mat, basinMat, 1.0 - eR, 0.25, 0.34, x, y, z, hellas.seed ^ 0x11);
-					} else if (eR < 1.25) {
-						mat = SurfacePainter.blend(mat, darkRamp.at(3), 1.25 - eR, 0.15, 0.20,
-							x, y, z, hellas.seed ^ 0x22);
-					}
+				if (oAng < 0.028) {
+					mat = SurfacePainter.blend(mat, darkRamp.at(2), 1.0 - oAng / 0.028, 0.45, 0.30,
+						x, y, z, olympus.seed);
 				}
 
-				// Valles Marineris: tapered equatorial-south canyon chasm.
-				if (ux * valles.cx + uy * valles.cy + uz * valles.cz > 0.70) {
-					double dx = ux - valles.cx, dy = uy - valles.cy, dz = uz - valles.cz;
-					double du = dx * valles.t1x + dy * valles.t1y + dz * valles.t1z;
-					double dv = dx * valles.t2x + dy * valles.t2y + dz * valles.t2z;
-					if (Math.abs(du) < valles.radiusA) {
-						double spine = dv + (detail - 0.5) * 0.055 + 0.025 * Math.sin(du * 9.0);
-						double uNorm = du / valles.radiusA;
-						double halfW = valles.radiusB * (1.0 - Math.min(1.0, uNorm * uNorm)) * (0.7 + 0.6 * detail);
-						double distSpine = Math.abs(spine);
-						if (halfW > 1e-4 && distSpine < halfW * 1.8) {
-							double cNorm = distSpine / (halfW * 1.8);
-							int cMat = canyonRamp.sampleDithered(cNorm, 0.35, x, y, z, valles.seed);
-							mat = SurfacePainter.blend(cMat, mat, cNorm, 0.68, 0.32, x, y, z, valles.seed ^ 0x33);
-						}
-					}
+				if (eR < 1.0) {
+					int basinMat = hellasRamp.sampleDithered(1.0 - eR * 0.85, 0.40, x, y, z, hellas.seed);
+					mat = SurfacePainter.blend(mat, basinMat, 1.0 - eR, 0.25, 0.34, x, y, z, hellas.seed ^ 0x11);
+				} else if (eR < 1.25) {
+					mat = SurfacePainter.blend(mat, darkRamp.at(3), 1.25 - eR, 0.15, 0.20,
+						x, y, z, hellas.seed ^ 0x22);
+				}
+
+				if (halfW > 1e-4 && distSpine < halfW * 1.8) {
+					double cNorm = distSpine / (halfW * 1.8);
+					int cMat = canyonRamp.sampleDithered(cNorm, 0.35, x, y, z, valles.seed);
+					mat = SurfacePainter.blend(cMat, mat, cNorm, 0.68, 0.32, x, y, z, valles.seed ^ 0x33);
 				}
 
 				// Polar ice caps with dark circumpolar sand collar.
@@ -745,22 +900,39 @@ final class BlueprintShapes {
 		int mantleIn  = palette.indexOf(Palette.GRANITE);
 		int crustIn   = palette.indexOf(Palette.BLACKSTONE);
 		double radius = diameter / 2.0;
+		double minRadius = radius * (1.0 - BlueprintGenerator.MAX_RELIEF_FRAC);
+		double minRadiusSq = minRadius * minRadius;
+		double maxRadius = radius * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC);
+		double maxRadiusSq = maxRadius * maxRadius;
 		return new Blueprint(AstronomyClass.VENUS,
 			(x, y, z) -> {
-				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
-				if (dist > radius) return 0;
-				double nx = x / radius, ny = y / radius, nz = z / radius;
+				double distSq = (double) x * x + (double) y * y + (double) z * z;
+				if (distSq > maxRadiusSq) return 0;
+				double dist = Math.sqrt(distSq);
 				double norm = dist / radius;
 				// Quarter-sphere cutaway: iron core → granite mantle → blackstone crust.
-				if (cutaway(x, z)) {
+				if (cutaway(x, z) && norm < 0.90) {
 					if (norm < 0.50) return ironCore;
 					if (norm < 0.82) return mantleIn;
-					if (norm < 0.90) return crustIn;
-					// fall through to cloud deck at rim
+					return crustIn;
 				}
+				double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+				double ux = x * inv;
+				double uy = dist > 0.0 ? y * inv : 1.0;
+				double uz = z * inv;
+
+				if (distSq >= minRadiusSq) {
+					// NASA Magellan radar altimetry (https://science.nasa.gov/venus/facts/):
+					// ~80% volcanic plains with broad highlands (Ishtar/Aphrodite Terra) and lowland basins.
+					double topo = SurfacePainter.sphereFbm(ux, uy, uz, 2.6, 3, seed ^ 0x7E40);
+					double relief = (SurfacePainter.smoothstep(0.24, 0.76, topo) - 0.5) * 0.044;
+					double localRadius = reliefRadius(radius, relief);
+					if (dist > localRadius) return 0;
+				}
+
 				// Swirling cloud noise at two frequencies
-				double swirl1 = VoxelNoise.noise3(nx * 3.0 + ny * 1.5, ny * 3.0, nz * 3.0 + nx, seed);
-				double swirl2 = VoxelNoise.noise3(nx * 6.0, ny * 6.0 + nz, nz * 5.0, seed ^ 0xBEEF);
+				double swirl1 = VoxelNoise.noise3(ux * 3.0 + uy * 1.5, uy * 3.0, uz * 3.0 + ux, seed);
+				double swirl2 = VoxelNoise.noise3(ux * 6.0, uy * 6.0 + uz, uz * 5.0, seed ^ 0xBEEF);
 				double combined = swirl1 * 0.6 + swirl2 * 0.4;
 				if (combined > 0.72) return pale;
 				if (combined > 0.62) return cream;
@@ -983,29 +1155,63 @@ final class BlueprintShapes {
 		int ironCore = palette.indexOf(Palette.IRON_BLOCK);
 		int mantleIn = palette.indexOf(Palette.GRANITE);
 		int crustIn  = palette.indexOf(Palette.STONE);
+		// NASA MESSENGER (https://science.nasa.gov/mercury/facts/): heavily cratered
+		// silicate surface with raised crater rims and smooth volcanic intercrater plains.
 		double radius = diameter / 2.0;
-		int craterCount = 24;
+		double minRadius = radius * (1.0 - BlueprintGenerator.MAX_RELIEF_FRAC);
+		double minRadiusSq = minRadius * minRadius;
+		double maxRadius = radius * (1.0 + BlueprintGenerator.MAX_RELIEF_FRAC);
+		double maxRadiusSq = maxRadius * maxRadius;
+		int craterCount = 28;
+		ReliefCrater[] craters = new ReliefCrater[craterCount];
+		for (int i = 0; i < craterCount; i++) {
+			int fs = seed ^ ((i + 1) * 0x9E3779B1);
+			double[] v = VoxelNoise.unitVector(fs);
+			double r = 0.052 + 0.072 * VoxelNoise.hashUnit(i, 3, 0, seed ^ 0xC4A7);
+			double depth = 0.018 + 0.012 * VoxelNoise.hashUnit(i, 5, 0, seed ^ 0xC4A7);
+			craters[i] = ReliefCrater.of(v[0], v[1], v[2], r, depth, depth * 0.58, r > 0.095);
+		}
 		return new Blueprint(AstronomyClass.MERCURY,
 			(x, y, z) -> {
-				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
-				if (dist > radius) return 0;
-				double nx = x / radius, ny = y / radius, nz = z / radius;
+				double distSq = (double) x * x + (double) y * y + (double) z * z;
+				if (distSq > maxRadiusSq) return 0;
+				double dist = Math.sqrt(distSq);
 				double norm = dist / radius;
 				// Quarter-sphere cutaway: Mercury has an unusually large iron core.
-				if (cutaway(x, z)) {
+				if (cutaway(x, z) && norm < 0.95) {
 					if (norm < 0.70) return ironCore;
 					if (norm < 0.88) return mantleIn;
-					if (norm < 0.95) return crustIn;
+					return crustIn;
 				}
-				// Craters
-				int ce = craterEffect(x, y, z, craterCount, seed, radius, 0.06, rimBlock);
-				if (ce == 0) return 0;
-				if (ce > 0) return ce;
+				double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+				double ux = x * inv;
+				double uy = dist > 0.0 ? y * inv : 1.0;
+				double uz = z * inv;
+
+				boolean onRim = false;
+				if (distSq >= minRadiusSq) {
+					double baseTerrain = (SurfacePainter.smoothstep(0.25, 0.75,
+						SurfacePainter.sphereFbm(ux, uy, uz, 3.5, 2, seed ^ 0x4E1F)) - 0.5) * 0.026;
+					double craterH = 0.0;
+					for (ReliefCrater c : craters) {
+						double dot = ux * c.cx + uy * c.cy + uz * c.cz;
+						if (dot <= c.cosOuter) continue;
+						craterH += c.reliefAt(ux, uy, uz);
+						double ang = Math.sqrt(Math.max(0.0, 2.0 * (1.0 - dot)));
+						double t = ang / c.angularRadius;
+						if (t >= 0.84 && t <= 1.15) {
+							onRim = true;
+						}
+					}
+					double localRadius = reliefRadius(radius, baseTerrain + craterH);
+					if (dist > localRadius) return 0;
+				}
+				if (onRim) return rimBlock;
 				// Dark volcanic lowlands
-				double base = VoxelNoise.noise3(nx * 2.6, ny * 2.6, nz * 2.6, seed);
+				double base = VoxelNoise.noise3(ux * 2.6, uy * 2.6, uz * 2.6, seed);
 				if (base > 0.65) return darkCr;
 				if (base > 0.52) return dark;
-				double tex = VoxelNoise.noise3(nx * 6.0, ny * 6.0, nz * 6.0, seed ^ 0x4E4E);
+				double tex = VoxelNoise.noise3(ux * 6.0, uy * 6.0, uz * 6.0, seed ^ 0x4E4E);
 				return tex > 0.55 ? dusty : surface;
 			},
 			palette, scale, diameter);
