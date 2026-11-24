@@ -29,6 +29,15 @@ import java.util.Map;
 import net.kyrangit.solaria.blueprint.InternalStructure;
 import net.kyrangit.solaria.blueprint.InternalStructure.Layer;
 import net.kyrangit.solaria.blueprint.InternalStructure.LayerSpan;
+import net.kyrangit.solaria.intro.HubLayout;
+import net.kyrangit.solaria.intro.OrbitPuzzle;
+import net.minecraft.SharedConstants;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.server.Bootstrap;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * Renders blueprints to PNGs under {@code build/previews/} using an average colour per block.
@@ -223,9 +232,16 @@ public final class BlueprintPreview {
 		Path outDir = Path.of("build", "previews");
 		Files.createDirectories(outDir);
 
-		boolean wikiInternalOnly = containsArg(args, "wiki-internal");
-		boolean includeInternal = wikiInternalOnly || containsArg(args, "internal");
-		boolean renderAll = !wikiInternalOnly && args.length == 0;
+		boolean hubOnly = containsArg(args, "hub");
+		boolean wikiInternalOnly = !hubOnly && containsArg(args, "wiki-internal");
+		boolean includeInternal = wikiInternalOnly || (!hubOnly && containsArg(args, "internal"));
+		boolean renderAll = !hubOnly && !wikiInternalOnly && args.length == 0;
+		if (hubOnly || renderAll) {
+			renderHubTopDown(outDir);
+		}
+		if (hubOnly) {
+			return;
+		}
 		Path wikiInternalDir = Path.of("wiki", "assets", "solariamod", "internal");
 		if (renderAll || includeInternal) {
 			Files.createDirectories(wikiInternalDir);
@@ -861,6 +877,141 @@ public final class BlueprintPreview {
 			+ structure.minY() + ".." + structure.maxY() + "]", 16, h - 14);
 		g.dispose();
 		return img;
+	}
+
+	private static void renderHubTopDown(Path outDir) throws IOException {
+		SharedConstants.tryDetectVersion();
+		Bootstrap.bootStrap();
+		Map<BlockPos, BlockState> blocks = new HashMap<>();
+		HubLayout.build(new HubLayout.Sink() {
+			@Override public void block(BlockPos pos, BlockState state) {
+				blocks.put(pos.immutable(), state);
+			}
+
+			@Override public void sign(BlockPos pos, Direction facing, String... lines) {
+				blocks.put(pos.immutable(), Blocks.OAK_SIGN.defaultBlockState());
+			}
+		});
+
+		final int cell = 9;
+		final int span = HubLayout.RADIUS * 2 + 1; // 73 blocks -> 657 px
+		final int w = 760;
+		final int h = 760;
+		final int mapX = (w - span * cell) / 2;
+		final int mapY = 66;
+		BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+		Graphics2D g = img.createGraphics();
+		g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+		g.setColor(new Color(0x090D16));
+		g.fillRect(0, 0, w, h);
+		g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 20));
+		g.setColor(new Color(0xF8FAFC));
+		g.drawString("Solaria Academy — Top-Down Quiz Layout (Step 11)", 24, 34);
+		g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+		g.setColor(new Color(0x94A3B8));
+		g.drawString("Radius " + HubLayout.RADIUS + "  •  West: Stage 1 (Inner)  |  North: Stage 2 (Outer+Moon)  |  East: Stage 3 (Giants Timed)", 24, 54);
+
+		for (int x = -HubLayout.RADIUS; x <= HubLayout.RADIUS; x++) {
+			for (int z = -HubLayout.RADIUS; z <= HubLayout.RADIUS; z++) {
+				int px = mapX + (x + HubLayout.RADIUS) * cell;
+				int py = mapY + (z + HubLayout.RADIUS) * cell;
+				BlockState floor = blocks.getOrDefault(new BlockPos(x, HubLayout.FLOOR_Y, z), Blocks.AIR.defaultBlockState());
+				BlockState feet = blocks.getOrDefault(new BlockPos(x, HubLayout.FLOOR_Y + 1, z), Blocks.AIR.defaultBlockState());
+				BlockState roofLow = blocks.getOrDefault(new BlockPos(x, HubLayout.TUNNEL_CEILING_Y, z), Blocks.AIR.defaultBlockState());
+				if (floor.isAir()) {
+					g.setColor(new Color(0x090D16));
+					g.fillRect(px, py, cell, cell);
+					continue;
+				}
+				Color c;
+				if (!feet.isAir() && !feet.is(Blocks.STONE_BUTTON) && !feet.is(Blocks.OAK_SIGN)) {
+					c = hubPreviewColour(feet.getBlock(), true);
+				} else {
+					c = hubPreviewColour(floor.getBlock(), false);
+					if (!roofLow.isAir()) {
+						c = new Color(
+							Math.min(255, c.getRed() + 14),
+							Math.min(255, c.getGreen() + 18),
+							Math.min(255, c.getBlue() + 26));
+					}
+				}
+				g.setColor(c);
+				g.fillRect(px, py, cell, cell);
+				if (HubLayout.isWall(x, z)) {
+					g.setColor(new Color(0x334155));
+					g.drawRect(px, py, cell - 1, cell - 1);
+				}
+			}
+		}
+
+		// Highlight interactive controls and lamps so every station is readable at a glance.
+		drawHubMarker(g, mapX, mapY, cell, HubLayout.SPAWN, new Color(0xF8FAFC), true);
+		drawHubMarker(g, mapX, mapY, cell, HubLayout.TERMINAL, new Color(0x22C55E), true);
+		drawHubMarker(g, mapX, mapY, cell, HubLayout.EXIT, new Color(0x06B6D4), true);
+		drawHubMarker(g, mapX, mapY, cell, HubLayout.START, new Color(0xF59E0B), true);
+		for (int slot = 0; slot < OrbitPuzzle.SLOTS; slot++) {
+			drawHubMarker(g, mapX, mapY, cell, HubLayout.pedestal(slot), new Color(0xFACC15), false);
+		}
+		for (HubLayout.SupplyButton supply : HubLayout.supplyButtons()) {
+			drawHubMarker(g, mapX, mapY, cell, supply.pos(), new Color(0xE2E8F0), false);
+		}
+		for (int stage = 0; stage < 3; stage++) {
+			for (BlockPos lamp : HubLayout.progressLamps(stage)) {
+				drawHubMarker(g, mapX, mapY, cell, lamp, new Color(0x38BDF8), true);
+			}
+		}
+
+		g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+		drawCenteredLabel(g, "CENTRAL HUB", mapX + (HubLayout.RADIUS) * cell + cell / 2, mapY + HubLayout.RADIUS * cell + cell / 2 - 14, new Color(0xF8FAFC));
+		drawCenteredLabel(g, "ROOM 1 (Stage 1)", mapX + (HubLayout.RADIUS - HubLayout.ROOM_OFFSET) * cell, mapY + HubLayout.RADIUS * cell - 4, new Color(0x93C5FD));
+		drawCenteredLabel(g, "Inner Worlds", mapX + (HubLayout.RADIUS - HubLayout.ROOM_OFFSET) * cell, mapY + HubLayout.RADIUS * cell + 12, new Color(0xCBD5E1));
+		drawCenteredLabel(g, "ROOM 2 (Stage 2)", mapX + HubLayout.RADIUS * cell + 4, mapY + (HubLayout.RADIUS - HubLayout.ROOM_OFFSET) * cell - 4, new Color(0x67E8F9));
+		drawCenteredLabel(g, "Outer + Moon", mapX + HubLayout.RADIUS * cell + 4, mapY + (HubLayout.RADIUS - HubLayout.ROOM_OFFSET) * cell + 12, new Color(0xCBD5E1));
+		drawCenteredLabel(g, "ROOM 3 (Stage 3)", mapX + (HubLayout.RADIUS + HubLayout.ROOM_OFFSET) * cell, mapY + HubLayout.RADIUS * cell - 4, new Color(0xD8B4FE));
+		drawCenteredLabel(g, "Ringed Giants", mapX + (HubLayout.RADIUS + HubLayout.ROOM_OFFSET) * cell, mapY + HubLayout.RADIUS * cell + 12, new Color(0xCBD5E1));
+
+		g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+		g.setColor(new Color(0xCBD5E1));
+		g.drawString("Markers: White=Spawn | Yellow=Orbit Slots | LightGray=Local Supply | Green=Depot | Cyan=Exit | Amber=START | Blue=Progress Lamps", 24, h - 14);
+		g.dispose();
+
+		Path out = outDir.resolve("intro_hub_topdown.png");
+		ImageIO.write(img, "png", out.toFile());
+		System.out.println("[hub] wrote " + out);
+	}
+
+	private static void drawHubMarker(Graphics2D g, int mapX, int mapY, int cell, BlockPos pos, Color c, boolean filledSquare) {
+		int px = mapX + (pos.getX() + HubLayout.RADIUS) * cell;
+		int py = mapY + (pos.getZ() + HubLayout.RADIUS) * cell;
+		g.setColor(c);
+		if (filledSquare) {
+			g.fillRect(px + 1, py + 1, cell - 2, cell - 2);
+		} else {
+			g.fillOval(px + 2, py + 2, cell - 4, cell - 4);
+		}
+	}
+
+	private static void drawCenteredLabel(Graphics2D g, String text, int cx, int y, Color color) {
+		int width = g.getFontMetrics().stringWidth(text);
+		g.setColor(new Color(0x090D16));
+		g.fillRoundRect(cx - width / 2 - 4, y - 11, width + 8, 14, 4, 4);
+		g.setColor(color);
+		g.drawString(text, cx - width / 2, y);
+	}
+
+	private static Color hubPreviewColour(Block b, boolean wall) {
+		if (b == Blocks.SEA_LANTERN) return new Color(0x7DE7FF);
+		if (b == Blocks.BLUE_CONCRETE) return wall ? new Color(0x1D4ED8) : new Color(0x2563EB);
+		if (b == Blocks.CYAN_CONCRETE) return wall ? new Color(0x0E7490) : new Color(0x06B6D4);
+		if (b == Blocks.PURPLE_CONCRETE) return wall ? new Color(0x7E22CE) : new Color(0x9333EA);
+		if (b == Blocks.LIME_CONCRETE) return new Color(0x22C55E);
+		if (b == Blocks.QUARTZ_BRICKS) return wall ? new Color(0xCBD5E1) : new Color(0xE2E8F0);
+		if (b == Blocks.POLISHED_DEEPSLATE) return wall ? new Color(0x1E293B) : new Color(0x273449);
+		if (b == Blocks.DEEPSLATE_TILES) return new Color(0x1A2233);
+		if (b == Blocks.GRAY_CONCRETE) return new Color(0x64748B);
+		return new Color(0x334155);
 	}
 
 	private record VarietyReport(int distinctBlocks, String topBlock, double topSharePct,

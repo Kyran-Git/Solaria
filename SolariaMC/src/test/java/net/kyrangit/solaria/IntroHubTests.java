@@ -3,25 +3,28 @@ package net.kyrangit.solaria;
 import net.kyrangit.solaria.blueprint.AstronomyClass;
 import net.kyrangit.solaria.intro.HubLayout;
 import net.kyrangit.solaria.intro.IntroHub;
-import net.kyrangit.solaria.intro.StarChart;
 import net.kyrangit.solaria.intro.IntroQuiz;
 import net.kyrangit.solaria.intro.OrbitPuzzle;
+import net.kyrangit.solaria.intro.StarChart;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
+import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Plumbing check (synthetic) for Solaria Academy. Exercises the real quiz rules and renders the
- * real hub layout into memory. It does not start a server or prove the hub is fun or readable.
+ * Plumbing check (synthetic) for Solaria Academy. Exercises the real quiz rules, renders the
+ * real hub layout into memory, and proves BFS reachability, isolation, and hazard-free enclosure.
  */
 public final class IntroHubTests {
     private static int assertions;
@@ -78,7 +81,6 @@ public final class IntroHubTests {
             check(q.choices().stream().allMatch(c -> c.length() <= 15), q.title() + " answers fit on a sign");
             check(!q.explanation().isBlank(), q.title() + " teaches after an answer");
         }
-        // Every one of the 3! visiting orders must finish the mission with the same rules.
         int[][] orders = {{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}};
         for (int[] order : orders) {
             int solved = 0;
@@ -114,7 +116,6 @@ public final class IntroHubTests {
             "corrupt saved progress is rejected");
         check(IntroQuiz.MASK_CODEC.parse(json, new com.google.gson.JsonPrimitive(5)).result().orElse(-1) == 5,
             "saved any-order progress round-trips");
-        // Saves from the earlier in-order version stored a count; it maps to the first n stations.
         check(IntroQuiz.fromLegacyCount(0) == 0, "legacy 0/3 migrates to nothing solved");
         check(IntroQuiz.fromLegacyCount(1) == 0b001 && IntroQuiz.fromLegacyCount(2) == 0b011, "legacy partial progress keeps solved stations");
         check(IntroQuiz.fromLegacyCount(3) == IntroQuiz.ALL, "legacy 3/3 migrates to complete");
@@ -126,7 +127,7 @@ public final class IntroHubTests {
     }
 
     private static void orbitRules() {
-        check(OrbitPuzzle.CORES.equals(java.util.List.of("mercury", "venus", "earth", "mars", "jupiter",
+        check(OrbitPuzzle.CORES.equals(List.of("mercury", "venus", "earth", "mars", "jupiter",
             "saturn", "uranus", "neptune", "moon")), "core indices follow orbital order plus Moon");
         check(OrbitPuzzle.ALL == 8191 && OrbitPuzzle.SLOTS == 13, "thirteen placement bits");
         var json = com.mojang.serialization.JsonOps.INSTANCE;
@@ -180,12 +181,9 @@ public final class IntroHubTests {
         check(OrbitPuzzle.complete(mask), "timed stage retries in any slot order");
     }
 
-    private static void layout() {
-        Map<BlockPos, BlockState> blocks = new HashMap<>();
-        Set<BlockPos> signs = new HashSet<>();
-        Map<BlockPos, java.util.List<String>> labels = new HashMap<>();
-        // A leftover old floating model must be erased by the v3 rebuild.
-        blocks.put(new BlockPos(-16, 74, -19), Blocks.BLUE_CONCRETE.defaultBlockState());
+    private static Map<BlockPos, BlockState> buildOnce(Set<BlockPos> signs, Map<BlockPos, List<String>> labels,
+                                                       Map<BlockPos, BlockState> seed) {
+        Map<BlockPos, BlockState> blocks = new HashMap<>(seed);
         HubLayout.build(new HubLayout.Sink() {
             @Override public void block(BlockPos pos, BlockState state) {
                 blocks.put(pos.immutable(), state);
@@ -199,79 +197,222 @@ public final class IntroHubTests {
                 blocks.put(pos.immutable(), Blocks.BIRCH_WALL_SIGN.defaultBlockState()
                     .setValue(BlockStateProperties.HORIZONTAL_FACING, facing));
                 check(signs.add(pos.immutable()), "sign positions unique");
-                labels.put(pos.immutable(), java.util.List.of(lines));
+                labels.put(pos.immutable(), List.of(lines));
             }
         });
+        return blocks;
+    }
+
+    private static void layout() {
+        Set<BlockPos> signs = new HashSet<>();
+        Map<BlockPos, List<String>> labels = new HashMap<>();
+        // Leftover legacy v5 blocks (floating Sun, void pit, old station) must be cleared.
+        Map<BlockPos, BlockState> seed = Map.of(
+            new BlockPos(-16, 74, -19), Blocks.BLUE_CONCRETE.defaultBlockState(),
+            new BlockPos(0, 87, -3), Blocks.SHROOMLIGHT.defaultBlockState(),
+            new BlockPos(6, 48, 6), Blocks.PEARLESCENT_FROGLIGHT.defaultBlockState()
+        );
+        Map<BlockPos, BlockState> blocks = buildOnce(signs, labels, seed);
+
+        Set<BlockPos> signs2 = new HashSet<>();
+        Map<BlockPos, List<String>> labels2 = new HashMap<>();
+        Map<BlockPos, BlockState> blocks2 = buildOnce(signs2, labels2, Map.of());
+        check(blocks.equals(blocks2) && labels.equals(labels2), "hub layout builds deterministically");
+
         check(blocks.keySet().stream().allMatch(p -> Math.abs(p.getX()) <= HubLayout.RADIUS
             && Math.abs(p.getZ()) <= HubLayout.RADIUS && p.getY() >= HubLayout.VOID_BOTTOM && p.getY() < HubLayout.TOP_Y),
-            "the build stays inside its bounded footprint");
-        check(blocks.entrySet().stream().noneMatch(e -> e.getValue().is(Blocks.END_ROD) && e.getKey().getY() >= HubLayout.FLOOR_Y),
-            "end-rod stars stay below the flat walking floor");
-        check(blocks.entrySet().stream().filter(e -> e.getValue().is(Blocks.END_ROD)).count() > 50, "void floor has stars");
-        check(blocks.get(new BlockPos(6, HubLayout.FLOOR_Y, 6)).is(Blocks.BLACK_STAINED_GLASS)
-            && blocks.get(new BlockPos(6, HubLayout.VOID_BOTTOM + 2, 6)).is(Blocks.BLACK_CARPET)
-            && blocks.get(new BlockPos(6, HubLayout.VOID_BOTTOM + 1, 6)).getLightEmission() > 0, "void floor glows from below");
-        int sunBottom = blocks.entrySet().stream().filter(e -> e.getValue().is(Blocks.SHROOMLIGHT)
-            && e.getKey().getY() > HubLayout.FLOOR_Y).mapToInt(e -> e.getKey().getY()).min().orElseThrow();
-        check(sunBottom - (HubLayout.SPAWN.getY() + 1) > 10, "Sun model floats 10+ blocks above a player's head");
-        long sunWidth = blocks.entrySet().stream().filter(e -> e.getKey().getY() == HubLayout.SUN_CENTRE.getY()
-            && e.getKey().getZ() == HubLayout.SUN_CENTRE.getZ() && !e.getValue().isAir()).count();
-        check(sunWidth >= 20, "Sun model is about 20 blocks across");
-        for (int x = -HubLayout.RADIUS; x <= HubLayout.RADIUS; x++) {
-            for (int z = -HubLayout.RADIUS; z <= HubLayout.RADIUS; z++) {
-                double d = Math.sqrt(x * x + (z + 3) * (z + 3));
-                BlockState mirror = blocks.get(new BlockPos(-x, HubLayout.FLOOR_Y, z));
-                if (d <= 21) check(blocks.get(new BlockPos(x, HubLayout.FLOOR_Y, z)).getBlock() == mirror.getBlock()
-                    || blocks.get(new BlockPos(x, HubLayout.FLOOR_Y + 1, z)) != null && !blocks.get(new BlockPos(x, HubLayout.FLOOR_Y + 1, z)).isAir()
-                    || !blocks.get(new BlockPos(-x, HubLayout.FLOOR_Y + 1, z)).isAir(),
-                    "orbit floor pattern is symmetric at " + x + "," + z);
-            }
-        }
+            "build stays inside its bounded footprint");
+        check(blocks.get(new BlockPos(-16, 74, -19)).isAir()
+            && blocks.get(new BlockPos(0, 87, -3)).isAir()
+            && blocks.get(new BlockPos(6, 48, 6)).isAir(), "legacy v5 fixtures cleared");
+
+        Set<Block> hazards = Set.of(
+            Blocks.LAVA, Blocks.MAGMA_BLOCK, Blocks.FIRE, Blocks.SOUL_FIRE,
+            Blocks.CAMPFIRE, Blocks.SOUL_CAMPFIRE, Blocks.CACTUS,
+            Blocks.POINTED_DRIPSTONE, Blocks.SHROOMLIGHT
+        );
+        check(blocks.values().stream().noneMatch(s -> hazards.contains(s.getBlock())),
+            "zero lava or hazard blocks placed anywhere in hub");
+
         check(blocks.get(HubLayout.SPAWN.below()).isSolid(), "arrival point has solid floor");
         check(blocks.getOrDefault(HubLayout.SPAWN, Blocks.AIR.defaultBlockState()).isAir()
-            && blocks.getOrDefault(HubLayout.SPAWN.above(), Blocks.AIR.defaultBlockState()).isAir(), "arrival point has headroom");
-        check(blocks.get(new BlockPos(-16, 74, -19)).isAir(), "old floating model removed");
-        for (int x = -HubLayout.RADIUS; x <= HubLayout.RADIUS; x++) {
-            for (int z = -HubLayout.RADIUS; z <= HubLayout.RADIUS; z++) {
-                check(blocks.get(new BlockPos(x, HubLayout.FLOOR_Y, z)).isSolid(), "continuous floor");
-            }
-        }
+            && blocks.getOrDefault(HubLayout.SPAWN.above(), Blocks.AIR.defaultBlockState()).isAir(),
+            "arrival point has headroom");
+
         Set<BlockPos> buttons = new HashSet<>();
         Set<BlockPos> markers = new HashSet<>();
-        for (int core = 0; core < 9; core++) {
-            BlockPos pos = HubLayout.supply(core);
-            button(blocks, signs, pos);
-            check(buttons.add(pos), "supply unique");
-            check(labels.get(pos.above()).contains(OrbitPuzzle.name(core)), "supply identifies core");
+        for (HubLayout.SupplyButton supply : HubLayout.supplyButtons()) {
+            button(blocks, signs, supply.pos());
+            check(buttons.add(supply.pos()), "supply button unique at " + supply.pos());
+            check(labels.get(supply.pos().above()).contains(OrbitPuzzle.name(supply.core())),
+                "supply identifies core");
+            check(HubLayout.isRoom(supply.stage(), supply.pos().getX(), supply.pos().getZ()),
+                "supply sits inside its own stage room");
         }
-        for (int slot = 0; slot < 13; slot++) {
+        check(HubLayout.supplyButtons().size() == 13, "all 13 local supply buttons present");
+
+        for (int slot = 0; slot < OrbitPuzzle.SLOTS; slot++) {
             BlockPos pos = HubLayout.pedestal(slot);
             button(blocks, signs, pos);
             check(buttons.add(pos), "pedestal unique");
+            check(HubLayout.isRoom(OrbitPuzzle.slotStage(slot), pos.getX(), pos.getZ()),
+                "pedestal sits inside its own stage room");
             BlockPos marker = HubLayout.marker(slot);
             check(markers.add(marker), "marker unique");
-            check(blocks.get(marker).isAir(), "marker is air, not sign/button/support");
+            check(blocks.get(marker).isAir() && marker.getY() < HubLayout.CEILING_Y,
+                "marker is air below ceiling");
             check(marker.equals(pos.above(3)), "marker directly above pedestal");
             var text = labels.get(pos.above());
             check(text.contains(slot == 8 ? "MOON SLOT" : slot < 8 ? "ORBIT " + (slot + 1)
                 : OrbitPuzzle.CLUES.get(slot - 9)), "pedestal teaches orbit or clue");
             for (String name : OrbitPuzzle.CORES) {
-                check(text.stream().noneMatch(line -> line.equalsIgnoreCase(name)), "pedestal does not reveal core name");
+                check(text.stream().noneMatch(line -> line.equalsIgnoreCase(name)),
+                    "pedestal does not reveal core name");
             }
         }
-        for (BlockPos pos : java.util.List.of(HubLayout.START, HubLayout.TERMINAL, HubLayout.EXIT)) {
+        for (BlockPos pos : List.of(HubLayout.START, HubLayout.TERMINAL, HubLayout.EXIT)) {
             button(blocks, signs, pos);
             check(buttons.add(pos), "control unique");
         }
-        check(buttons.size() == 25, "all 25 controls exist");
-        check(blocks.values().stream().filter(state -> state.is(Blocks.STONE_BUTTON)).count() == 25,
-            "no obsolete quiz buttons remain");
+        check(buttons.size() == 29, "all 29 controls exist");
+        check(blocks.values().stream().filter(state -> state.is(Blocks.STONE_BUTTON)).count() == 29,
+            "no unexpected buttons remain");
+
         for (int stage = 0; stage < 3; stage++) {
-            BlockPos arch = java.util.List.of(new BlockPos(-12, 65, -1), new BlockPos(0, 65, -12),
-                new BlockPos(12, 65, 1)).get(stage);
-            check(blocks.get(arch).isAir() && blocks.get(arch.above()).isAir(), "stage arch open with headroom");
-            check(signs.contains(arch.offset(0, 4, 1)), "stage zone labelled");
+            List<BlockPos> lamps = HubLayout.progressLamps(stage);
+            check(lamps.size() == 2, "two progress lamps per stage");
+            for (BlockPos lamp : lamps) {
+                check(blocks.get(lamp).is(Blocks.GRAY_CONCRETE),
+                    "progress lamp starts gray at " + lamp);
+            }
         }
+
+        // BFS from spawn verifies zero void leaks, solid enclosure/ceiling, and reachability to every control.
+        Set<Long> visited = bfs(blocks, HubLayout.SPAWN.getX(), HubLayout.SPAWN.getZ(), true);
+        check(!visited.isEmpty(), "spawn tile is passable");
+        check(visited.contains(key(HubLayout.TERMINAL.north().getX(), HubLayout.TERMINAL.north().getZ())),
+            "scanner depot reachable from hub");
+        check(visited.contains(key(HubLayout.EXIT.north().getX(), HubLayout.EXIT.north().getZ())),
+            "lesson exit reachable from hub");
+        check(visited.contains(key(HubLayout.START.west().getX(), HubLayout.START.west().getZ())),
+            "stage 3 START reachable from hub");
+        for (HubLayout.SupplyButton supply : HubLayout.supplyButtons()) {
+            BlockPos front = frontOf(blocks, supply.pos());
+            check(visited.contains(key(front.getX(), front.getZ())), "supply reachable: " + supply.pos());
+        }
+        for (int slot = 0; slot < OrbitPuzzle.SLOTS; slot++) {
+            BlockPos front = frontOf(blocks, HubLayout.pedestal(slot));
+            check(visited.contains(key(front.getX(), front.getZ())), "pedestal reachable: " + slot);
+        }
+
+        // Verify enclosure & roof on every reachable tile (no void drops, no roof gaps).
+        for (long k : visited) {
+            int x = keyX(k), z = keyZ(k);
+            check(Math.abs(x) < HubLayout.RADIUS && Math.abs(z) < HubLayout.RADIUS,
+                "reachable walk never touches arena boundary at " + x + "," + z);
+            boolean lowRoof = blocks.get(new BlockPos(x, HubLayout.TUNNEL_CEILING_Y, z)).isSolid();
+            boolean highRoof = blocks.get(new BlockPos(x, HubLayout.CEILING_Y, z)).isSolid();
+            check(lowRoof || highRoof, "reachable tile has solid roof at " + x + "," + z);
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dz == 0) continue;
+                    int nx = x + dx, nz = z + dz;
+                    if (visited.contains(key(nx, nz))) continue;
+                    BlockState lower = blocks.get(new BlockPos(nx, HubLayout.FLOOR_Y + 1, nz));
+                    BlockState upper = blocks.get(new BlockPos(nx, HubLayout.FLOOR_Y + 2, nz));
+                    boolean walled = lower != null && lower.isSolid() && upper != null && upper.isSolid();
+                    boolean console = lower != null && lower.is(Blocks.STONE_BUTTON)
+                        && upper != null && upper.is(Blocks.BIRCH_WALL_SIGN);
+                    boolean plaque = lower != null && lower.isSolid()
+                        && upper != null && upper.is(Blocks.BIRCH_WALL_SIGN);
+                    check(walled || console || plaque, "no wall/diagonal void gap adjacent to " + x + "," + z + " at " + nx + "," + nz);
+                }
+            }
+        }
+
+        // Rooms must connect ONLY through the central hub (removing hub isolates Rooms 0, 1, 2).
+        Set<Long> room0NoHub = bfs(blocks, -26, 0, false);
+        check(!room0NoHub.contains(key(0, -26)) && !room0NoHub.contains(key(26, 0)),
+            "West room connects to North and East rooms only via hub");
+        Set<Long> room1NoHub = bfs(blocks, 0, -26, false);
+        check(!room1NoHub.contains(key(-26, 0)) && !room1NoHub.contains(key(26, 0)),
+            "North room connects to West and East rooms only via hub");
+
+        // Verify active lighting across hub, all three tunnels, and all three rooms.
+        int hubLights = countLights(blocks, p -> HubLayout.isHub(p.getX(), p.getZ()));
+        int room0Lights = countLights(blocks, p -> HubLayout.isRoom(0, p.getX(), p.getZ()));
+        int room1Lights = countLights(blocks, p -> HubLayout.isRoom(1, p.getX(), p.getZ()));
+        int room2Lights = countLights(blocks, p -> HubLayout.isRoom(2, p.getX(), p.getZ()));
+        int tunnelLights = countLights(blocks, p -> !HubLayout.isHub(p.getX(), p.getZ())
+            && !HubLayout.isRoom(0, p.getX(), p.getZ())
+            && !HubLayout.isRoom(1, p.getX(), p.getZ())
+            && !HubLayout.isRoom(2, p.getX(), p.getZ())
+            && HubLayout.isWalkable(p.getX(), p.getZ()));
+        check(hubLights >= 6 && room0Lights >= 4 && room1Lights >= 4 && room2Lights >= 4 && tunnelLights >= 10,
+            "every zone is well lit (hub=" + hubLights + ", tunnels=" + tunnelLights + ")");
+    }
+
+    private static int countLights(Map<BlockPos, BlockState> blocks, java.util.function.Predicate<BlockPos> filter) {
+        int count = 0;
+        for (var e : blocks.entrySet()) {
+            if (e.getValue().getLightEmission() > 0 && filter.test(e.getKey())) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static Set<Long> bfs(Map<BlockPos, BlockState> blocks, int startX, int startZ, boolean allowHub) {
+        Set<Long> seen = new HashSet<>();
+        if (!passable(blocks, startX, startZ)) return seen;
+        ArrayDeque<Long> queue = new ArrayDeque<>();
+        long start = key(startX, startZ);
+        seen.add(start);
+        queue.add(start);
+        int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        while (!queue.isEmpty()) {
+            long cur = queue.removeFirst();
+            int x = keyX(cur), z = keyZ(cur);
+            for (int[] d : dirs) {
+                int nx = x + d[0], nz = z + d[1];
+                if (!allowHub && HubLayout.isHub(nx, nz)) continue;
+                long nk = key(nx, nz);
+                if (!seen.contains(nk) && passable(blocks, nx, nz)) {
+                    seen.add(nk);
+                    queue.add(nk);
+                }
+            }
+        }
+        return seen;
+    }
+
+    private static boolean passable(Map<BlockPos, BlockState> blocks, int x, int z) {
+        if (Math.abs(x) > HubLayout.RADIUS || Math.abs(z) > HubLayout.RADIUS) return false;
+        BlockState sub = blocks.get(new BlockPos(x, HubLayout.FLOOR_Y - 1, z));
+        BlockState floor = blocks.get(new BlockPos(x, HubLayout.FLOOR_Y, z));
+        BlockState feet = blocks.get(new BlockPos(x, HubLayout.FLOOR_Y + 1, z));
+        BlockState head = blocks.get(new BlockPos(x, HubLayout.FLOOR_Y + 2, z));
+        return sub != null && sub.isSolid()
+            && floor != null && floor.isSolid()
+            && feet != null && feet.isAir()
+            && head != null && head.isAir();
+    }
+
+    private static BlockPos frontOf(Map<BlockPos, BlockState> blocks, BlockPos button) {
+        Direction facing = blocks.get(button).getValue(BlockStateProperties.HORIZONTAL_FACING);
+        return button.relative(facing);
+    }
+
+    private static long key(int x, int z) {
+        return (((long) x) << 32) | (z & 0xffffffffL);
+    }
+
+    private static int keyX(long k) {
+        return (int) (k >> 32);
+    }
+
+    private static int keyZ(long k) {
+        return (int) k;
     }
 
     private static void button(Map<BlockPos, BlockState> blocks, Set<BlockPos> signs, BlockPos pos) {

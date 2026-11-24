@@ -61,8 +61,11 @@ public final class IntroHub {
     public static final class Data {
         public static final AttachmentType<Boolean> ENABLED = AttachmentRegistry.create(SolariaMod.id("intro_enabled"),
             b -> b.persistent(Codec.BOOL));
-        /** v5: flat void-glass floor with a starry pit below it, so existing hubs rebuild once. */
-        public static final AttachmentType<Boolean> BUILT = AttachmentRegistry.create(SolariaMod.id("intro_built_v5"),
+        /** v6: radial hub with three lit tunnels, three stage rooms, and progress lamps. */
+        public static final AttachmentType<Boolean> BUILT = AttachmentRegistry.create(SolariaMod.id("intro_built_v6"),
+            b -> b.persistent(Codec.BOOL));
+        /** Still registered only so older worlds load without "unknown attachment" warnings; never read. */
+        public static final AttachmentType<Boolean> LEGACY_BUILT_V5 = AttachmentRegistry.create(SolariaMod.id("intro_built_v5"),
             b -> b.persistent(Codec.BOOL));
         /** Still registered only so older worlds load without "unknown attachment" warnings; never read. */
         public static final AttachmentType<Boolean> LEGACY_BUILT_V4 = AttachmentRegistry.create(SolariaMod.id("intro_built_v4"),
@@ -197,9 +200,10 @@ public final class IntroHub {
                     if (now % 60 == 0) showCores(player);
                 }
                 if (enrolled(player) && !canScan(player) && !inHub) enter(player, server, false);
-                // Teachers in creative/spectator may inspect freely; everyone else stays on the platform.
+                // Teachers in creative/spectator may inspect freely; everyone else stays inside the enclosed hub.
                 if (inHub && !player.isCreative() && !player.isSpectator()
-                    && (player.getY() < HubLayout.FLOOR_Y - 4 || Math.abs(player.getX()) > HubLayout.RADIUS
+                    && (player.getY() < HubLayout.FLOOR_Y - 2 || player.getY() > HubLayout.CEILING_Y + 2
+                    || Math.abs(player.getX()) > HubLayout.RADIUS
                     || Math.abs(player.getZ()) > HubLayout.RADIUS)) teleportToHub(player, server);
             }
         });
@@ -219,11 +223,16 @@ public final class IntroHub {
                 tell(player, "Use /solaria intro join to start your explorer mission.", ChatFormatting.AQUA);
                 return InteractionResult.SUCCESS;
             }
-            for (int core = 0; core < OrbitPuzzle.CORES.size(); core++) {
-                if (button.equals(HubLayout.supply(core))) {
-                    pick(serverPlayer, core);
+            HubLayout.SupplyButton supply = HubLayout.supplyAt(button);
+            if (supply != null) {
+                int currentStage = OrbitPuzzle.stage(orbit(serverPlayer));
+                if (supply.stage() > currentStage) {
+                    tell(serverPlayer, "Finish stage " + (currentStage + 1) + " first! "
+                        + OrbitPuzzle.objective(orbit(serverPlayer)), ChatFormatting.YELLOW);
                     return InteractionResult.SUCCESS;
                 }
+                pick(serverPlayer, supply.core());
+                return InteractionResult.SUCCESS;
             }
             for (int slot = 0; slot < OrbitPuzzle.SLOTS; slot++) {
                 if (button.equals(HubLayout.pedestal(slot))) {
@@ -268,7 +277,7 @@ public final class IntroHub {
         }
         Integer core = HELD.get(player.getUUID());
         if (core == null) {
-            tell(player, "Your hands are empty. Press a core button on the supply wall first.", ChatFormatting.YELLOW);
+            tell(player, "Your hands are empty. Press a core button on this room's supply wall first.", ChatFormatting.YELLOW);
             return;
         }
         long now = player.level().getServer().overworld().getGameTime();
@@ -304,15 +313,16 @@ public final class IntroHub {
         int newStage = OrbitPuzzle.stage(after);
         if (newStage == stage) return;
         ROUND.remove(player.getUUID());
+        showProgress(player);
         if (newStage == 3) {
             title(player, "Orbit Builder complete!", "Your scanner is unlocked");
             player.playSound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, 0.8f, 1.0f);
             level.sendParticles(player, ParticleTypes.FIREWORK, true, false, HubLayout.TERMINAL.getX() + 0.5, HubLayout.TERMINAL.getY() + 1.0,
                 HubLayout.TERMINAL.getZ() + 0.5, 40, 0.6, 0.6, 0.6, 0.08);
-            tell(player, "Explorer mission complete! You rebuilt the Solar System. Visit the green depot, then the cyan lesson exit.", ChatFormatting.GOLD);
+            tell(player, "Explorer mission complete! You rebuilt the Solar System. Visit the green depot in the central hub, then the cyan lesson exit.", ChatFormatting.GOLD);
             reward(player);
         } else {
-            title(player, "Stage " + (newStage + 1) + " unlocked", newStage == 1 ? "Outer planets and the Moon" : "Timed: giant planet clues");
+            title(player, "Stage " + (newStage + 1) + " unlocked", newStage == 1 ? "North tunnel: Outer planets + Moon" : "East tunnel: Giant planet clues");
             player.playSound(SoundEvents.PLAYER_LEVELUP, 0.7f, 1.0f);
             tell(player, OrbitPuzzle.objective(after), ChatFormatting.AQUA);
         }
@@ -351,6 +361,7 @@ public final class IntroHub {
             int reset = OrbitPuzzle.expire(mask);
             player.setAttached(Data.ORBIT, reset);
             for (int slot = 9; slot < OrbitPuzzle.SLOTS; slot++) showCore(player, slot);
+            showProgress(player);
             player.playSound(SoundEvents.NOTE_BLOCK_DIDGERIDOO.value(), 0.8f, 0.8f);
             title(player, "Time's up!", "Press START to try the giants again");
             tell(player, "Time's up! The giant slots reset, but stages 1 and 2 are saved. Press START when you are ready.", ChatFormatting.YELLOW);
@@ -369,8 +380,22 @@ public final class IntroHub {
     }
 
     private static void showCores(ServerPlayer player) {
+        showProgress(player);
         if (orbit(player) == 0) return;
         for (int slot = 0; slot < OrbitPuzzle.SLOTS; slot++) showCore(player, slot);
+    }
+
+    /** Lights per-player room progress lamps: verdant = complete, ochre = active room, gray = locked. */
+    private static void showProgress(ServerPlayer player) {
+        int currentStage = OrbitPuzzle.stage(orbit(player));
+        for (int s = 0; s < 3; s++) {
+            BlockState state = (s < currentStage ? Blocks.VERDANT_FROGLIGHT
+                : s == currentStage ? Blocks.OCHRE_FROGLIGHT
+                : Blocks.GRAY_CONCRETE).defaultBlockState();
+            for (BlockPos lamp : HubLayout.progressLamps(s)) {
+                player.connection.send(new ClientboundBlockUpdatePacket(lamp, state));
+            }
+        }
     }
 
     /** Colour hints only; real blocks are never placed at the markers. */
@@ -455,8 +480,8 @@ public final class IntroHub {
         ROUND.remove(arrived.getUUID());
         int mask = orbit(arrived);
         title(arrived, "Solaria Academy", OrbitPuzzle.complete(mask) ? "Mission complete" : "Orbit Builder: rebuild the Solar System");
-        tell(arrived, "Welcome to Solaria Academy! The Sun's orbit slots have lost their planets. Press a core on the supply wall, then press the "
-            + "orbit slot where it belongs. " + progressText(mask) + ". " + OrbitPuzzle.objective(mask), ChatFormatting.AQUA);
+        tell(arrived, "Welcome to Solaria Academy! Follow the lit tunnels to rebuild all three Orbit Builder rooms, pick cores inside each room, and return to the central hub depot. "
+            + progressText(mask) + ". " + OrbitPuzzle.objective(mask), ChatFormatting.AQUA);
         // Wait a moment so the hub chunks reach the client before the per-player cores are drawn.
         arrived.level().getServer().execute(() -> showCores(arrived));
         return true;

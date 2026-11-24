@@ -57,10 +57,10 @@ public final class OrbitPuzzle {
     }
     public static String objective(int mask) {
         return switch (stage(mask)) {
-            case 0 -> "Stage 1: select a core at the supply wall, then fill inner orbit slots 1-4 in order from the Sun.";
-            case 1 -> "Stage 2: fill outer orbit slots 5-8, then place the Moon beside Earth at slot 9.";
-            case 2 -> "Stage 3: press START, then match the four giant planets to the clue slots 10-13 within 120 seconds. A wrong guess costs 10 seconds.";
-            default -> "Orbit Builder complete! Collect your scanner at the green depot. Your star chart (/solaria intro chart) records every body you visit.";
+            case 0 -> "Stage 1 (West Room): pick a core on the south wall, then fill orbits 1-4 from the Sun.";
+            case 1 -> "Stage 2 (North Room): pick a core on the east wall, then fill orbits 5-8 and the Moon slot.";
+            case 2 -> "Stage 3 (East Room): press START, then match the 4 giants to clue slots 10-13 in 120 seconds.";
+            default -> "Orbit Builder complete! Collect your scanner at the green depot in the central hub.";
         };
     }
     /**
