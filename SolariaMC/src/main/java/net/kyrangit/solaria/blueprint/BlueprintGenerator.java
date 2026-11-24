@@ -63,7 +63,7 @@ public final class BlueprintGenerator {
 		BASE_DIAMETERS.put(AstronomyClass.VENUS,   281);
 		BASE_DIAMETERS.put(AstronomyClass.SATURN,  213); // including rings (2.34 Rs): ceil(213 * 2.34) = 499
 		BASE_DIAMETERS.put(AstronomyClass.URANUS,  245); // including rings (2.04 Ru): ceil(245 * 2.04) = 500
-		BASE_DIAMETERS.put(AstronomyClass.NEPTUNE, 351);
+		BASE_DIAMETERS.put(AstronomyClass.NEPTUNE, 193); // including rings (2.58 Rn): ceil(193 * 2.58) = 498
 		BASE_DIAMETERS.put(AstronomyClass.MERCURY, 151);
 
 		SEEDS.put(AstronomyClass.SUN,     0x50170001);
@@ -115,7 +115,7 @@ public final class BlueprintGenerator {
 		}
 		int seed = SEEDS.get(astronomyClass);
 
-		// Compute bounding-box extent (diameter for most; ring extends Saturn/Uranus further).
+		// Compute bounding-box extent (diameter for most; rings extend Saturn/Uranus/Neptune further).
 		int extent = blueprintExtent(astronomyClass, diameter);
 		if (extent > MAX_EXTENT_BLOCKS) {
 			throw new BlueprintException(ReasonCode.CAP_EXCEEDED,
@@ -147,6 +147,8 @@ public final class BlueprintGenerator {
 			case SATURN -> (int) Math.ceil(diameter * 2.34);
 			// Uranus ring outer edge (Epsilon ring ~2.018 Ru, padded to 2.04 Ru) → ceil(245 * 2.04) = 500
 			case URANUS -> (int) Math.ceil(diameter * 2.04);
+			// Neptune ring outer edge (Adams ring ~2.558 Rn, padded to 2.58 Rn) → ceil(193 * 2.58) = 498
+			case NEPTUNE -> (int) Math.ceil(diameter * 2.58);
 			case EARTH, MOON, MARS, VENUS, MERCURY -> (int) Math.ceil(diameter * (1.0 + MAX_RELIEF_FRAC));
 			default     -> diameter;
 		};

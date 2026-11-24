@@ -1156,7 +1156,7 @@ final class BlueprintShapes {
 	// ================================================================== NEPTUNE
 
 	/**
-	 * Neptune: deep blue with latitudinal streaks and a dark storm spot.
+	 * Neptune: deep blue with latitudinal streaks, dark storm spot, and faint dusty rings with Adams arcs.
 	 */
 	static Blueprint neptune(MaterialPalette palette, int diameter, double scale, int seed) {
 		int bodyDeep   = palette.indexOf(Palette.LAPIS_BLOCK);
@@ -1171,6 +1171,42 @@ final class BlueprintShapes {
 		int iceMantle  = palette.indexOf(Palette.PACKED_ICE);
 		int iceMantle2 = palette.indexOf(Palette.BLUE_ICE);
 		double radius = diameter / 2.0;
+		double radiusSq = radius * radius;
+		// NASA NSSDCA Neptunian Rings Fact Sheet (https://nssdc.gsfc.nasa.gov/planetary/factsheet/nepringfact.html,
+		// 1 Rn = 24,766 km; equatorial 0.0 deg relative to Neptune's rendered spin axis, obliquity 28.32 deg to orbit):
+		// Galle (1989N3R ~1.692 Rn), Le Verrier (1989N2R ~2.148 Rn), Lassell broad dust sheet (2.160-2.300 Rn),
+		// Arago (1989N4R ~2.310 Rn), and Adams (1989N1R ~2.541 Rn). Narrow ring widths are expanded to ~2-3 blocks
+		// for voxel legibility at 193-block scale while keeping low dust density and the five Voyager-era Adams arcs
+		// (Fraternite, Egalite 1/2, Liberte, Courage) clustered over ~39 deg facing the +X/+Z arrival diagonal.
+		MaterialRamp dustRamp = MaterialRamp.of(palette,
+			Palette.GRAY_TERRACOTTA, Palette.GRAY_CONCRETE, Palette.SMOOTH_BASALT, Palette.TUFF);
+		MaterialRamp narrowRamp = MaterialRamp.of(palette,
+			Palette.GRAY_CONCRETE, Palette.SMOOTH_BASALT, Palette.DEEPSLATE, Palette.TUFF, Palette.ANDESITE);
+		MaterialRamp adamsRamp = MaterialRamp.of(palette,
+			Palette.GRAY_CONCRETE, Palette.SMOOTH_BASALT, Palette.DEEPSLATE, Palette.TUFF,
+			Palette.LIGHT_GRAY_TERRACOTTA, Palette.LIGHT_GRAY_CONCRETE);
+		RingSystem rings = RingSystem.of(0.0, radius,
+			new RingSystem.Band(1.652, 1.732, RingSystem.DensityProfile.smoothBand(0.14, 0.20), dustRamp, 1, seed ^ 0x7E01),
+			new RingSystem.Band(2.136, 2.160, RingSystem.DensityProfile.smoothBand(0.26, 0.15), narrowRamp, 1, seed ^ 0x7E02),
+			new RingSystem.Band(2.160, 2.300, (t, a) -> 0.08 - 0.04 * t, dustRamp, 1, seed ^ 0x7E03),
+			new RingSystem.Band(2.300, 2.320, RingSystem.DensityProfile.smoothBand(0.24, 0.15), narrowRamp, 1, seed ^ 0x7E04),
+			new RingSystem.Band(2.526, 2.558,
+				(t, a) -> {
+					double radEnv = Math.min(
+						SurfacePainter.smoothstep(0.0, 0.18, t),
+						SurfacePainter.smoothstep(1.0, 0.82, t));
+					double arc = 0.0;
+					double deg = Math.toDegrees(a);
+					if (deg >= 24.0 && deg <= 65.0) {
+						arc = Math.max(arc, 0.72 * SurfacePainter.smoothstep(5.0, 3.25, Math.abs(deg - 30.0)));
+						arc = Math.max(arc, 0.60 * SurfacePainter.smoothstep(1.5, 0.975, Math.abs(deg - 40.0)));
+						arc = Math.max(arc, 0.60 * SurfacePainter.smoothstep(1.5, 0.975, Math.abs(deg - 45.0)));
+						arc = Math.max(arc, 0.56 * SurfacePainter.smoothstep(2.25, 1.4625, Math.abs(deg - 53.25)));
+						arc = Math.max(arc, 0.40 * SurfacePainter.smoothstep(1.5, 0.975, Math.abs(deg - 62.0)));
+					}
+					return (0.09 + arc) * radEnv;
+				},
+				adamsRamp, 1, seed ^ 0x7E05));
 		// Pin the Great Dark Spot to a fixed direction so it's always visible from arrival.
 		// Normalised (1, 0.2, -0.3): on the +X hemisphere the arrival camera sees, just outside the cutaway.
 		final double stormX = 0.9407208683835973;
@@ -1178,8 +1214,9 @@ final class BlueprintShapes {
 		final double stormZ = -0.2822162605150792;
 		return new Blueprint(AstronomyClass.NEPTUNE,
 			(x, y, z) -> {
-				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
-				if (dist > radius) return 0;
+				double distSq = (double) x * x + (double) y * y + (double) z * z;
+				if (distSq > radiusSq) return rings.voxelAt(x, y, z);
+				double dist = Math.sqrt(distSq);
 				double nx = x / radius, ny = y / radius, nz = z / radius;
 				double norm = dist / radius;
 				// Quarter-sphere cutaway: ice-giant interior.

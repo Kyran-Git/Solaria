@@ -150,11 +150,11 @@ public final class PlanetWorldTests {
 
     /**
      * Ring extents are wider than the body, so clipping to the primary diameter would erase them.
-     * Saturn's ring is equatorial and Uranus's is near-vertical, so this scans all three
+     * Saturn and Neptune rings are equatorial and Uranus's is tilted 97.77 deg, so this scans all three
      * axis-aligned planes through the origin rather than assuming an orientation.
      */
     private static void checkRingsSurvive(Holder<Biome> biome) {
-        for (var cls : new AstronomyClass[]{AstronomyClass.SATURN, AstronomyClass.URANUS}) {
+        for (var cls : new AstronomyClass[]{AstronomyClass.SATURN, AstronomyClass.URANUS, AstronomyClass.NEPTUNE}) {
             var generator = new PlanetChunkGenerator(biome, cls.id(), 1.0);
             int bound = generator.halfExtent();
             // Strictly outside the primary body: anything solid here can only be ring.

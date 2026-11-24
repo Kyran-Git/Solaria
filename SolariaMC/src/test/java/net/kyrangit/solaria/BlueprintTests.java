@@ -50,6 +50,7 @@ public final class BlueprintTests {
 		testStep5Earth();
 		testStep7SaturnRings();
 		testStep8UranusRings();
+		testStep9NeptuneRings();
 		System.out.println("Blueprint plumbing check (synthetic): " + assertions + " assertions passed.");
 	}
 
@@ -461,7 +462,7 @@ public final class BlueprintTests {
 			double maxHit = 0.0;
 			for (int i = 0; i < 1_000; i++) {
 				double uy = 1.0 - (2.0 * (i + 0.5) / 1_000.0);
-				if (cls == AstronomyClass.SATURN && Math.abs(uy) <= 0.15) continue;
+				if ((cls == AstronomyClass.SATURN || cls == AstronomyClass.NEPTUNE) && Math.abs(uy) <= 0.15) continue;
 				double ring = Math.sqrt(Math.max(0.0, 1.0 - uy * uy));
 				double theta = goldenAngle * i;
 				double ux = ring * Math.cos(theta);
@@ -747,6 +748,101 @@ public final class BlueprintTests {
 				}
 			}
 		}
+	}
+
+	private static void testStep9NeptuneRings() {
+		Blueprint a = BlueprintGenerator.generate(AstronomyClass.NEPTUNE, 1.0);
+		Blueprint b = BlueprintGenerator.generate(AstronomyClass.NEPTUNE, 1.0);
+		check(a.diameter() == 193, "neptune default diameter shrunk to 193 for true NASA Adams-ring extent");
+		int extent = BlueprintGenerator.blueprintExtent(AstronomyClass.NEPTUNE, a.diameter());
+		check(extent == 498 && extent <= BlueprintGenerator.MAX_EXTENT_BLOCKS,
+			"neptune full ring extent " + extent + " fits <= 500");
+
+		double r = a.diameter() / 2.0;
+		double innerGap = ringFillInBand(a, 1.05 * r, 1.60 * r, 0, 0);
+		double galleFill = ringFillInBand(a, 1.66 * r, 1.72 * r, 0, 0);
+		double gap1 = ringFillInBand(a, 1.75 * r, 2.12 * r, 0, 0);
+		double leVerrierFill = ringFillInBand(a, 2.140 * r, 2.156 * r, 0, 0);
+		double lassellFill = ringFillInBand(a, 2.17 * r, 2.29 * r, 0, 0);
+		double aragoFill = ringFillInBand(a, 2.304 * r, 2.316 * r, 0, 0);
+		double gap2 = ringFillInBand(a, 2.34 * r, 2.51 * r, 0, 0);
+		double outsideFill = ringFillInBand(a, 2.575 * r, 2.65 * r, -2, 2);
+
+		double nonArcFill = adamsSectorFill(a, 2.530 * r, 2.554 * r, -180.0, 15.0, 75.0, 180.0);
+		double fraterniteFill = adamsSectorFill(a, 2.530 * r, 2.554 * r, 26.0, 34.0);
+		double egalite1Fill = adamsSectorFill(a, 2.530 * r, 2.554 * r, 38.8, 41.2);
+		double egalite2Fill = adamsSectorFill(a, 2.530 * r, 2.554 * r, 43.8, 46.2);
+		double liberteFill = adamsSectorFill(a, 2.530 * r, 2.554 * r, 51.5, 55.0);
+		double courageFill = adamsSectorFill(a, 2.530 * r, 2.554 * r, 60.8, 63.2);
+
+		System.out.printf(
+			"Neptune ring fill rates: Galle=%.3f, LeVerrier=%.3f, Lassell=%.3f, Arago=%.3f, "
+				+ "Adams(bg=%.3f, Frat=%.3f, Eg1=%.3f, Eg2=%.3f, Lib=%.3f, Cour=%.3f)%n",
+			galleFill, leVerrierFill, lassellFill, aragoFill,
+			nonArcFill, fraterniteFill, egalite1Fill, egalite2Fill, liberteFill, courageFill);
+
+		check(innerGap == 0.0, "neptune inner clearance empty");
+		check(galleFill >= 0.05 && galleFill <= 0.24, "neptune Galle ring faint fill=" + galleFill);
+		check(gap1 == 0.0, "neptune gap between Galle and Le Verrier empty");
+		check(leVerrierFill >= 0.12 && leVerrierFill <= 0.40, "neptune Le Verrier ring fill=" + leVerrierFill);
+		check(lassellFill >= 0.02 && lassellFill <= 0.14 && lassellFill < leVerrierFill && lassellFill < aragoFill,
+			"neptune Lassell dust sheet sparser than bounding rings fill=" + lassellFill);
+		check(aragoFill >= 0.10 && aragoFill <= 0.38, "neptune Arago ring fill=" + aragoFill);
+		check(gap2 == 0.0, "neptune gap between Arago and Adams empty");
+		check(outsideFill == 0.0, "neptune rings stay within outer bound");
+
+		check(nonArcFill >= 0.02 && nonArcFill <= 0.18, "neptune Adams non-arc background ultra-faint fill=" + nonArcFill);
+		check(fraterniteFill >= 0.45 && fraterniteFill >= nonArcFill * 3.5,
+			"neptune Adams Fraternite arc strong fill=" + fraterniteFill);
+		check(egalite1Fill > nonArcFill * 2.0, "neptune Adams Egalite 1 arc denser fill=" + egalite1Fill);
+		check(egalite2Fill > nonArcFill * 2.0, "neptune Adams Egalite 2 arc denser fill=" + egalite2Fill);
+		check(liberteFill > nonArcFill * 2.0, "neptune Adams Liberte arc denser fill=" + liberteFill);
+		check(courageFill > nonArcFill * 2.0, "neptune Adams Courage arc denser fill=" + courageFill);
+
+		check(galleFill < 0.35 && leVerrierFill < 0.35 && lassellFill < 0.35 && aragoFill < 0.35 && nonArcFill < 0.35,
+			"neptune non-arc rings much fainter than Saturn B ring");
+
+		// Thinness & full-scale determinism outside primary sphere.
+		int bound = extent / 2;
+		for (int x = -bound; x <= bound; x += 2) {
+			for (int z = -bound; z <= bound; z += 2) {
+				double pr = Math.hypot(x, z);
+				if (pr > r + 2.0) {
+					check(a.voxelAt(x, 1, z) == 0 && a.voxelAt(x, -1, z) == 0
+							&& a.voxelAt(x, 2, z) == 0 && a.voxelAt(x, -2, z) == 0,
+						"neptune ring thickness <= 1 block");
+					check(a.voxelAt(x, 0, z) == b.voxelAt(x, 0, z),
+						"neptune ring deterministic across runs");
+				}
+			}
+		}
+	}
+
+	private static double adamsSectorFill(Blueprint bp, double rInner, double rOuter, double... ranges) {
+		double rInSq = rInner * rInner;
+		double rOutSq = rOuter * rOuter;
+		int maxCoord = (int) Math.ceil(rOuter);
+		long total = 0;
+		long solid = 0;
+		for (int x = -maxCoord; x <= maxCoord; x++) {
+			for (int z = -maxCoord; z <= maxCoord; z++) {
+				double rSq = (double) x * x + (double) z * z;
+				if (rSq < rInSq || rSq > rOutSq) continue;
+				double deg = Math.toDegrees(Math.atan2(z, x));
+				boolean match = false;
+				for (int i = 0; i < ranges.length; i += 2) {
+					if (deg >= ranges[i] && deg <= ranges[i + 1]) {
+						match = true;
+						break;
+					}
+				}
+				if (!match) continue;
+				total++;
+				if (bp.voxelAt(x, 0, z) != 0) solid++;
+			}
+		}
+		check(total >= 15, "sampled sufficient Adams arc slots (got " + total + ")");
+		return (double) solid / total;
 	}
 
 	private static double[] tiltedBandFill(Blueprint bp, double nx, double ny, double ux, double uy,

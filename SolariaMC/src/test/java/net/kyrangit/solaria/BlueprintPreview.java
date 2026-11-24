@@ -270,7 +270,7 @@ public final class BlueprintPreview {
 
 		VarietyReport variety = measureVariety(bp, map);
 		long elapsedMs = (System.nanoTime() - start) / 1_000_000;
-		if (name.equals("saturn") || name.equals("uranus")) {
+		if (name.equals("saturn") || name.equals("uranus") || name.equals("neptune")) {
 			boolean vertical = name.equals("uranus");
 			for (boolean edge : new boolean[]{false, true}) {
 				BufferedImage ring = new BufferedImage(2 * halfExt + 1, 2 * halfExt + 1, BufferedImage.TYPE_INT_RGB);
