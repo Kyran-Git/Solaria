@@ -31,6 +31,7 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
     private final Holder<Biome> biome;
     private final Blueprint blueprint;
     private final BlockState[] palette;
+    private final InternalStructure internalStructure;
 
     public PlanetChunkGenerator(Holder<Biome> biome, String planet, double scale) {
         super(new FixedBiomeSource(biome));
@@ -41,9 +42,14 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
         for (int n = 1; n < palette.length; n++) {
             palette[n] = BuiltInRegistries.BLOCK.getValue(Identifier.parse(blueprint.palette().blockId(n))).defaultBlockState();
         }
+        // Only attach standalone strata columns when the world is large enough to explore (> 0.5x scale).
+        internalStructure = blueprint.blocksPerUnit() >= 0.5
+            ? InternalStructure.forClass(blueprint.astronomyClass(), halfExtent(), blueprint.palette())
+            : null;
     }
 
     public Blueprint blueprint() { return blueprint; }
+    public InternalStructure internalStructure() { return internalStructure; }
 
     /** Half-extent of the whole structure, rings included. Voxels outside this are always air. */
     public int halfExtent() {
@@ -79,10 +85,15 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
     }
 
     public BlockState blockAt(int x, int y, int z) {
-        // Includes both ring systems, independently of the primary-body diameter.
+        // Includes both ring systems, independently of the primary-body diameter, plus the standalone interior column.
         int bound = halfExtent();
-        if (Math.abs((long) x) > bound || Math.abs((long) y) > bound || Math.abs((long) z) > bound) return palette[0];
-        return palette[blueprint.voxelAt(x, y, z)];
+        if (Math.abs((long) x) <= bound && Math.abs((long) y) <= bound && Math.abs((long) z) <= bound) {
+            return palette[blueprint.voxelAt(x, y, z)];
+        }
+        if (internalStructure != null && internalStructure.contains(x, y, z)) {
+            return palette[internalStructure.voxelAt(x, y, z)];
+        }
+        return palette[0];
     }
     @Override protected MapCodec<? extends ChunkGenerator> codec() { return CODEC; }
     @Override public int getMinY() { return -256; }
@@ -92,22 +103,34 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
 
     @Override public CompletableFuture<ChunkAccess> fillFromNoise(Blender b, RandomState r, StructureManager s, ChunkAccess chunk) {
         int bound = halfExtent();
-        int x0 = chunk.getPos().getMinBlockX(), z0 = chunk.getPos().getMinBlockZ();
-        if (x0 <= bound && x0 + 15 >= -bound && z0 <= bound && z0 + 15 >= -bound) {
-            BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-            int yMin = Math.max(chunk.getMinY(), -bound);
-            int yMax = Math.min(chunk.getMinY() + chunk.getHeight() - 1, bound);
-            for (int x = Math.max(x0, -bound); x <= Math.min(x0 + 15, bound); x++) {
-                for (int z = Math.max(z0, -bound); z <= Math.min(z0 + 15, bound); z++) {
-                    for (int y = yMin; y <= yMax; y++) {
-                        BlockState state = blockAt(x, y, z);
-                        if (!state.isAir()) chunk.setBlockState(pos.set(x, y, z), state);
-                    }
-                }
-            }
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        fillBox(chunk, pos, -bound, bound, -bound, bound, -bound, bound);
+        if (internalStructure != null) {
+            fillBox(chunk, pos,
+                internalStructure.minX(), internalStructure.maxX(),
+                internalStructure.minY(), internalStructure.maxY(),
+                internalStructure.minZ(), internalStructure.maxZ());
         }
         Heightmap.primeHeightmaps(chunk, EnumSet.of(Heightmap.Types.WORLD_SURFACE_WG, Heightmap.Types.OCEAN_FLOOR_WG));
         return CompletableFuture.completedFuture(chunk);
+    }
+
+    private void fillBox(ChunkAccess chunk, BlockPos.MutableBlockPos pos,
+                         int boxMinX, int boxMaxX, int boxMinY, int boxMaxY, int boxMinZ, int boxMaxZ) {
+        int x0 = chunk.getPos().getMinBlockX(), z0 = chunk.getPos().getMinBlockZ();
+        if (x0 > boxMaxX || x0 + 15 < boxMinX || z0 > boxMaxZ || z0 + 15 < boxMinZ) {
+            return;
+        }
+        int yMin = Math.max(chunk.getMinY(), boxMinY);
+        int yMax = Math.min(chunk.getMinY() + chunk.getHeight() - 1, boxMaxY);
+        for (int x = Math.max(x0, boxMinX); x <= Math.min(x0 + 15, boxMaxX); x++) {
+            for (int z = Math.max(z0, boxMinZ); z <= Math.min(z0 + 15, boxMaxZ); z++) {
+                for (int y = yMin; y <= yMax; y++) {
+                    BlockState state = blockAt(x, y, z);
+                    if (!state.isAir()) chunk.setBlockState(pos.set(x, y, z), state);
+                }
+            }
+        }
     }
 
     @Override public NoiseColumn getBaseColumn(int x, int z, LevelHeightAccessor h, RandomState r) {
@@ -117,7 +140,19 @@ public final class PlanetChunkGenerator extends ChunkGenerator {
     }
     @Override public int getBaseHeight(int x, int z, Heightmap.Types type, LevelHeightAccessor h, RandomState r) {
         int bound = halfExtent();
-        for (int y = Math.min(h.getMinY() + h.getHeight() - 1, bound); y >= Math.max(h.getMinY(), -bound); y--) {
+        if (Math.abs((long) x) <= bound && Math.abs((long) z) <= bound) {
+            return scanTopDown(x, z, type, h, -bound, bound);
+        }
+        if (internalStructure != null
+            && x >= internalStructure.minX() && x <= internalStructure.maxX()
+            && z >= internalStructure.minZ() && z <= internalStructure.maxZ()) {
+            return scanTopDown(x, z, type, h, internalStructure.minY(), internalStructure.maxY());
+        }
+        return h.getMinY();
+    }
+
+    private int scanTopDown(int x, int z, Heightmap.Types type, LevelHeightAccessor h, int boxMinY, int boxMaxY) {
+        for (int y = Math.min(h.getMinY() + h.getHeight() - 1, boxMaxY); y >= Math.max(h.getMinY(), boxMinY); y--) {
             if (type.isOpaque().test(blockAt(x, y, z))) return y + 1;
         }
         return h.getMinY();

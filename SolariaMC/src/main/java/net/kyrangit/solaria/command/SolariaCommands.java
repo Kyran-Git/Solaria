@@ -215,7 +215,9 @@ public final class SolariaCommands {
             net.minecraft.sounds.SoundSource.PLAYERS, 0.6f, 1.2f);
 		arrived.sendSystemMessage(Component.literal(
 			"Entering the " + display + " dimension. Bodies are not to scale. "
-			+ "Try /solaria quiz " + cls.id() + " to test what you know. Use /solaria return to go back."));
+			+ "Fly east (+X) to inspect its internal structure column, or try /solaria quiz "
+			+ cls.id() + ". Use /solaria return to go back."));
+		net.kyrangit.solaria.dimension.InternalStructureLabels.ensureLabels(targetLevel, generator);
 		net.kyrangit.solaria.intro.IntroHub.chartArrival(arrived, cls);
 		return 1;
 	}

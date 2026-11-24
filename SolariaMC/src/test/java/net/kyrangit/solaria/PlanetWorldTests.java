@@ -60,6 +60,7 @@ public final class PlanetWorldTests {
         checkCutawayAndArrival(biome);
         checkPinnedFeatures(biome);
         checkLightingJson();
+        checkInternalStructures(biome, factory, height);
 
         reject(() -> new PlanetChunkGenerator(biome, "unknown", 1.0), "unknown class is rejected");
         reject(() -> new PlanetChunkGenerator(biome, "sun", 2.0), "over-cap scale is rejected");
@@ -291,6 +292,70 @@ public final class PlanetWorldTests {
         String text = Files.readString(Path.of(path));
         if (text.startsWith("\uFEFF")) text = text.substring(1);
         return JsonParser.parseString(text).getAsJsonObject();
+    }
+
+    private static void checkInternalStructures(
+        Holder<Biome> biome,
+        PalettedContainerFactory factory,
+        LevelHeightAccessor height
+    ) {
+        for (var cls : AstronomyClass.values()) {
+            var tiny = new PlanetChunkGenerator(biome, cls.id(), 0.05);
+            check(tiny.internalStructure() == null, cls.id() + ": tiny scale 0.05 omits internal structure");
+
+            var gen = new PlanetChunkGenerator(biome, cls.id(), 1.0);
+            InternalStructure s = gen.internalStructure();
+            check(s != null, cls.id() + ": internal structure created at 1.0x");
+            check(s.minY() >= -256 && s.maxY() <= 255, cls.id() + ": internal column fits dimension Y bounds");
+            check(s.minX() > gen.viewingDistance() + 5, cls.id() + ": clear air east of viewingDistance");
+            check(gen.blockAt(gen.viewingDistance(), 0, 0).isAir(), cls.id() + ": viewingDistance stands in air");
+            check(gen.blockAt((int) Math.floor(gen.arrivalX()), (int) Math.floor(gen.arrivalY()),
+                (int) Math.floor(gen.arrivalZ())).isAir(), cls.id() + ": arrival block is air");
+            check(s.maxX() - s.minX() + 1 == 17 && s.maxZ() - s.minZ() + 1 == 17,
+                cls.id() + ": 17x17 horizontal footprint");
+
+            InternalStructure second = InternalStructure.forClass(cls, gen.halfExtent(), gen.blueprint().palette());
+            for (int i = 0; i < s.layers().size(); i++) {
+                InternalStructure.LayerSpan span = s.layers().get(i);
+                check(span.height() >= InternalStructure.MIN_LAYER_BLOCKS,
+                    cls.id() + " layer " + span.layer().name() + ": height >= 6");
+                int midY = (span.minY() + span.maxY()) / 2;
+                check(s.voxelAt(s.centerX(), midY, 0) == second.voxelAt(s.centerX(), midY, 0),
+                    cls.id() + ": layer sampling deterministic");
+                var centerBlock = gen.blockAt(s.centerX(), midY, 0);
+                check(!centerBlock.isAir() && !centerBlock.is(Blocks.BLACK_CONCRETE) && !centerBlock.is(Blocks.SEA_LANTERN),
+                    cls.id() + " layer " + span.layer().name() + ": center populated with stratum material");
+                if (i + 1 < s.layers().size()) {
+                    check(gen.blockAt(s.centerX(), span.maxY() + 1, 0).is(Blocks.BLACK_CONCRETE),
+                        cls.id() + ": black_concrete divider after " + span.layer().name());
+                }
+            }
+
+            check(gen.blockAt(s.minX(), s.minY(), s.minZ()).is(Blocks.SEA_LANTERN),
+                cls.id() + ": bottom corner beacon is sea_lantern");
+            check(gen.blockAt(s.maxX(), s.maxY(), s.maxZ()).is(Blocks.SEA_LANTERN),
+                cls.id() + ": top corner beacon is sea_lantern");
+            check(gen.blockAt(s.centerX(), s.minY(), s.centerZ()).is(Blocks.BLACKSTONE),
+                cls.id() + ": bottom plinth is blackstone");
+            check(gen.blockAt(s.centerX(), s.maxY(), s.centerZ()).isAir(),
+                cls.id() + ": top crown center stays open");
+
+            // Check real chunk fill across the column center.
+            ChunkPos colChunkPos = new ChunkPos(s.centerX() >> 4, s.centerZ() >> 4);
+            var colChunk = new ProtoChunk(colChunkPos, UpgradeData.EMPTY, height, factory, null);
+            gen.fillFromNoise(null, null, null, colChunk).join();
+            int expectedHeight = height.getMinY();
+            for (int y = s.minY(); y <= s.maxY(); y++) {
+                var expected = gen.blockAt(s.centerX(), y, s.centerZ());
+                var placed = colChunk.getBlockState(new BlockPos(s.centerX(), y, s.centerZ()));
+                check(placed.equals(expected), cls.id() + ": fillFromNoise places internal voxel at y=" + y);
+                if (Heightmap.Types.WORLD_SURFACE_WG.isOpaque().test(placed)) {
+                    expectedHeight = y + 1;
+                }
+            }
+            check(gen.getBaseHeight(s.centerX(), s.centerZ(), Heightmap.Types.WORLD_SURFACE_WG, height, null) == expectedHeight,
+                cls.id() + ": getBaseHeight matches column top");
+        }
     }
 
     private static void reject(Runnable action, String message) {

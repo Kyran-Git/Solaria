@@ -1,16 +1,19 @@
 package net.kyrangit.solaria;
 
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+import javax.imageio.ImageIO;
 
 /**
  * Structural checks for the Oracle Index book shipped in this mod.
@@ -105,6 +108,33 @@ public final class WikiStructureTests {
 		check(read(astronomy.resolve("moons/moon_phases.mdx"))
 			.contains("[The Moon](/docs/astronomy/moons/the_moon)"),
 			"Moon Phases links to the converted Moon page");
+
+		Map<String, String> internalPages = new LinkedHashMap<>();
+		internalPages.put("sun", "stars/the_sun.mdx");
+		internalPages.put("moon", "moons/the_moon.mdx");
+		internalPages.put("mercury", "planets/mercury.mdx");
+		internalPages.put("venus", "planets/venus.mdx");
+		internalPages.put("earth", "planets/earth.mdx");
+		internalPages.put("mars", "planets/mars.mdx");
+		internalPages.put("jupiter", "planets/jupiter.mdx");
+		internalPages.put("saturn", "planets/saturn.mdx");
+		internalPages.put("uranus", "planets/uranus.mdx");
+		internalPages.put("neptune", "planets/neptune.mdx");
+		for (var entry : internalPages.entrySet()) {
+			String id = entry.getKey();
+			String pageText = read(astronomy.resolve(entry.getValue()));
+			check(pageText.contains("@solariamod:internal/" + id),
+				entry.getValue() + " references @solariamod:internal/" + id);
+			Path wikiPng = WIKI.resolve("assets/solariamod/internal/" + id + ".png");
+			check(Files.isRegularFile(wikiPng), "internal wiki image exists: " + wikiPng);
+			BufferedImage decoded = ImageIO.read(wikiPng.toFile());
+			check(decoded != null && decoded.getWidth() > 0 && decoded.getHeight() > 0,
+				"internal wiki image decodes cleanly: " + id + ".png");
+			Path bookPng = BOOK.resolve("assets/solariamod/internal/" + id + ".png");
+			check(Files.isRegularFile(bookPng), "synced internal wiki image exists: " + bookPng);
+			check(Arrays.equals(Files.readAllBytes(wikiPng), Files.readAllBytes(bookPng)),
+				"synced internal wiki image matches wiki/ source: " + id + ".png");
+		}
 	}
 
 	private static List<Path> folders() throws IOException {

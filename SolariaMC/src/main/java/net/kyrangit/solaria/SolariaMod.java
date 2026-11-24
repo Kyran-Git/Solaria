@@ -29,6 +29,7 @@ public class SolariaMod implements ModInitializer {
 		net.minecraft.core.Registry.register(net.minecraft.core.registries.BuiltInRegistries.CHUNK_GENERATOR,
 			id("planet"), net.kyrangit.solaria.dimension.PlanetChunkGenerator.CODEC);
 		net.kyrangit.solaria.dimension.LessonReturn.register();
+		net.kyrangit.solaria.dimension.InternalStructureLabels.register();
 		net.kyrangit.solaria.intro.IntroHub.install();
 		net.kyrangit.solaria.scan.ScanPackets.register();
 		new net.kyrangit.solaria.scan.HostScanSessions(config).install();

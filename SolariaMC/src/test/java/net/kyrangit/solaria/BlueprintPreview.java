@@ -12,14 +12,23 @@ import net.kyrangit.solaria.blueprint.RingSystem.DensityProfile;
 import net.kyrangit.solaria.blueprint.SurfacePainter;
 
 import javax.imageio.ImageIO;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import net.kyrangit.solaria.blueprint.InternalStructure;
+import net.kyrangit.solaria.blueprint.InternalStructure.Layer;
+import net.kyrangit.solaria.blueprint.InternalStructure.LayerSpan;
 
 /**
  * Renders blueprints to PNGs under {@code build/previews/} using an average colour per block.
@@ -214,7 +223,13 @@ public final class BlueprintPreview {
 		Path outDir = Path.of("build", "previews");
 		Files.createDirectories(outDir);
 
-		boolean renderAll = args.length == 0;
+		boolean wikiInternalOnly = containsArg(args, "wiki-internal");
+		boolean includeInternal = wikiInternalOnly || containsArg(args, "internal");
+		boolean renderAll = !wikiInternalOnly && args.length == 0;
+		Path wikiInternalDir = Path.of("wiki", "assets", "solariamod", "internal");
+		if (renderAll || includeInternal) {
+			Files.createDirectories(wikiInternalDir);
+		}
 		if (renderAll || containsArg(args, "test_sphere")) {
 			renderTarget("test_sphere", testSphere(161), 161, outDir);
 		}
@@ -224,14 +239,19 @@ public final class BlueprintPreview {
 			renderRingTarget("test_ring", testRingSystem(diameter), halfExt, outDir);
 		}
 		for (AstronomyClass cls : AstronomyClass.values()) {
-			if (renderAll || containsArg(args, cls.id())) {
+			if (renderAll || wikiInternalOnly || containsArg(args, cls.id())) {
 				long t0 = System.nanoTime();
 				Blueprint bp = BlueprintGenerator.generate(cls, 1.0);
 				long genMs = (System.nanoTime() - t0) / 1_000_000;
 				int halfExt = BlueprintGenerator.blueprintExtent(cls, bp.diameter()) / 2 + 2;
-				System.out.printf("[%s] generator setup %d ms (diameter=%d, halfExt=%d)%n",
-					cls.id(), genMs, bp.diameter(), halfExt);
-				renderTarget(cls.id(), bp, halfExt, outDir);
+				if (!wikiInternalOnly) {
+					System.out.printf("[%s] generator setup %d ms (diameter=%d, halfExt=%d)%n",
+						cls.id(), genMs, bp.diameter(), halfExt);
+					renderTarget(cls.id(), bp, halfExt, outDir);
+				}
+				if (renderAll || includeInternal) {
+					renderInternalPreviews(cls, bp, outDir, wikiInternalDir);
+				}
 			}
 		}
 	}
@@ -587,6 +607,260 @@ public final class BlueprintPreview {
 		int g = Math.min(255, Math.max(0, (int) Math.round(((rgb >> 8) & 0xFF) * factor)));
 		int b = Math.min(255, Math.max(0, (int) Math.round((rgb & 0xFF) * factor)));
 		return (r << 16) | (g << 8) | b;
+	}
+
+	private static void renderInternalPreviews(
+		AstronomyClass cls,
+		Blueprint bp,
+		Path outDir,
+		Path wikiInternalDir
+	) throws IOException {
+		int genHalfExtent = BlueprintGenerator.blueprintExtent(cls, bp.diameter()) / 2 + 1;
+		InternalStructure structure = InternalStructure.forClass(cls, genHalfExtent, bp.palette());
+		int[] colours = buildColourLookup(bp.palette());
+
+		BufferedImage wikiImg = renderWikiInternalDiagram(structure, colours);
+		Path wikiFile = wikiInternalDir.resolve(cls.id() + ".png");
+		ImageIO.write(wikiImg, "png", wikiFile.toFile());
+
+		Path planetOut = outDir.resolve(cls.id());
+		Files.createDirectories(planetOut);
+		BufferedImage sideImg = renderInternalSideView(bp, structure, genHalfExtent, colours);
+		Path sideFile = planetOut.resolve("internal-side.png");
+		ImageIO.write(sideImg, "png", sideFile.toFile());
+		System.out.printf("[%s] wrote %s and %s%n", cls.id(), wikiFile, sideFile);
+	}
+
+	private static BufferedImage renderWikiInternalDiagram(InternalStructure structure, int[] colours) {
+		final int w = 760;
+		final int h = 520;
+		BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+		Graphics2D g = img.createGraphics();
+		g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+		g.setColor(new Color(0x0B101D));
+		g.fillRect(0, 0, w, h);
+		g.setColor(new Color(0x111827));
+		g.fillRoundRect(16, 14, w - 32, h - 28, 16, 16);
+		g.setColor(new Color(0x26344D));
+		g.drawRoundRect(16, 14, w - 32, h - 28, 16, 16);
+
+		String id = structure.astronomyClass().id();
+		String titleName = Character.toUpperCase(id.charAt(0)) + id.substring(1);
+		g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 22));
+		g.setColor(new Color(0xF8FAFC));
+		g.drawString(titleName + " — Internal Structure", 36, 46);
+		g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+		g.setColor(new Color(0x94A3B8));
+		g.drawString("17x17 stratigraphic column (in-world east of body) • Core at bottom -> Surface at top", 36, 67);
+
+		final int px = 4;
+		final int depthStep = 2;
+		final int totalHeightBlocks = structure.maxY() - structure.minY() + 1;
+		final int colLeft = 56;
+		final int colBottom = 468;
+
+		// Back-to-front painter order creates a crisp 2.5D isometric-style voxel stack directly from InternalStructure.
+		for (int dz = -InternalStructure.HALF_WIDTH; dz <= InternalStructure.HALF_WIDTH; dz++) {
+			int depth = InternalStructure.HALF_WIDTH - dz;
+			for (int y = structure.minY(); y <= structure.maxY(); y++) {
+				for (int dx = -InternalStructure.HALF_WIDTH; dx <= InternalStructure.HALF_WIDTH; dx++) {
+					int idx = structure.voxelAt(structure.centerX() + dx, y, structure.centerZ() + dz);
+					if (idx == 0) {
+						continue;
+					}
+					int rgb = colours[idx];
+					int sx = colLeft + (dx + InternalStructure.HALF_WIDTH) * px + depth * depthStep;
+					int sy = colBottom - (y - structure.minY() + 1) * px - depth * depthStep;
+
+					g.setColor(new Color(scaleRgb(rgb, 1.12)));
+					g.fillRect(sx, sy - depthStep, px, depthStep);
+					g.setColor(new Color(scaleRgb(rgb, 0.78)));
+					g.fillRect(sx + px, sy, depthStep, px);
+					g.setColor(new Color(rgb));
+					g.fillRect(sx, sy, px, px);
+				}
+			}
+		}
+
+		List<LayerSpan> spans = structure.layers();
+		int count = spans.size();
+		int cardX = 250;
+		int cardW = 474;
+		int cardH = count >= 5 ? 58 : 66;
+		int minCenterY = 104 + cardH / 2;
+		int maxCenterY = 468 - cardH / 2;
+		int[] cardCenters = new int[count];
+		int[] anchorYs = new int[count];
+
+		// Top-to-bottom ordering matching physical top-of-column to bottom-of-column.
+		for (int i = 0; i < count; i++) {
+			LayerSpan span = spans.get(count - 1 - i);
+			double midBlockY = (span.minY() + span.maxY()) * 0.5 + 0.5;
+			int anchorY = colBottom - (int) Math.round((midBlockY - structure.minY()) * px) - InternalStructure.HALF_WIDTH;
+			anchorYs[i] = anchorY;
+			cardCenters[i] = Math.max(minCenterY, Math.min(maxCenterY, anchorY));
+		}
+		int minGap = cardH + 10;
+		for (int pass = 0; pass < 4; pass++) {
+			for (int i = 1; i < count; i++) {
+				if (cardCenters[i] < cardCenters[i - 1] + minGap) {
+					cardCenters[i] = cardCenters[i - 1] + minGap;
+				}
+			}
+			if (cardCenters[count - 1] > maxCenterY) {
+				int excess = cardCenters[count - 1] - maxCenterY;
+				cardCenters[count - 1] -= excess;
+				for (int i = count - 2; i >= 0; i--) {
+					if (cardCenters[i] > cardCenters[i + 1] - minGap) {
+						cardCenters[i] = cardCenters[i + 1] - minGap;
+					}
+				}
+			}
+			cardCenters[0] = Math.max(minCenterY, cardCenters[0]);
+		}
+
+		int colRightEdge = colLeft + InternalStructure.WIDTH * px + 4;
+		g.setStroke(new BasicStroke(1.6f));
+		for (int i = 0; i < count; i++) {
+			LayerSpan span = spans.get(count - 1 - i);
+			Layer layer = span.layer();
+			int midY = (span.minY() + span.maxY()) / 2;
+			int sampleIdx = structure.voxelAt(structure.centerX(), midY, structure.centerZ() + InternalStructure.HALF_WIDTH);
+			Color swatch = new Color(sampleIdx == 0 ? colours[layer.ramp().at(layer.ramp().size() - 1)] : colours[sampleIdx]);
+			int cy = cardCenters[i];
+			int ay = anchorYs[i];
+
+			g.setColor(new Color(0x475569));
+			int midX = 216;
+			g.drawLine(colRightEdge, ay, midX, ay);
+			g.drawLine(midX, ay, midX + 12, cy);
+			g.drawLine(midX + 12, cy, cardX, cy);
+			g.setColor(swatch);
+			g.fillOval(colRightEdge - 3, ay - 3, 6, 6);
+
+			int cardTop = cy - cardH / 2;
+			g.setColor(new Color(0x182238));
+			g.fillRoundRect(cardX, cardTop, cardW, cardH, 10, 10);
+			g.setColor(new Color(0x334155));
+			g.drawRoundRect(cardX, cardTop, cardW, cardH, 10, 10);
+			g.setColor(swatch);
+			g.fillRoundRect(cardX + 2, cardTop + 6, 6, cardH - 12, 4, 4);
+
+			g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 15));
+			FontMetrics titleFm = g.getFontMetrics();
+			g.setColor(new Color(0xF8FAFC));
+			int textX = cardX + 18;
+			int line1Y = cardTop + (cardH >= 64 ? 26 : 23);
+			g.drawString(layer.name(), textX, line1Y);
+
+			String badge = layer.toScale()
+				? layer.scaleLabel()
+				: layer.scaleLabel() + " (not to scale)";
+			g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+			g.setColor(layer.toScale() ? new Color(0xFBBF24) : new Color(0x38BDF8));
+			int badgeX = Math.max(textX + titleFm.stringWidth(layer.name()) + 12, cardX + cardW - g.getFontMetrics().stringWidth(badge) - 14);
+			g.drawString(badge, badgeX, line1Y);
+
+			g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+			g.setColor(new Color(0xCBD5E1));
+			int line2Y = cardTop + (cardH >= 64 ? 48 : 43);
+			g.drawString(layer.composition() + "  •  " + span.height() + " blocks", textX, line2Y);
+		}
+
+		g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 11));
+		g.setColor(new Color(0x64748B));
+		g.drawString("Thin crusts & outer envelopes use a 6-block minimum floor so layers remain inspectable (" + totalHeightBlocks + " blocks tall).", 36, 496);
+		g.dispose();
+		return img;
+	}
+
+	private static BufferedImage renderInternalSideView(
+		Blueprint bp,
+		InternalStructure structure,
+		int genHalfExtent,
+		int[] colours
+	) {
+		final int w = 760;
+		final int h = 440;
+		BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+		Graphics2D g = img.createGraphics();
+		g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		g.setColor(new Color(BACKDROP));
+		g.fillRect(0, 0, w, h);
+
+		int worldMinX = -genHalfExtent - 6;
+		int worldMaxX = structure.maxX() + 10;
+		int worldMinY = Math.min(-genHalfExtent, structure.minY()) - 6;
+		int worldMaxY = Math.max(genHalfExtent, structure.maxY()) + 6;
+		double spanX = worldMaxX - worldMinX + 1.0;
+		double spanY = worldMaxY - worldMinY + 1.0;
+
+		int viewW = w - 24;
+		int viewH = h - 46;
+		double scale = Math.min(viewW / spanX, viewH / spanY);
+		double drawW = spanX * scale;
+		double drawH = spanY * scale;
+		int offX = (int) Math.round((w - drawW) * 0.5);
+		int offY = (int) Math.round((h - 24 - drawH) * 0.5);
+		double zStep = Math.max(1.0, genHalfExtent / 90.0);
+
+		for (int py = 0; py < (int) Math.ceil(drawH); py++) {
+			int wy = (int) Math.round(worldMaxY - (py + 0.5) / scale);
+			int iy = offY + py;
+			if (iy < 0 || iy >= h) {
+				continue;
+			}
+			for (int px = 0; px < (int) Math.ceil(drawW); px++) {
+				int ix = offX + px;
+				if (ix < 0 || ix >= w) {
+					continue;
+				}
+				int wx = (int) Math.round(worldMinX + (px + 0.5) / scale);
+				int hitIdx = 0;
+				double shade = 1.0;
+
+				if (Math.abs(wx) <= genHalfExtent && Math.abs(wy) <= genHalfExtent) {
+					double step = Math.abs(wy) < 35 ? 1.0 : zStep;
+					for (double z = genHalfExtent; z >= -genHalfExtent; z -= step) {
+						int wz = (int) Math.round(z);
+						int v = bp.voxelAt(wx, wy, wz);
+						if (v != 0) {
+							hitIdx = v;
+							double nz = (wz + genHalfExtent) / (2.0 * genHalfExtent);
+							shade = 0.62 + 0.44 * nz;
+							break;
+						}
+					}
+				} else if (wx >= structure.minX() && wx <= structure.maxX()
+					&& wy >= structure.minY() && wy <= structure.maxY()) {
+					for (int wz = structure.maxZ(); wz >= structure.minZ(); wz--) {
+						int v = structure.voxelAt(wx, wy, wz);
+						if (v != 0) {
+							hitIdx = v;
+							double nz = (wz - structure.minZ()) / (double) InternalStructure.WIDTH;
+							shade = 0.72 + 0.34 * nz;
+							break;
+						}
+					}
+				}
+
+				if (hitIdx != 0) {
+					img.setRGB(ix, iy, scaleRgb(colours[hitIdx], shade));
+				}
+			}
+		}
+
+		String id = structure.astronomyClass().id();
+		String label = Character.toUpperCase(id.charAt(0)) + id.substring(1);
+		g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+		g.setColor(new Color(0xE2E8F0));
+		g.drawString(label + " (+Z side view)  |  Planet halfExtent=" + genHalfExtent
+			+ "   •   Structure X=[" + structure.minX() + ".." + structure.maxX() + "], Y=["
+			+ structure.minY() + ".." + structure.maxY() + "]", 16, h - 14);
+		g.dispose();
+		return img;
 	}
 
 	private record VarietyReport(int distinctBlocks, String topBlock, double topSharePct,
