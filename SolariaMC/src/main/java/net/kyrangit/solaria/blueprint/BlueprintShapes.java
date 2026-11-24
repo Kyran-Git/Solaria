@@ -38,6 +38,31 @@ final class BlueprintShapes {
 		return x > 0 && z > 0;
 	}
 
+	/** Keep at least the outer two-voxel crust available for surface detail at tiny test scales. */
+	private static double interiorLimit(double radius) {
+		return Math.min(0.88, Math.max(0.0, (radius - 2.0) / radius));
+	}
+
+	private record TangentFeature(
+		double cx, double cy, double cz,
+		double t1x, double t1y, double t1z,
+		double t2x, double t2y, double t2z,
+		double radiusA, double radiusB, int seed
+	) {
+		static TangentFeature of(double x, double y, double z, double radiusA, double radiusB, int seed) {
+			double len = Math.sqrt(x * x + y * y + z * z);
+			double cx = x / len, cy = y / len, cz = z / len;
+			double hLen = Math.hypot(cx, cz);
+			double t1x = hLen > 1e-6 ? -cz / hLen : 1.0;
+			double t1y = 0.0;
+			double t1z = hLen > 1e-6 ? cx / hLen : 0.0;
+			double t2x = cy * t1z - cz * t1y;
+			double t2y = cz * t1x - cx * t1z;
+			double t2z = cx * t1y - cy * t1x;
+			return new TangentFeature(cx, cy, cz, t1x, t1y, t1z, t2x, t2y, t2z, radiusA, radiusB, seed);
+		}
+	}
+
 	/** Scatter crater positions from a seed; returns the centre of crater {@code i}. */
 	private static double[] craterCentre(int i, int seed, double radius) {
 		double[] dir = VoxelNoise.unitVector(seed ^ (i * 0x9E3779B1));
@@ -72,43 +97,119 @@ final class BlueprintShapes {
 	// ================================================================== SUN
 
 	/**
-	 * Sun: glowing gold sphere with granulation noise on the outer shell.
-	 * Three concentric colour zones: core (glowstone), shell (gold), corona (yellow/ochre).
+	 * Sun: convective granulation, active sunspot belts with surrounding faculae, and bright limb.
 	 */
 	static Blueprint sun(MaterialPalette palette, int diameter, double scale, int seed) {
+		// NASA Solar Physics (https://science.nasa.gov/sun/facts/): ~1,000 km convective granulation
+		// cells, dark magnetic sunspots in active belts (~5-40 deg N/S), and bright surrounding faculae.
 		int core    = palette.indexOf(Palette.GLOWSTONE);
-		int surface = palette.indexOf(Palette.GOLD_BLOCK);
-		int corona  = palette.indexOf(Palette.YELLOW_CONCRETE);
-		int gran1   = palette.indexOf(Palette.SHROOMLIGHT);
-		int gran2   = palette.indexOf(Palette.OCHRE_FROGLIGHT);
-		int honey   = palette.indexOf(Palette.HONEYCOMB_BLOCK);
+		int radA    = palette.indexOf(Palette.GOLD_BLOCK);
+		int radB    = palette.indexOf(Palette.OCHRE_FROGLIGHT);
+		int convA   = palette.indexOf(Palette.SHROOMLIGHT);
+		int convB   = palette.indexOf(Palette.ORANGE_CONCRETE);
+		MaterialRamp plasmaRamp = MaterialRamp.of(palette,
+			Palette.RED_CONCRETE,
+			Palette.REDSTONE_BLOCK,
+			Palette.ORANGE_CONCRETE,
+			Palette.SHROOMLIGHT,
+			Palette.HONEYCOMB_BLOCK,
+			Palette.RAW_GOLD_BLOCK,
+			Palette.YELLOW_CONCRETE,
+			Palette.GOLD_BLOCK,
+			Palette.OCHRE_FROGLIGHT,
+			Palette.GLOWSTONE);
+		MaterialRamp spotRamp = MaterialRamp.of(palette,
+			Palette.COAL_BLOCK,
+			Palette.BLACKSTONE,
+			Palette.RED_NETHER_BRICKS,
+			Palette.NETHERRACK,
+			Palette.RED_CONCRETE);
+
+		TangentFeature[] sunspots = new TangentFeature[10];
+		// Pin two prominent active groups onto the +X arrival face and distribute the rest in ±5..40 deg belts.
+		sunspots[0] = TangentFeature.of(0.90, 0.25, -0.35, 0.062, 0.048, seed ^ 0x5900);
+		sunspots[1] = TangentFeature.of(0.88, -0.28, 0.38, 0.056, 0.044, seed ^ 0x5901);
+		for (int i = 2; i < sunspots.length; i++) {
+			int fs = seed ^ (i * 0x9E3779B1);
+			double[] v = VoxelNoise.unitVector(fs);
+			double cy = Math.copySign(0.10 + Math.abs(v[1]) * 0.48, v[1]);
+			double horiz = Math.sqrt(Math.max(1e-6, 1.0 - cy * cy));
+			double oldHoriz = Math.hypot(v[0], v[2]);
+			double cx = oldHoriz > 1e-6 ? v[0] / oldHoriz * horiz : horiz;
+			double cz = oldHoriz > 1e-6 ? v[2] / oldHoriz * horiz : 0.0;
+			double rA = 0.032 + 0.030 * VoxelNoise.hashUnit(i, 1, 0, seed ^ 0x5907);
+			double rB = rA * (0.75 + 0.30 * VoxelNoise.hashUnit(i, 2, 0, seed ^ 0x5907));
+			sunspots[i] = TangentFeature.of(cx, cy, cz, rA, rB, fs ^ 0x7105);
+		}
+
 		double radius = diameter / 2.0;
+		double innerLimit = interiorLimit(radius);
 		return new Blueprint(AstronomyClass.SUN,
 			(x, y, z) -> {
-				double r2 = (double) x * x + (double) y * y + (double) z * z;
-				double dist = Math.sqrt(r2);
-				if (dist > radius) return 0;
+				double distSq = (double) x * x + (double) y * y + (double) z * z;
+				if (distSq > radius * radius) return 0;
+				double dist = Math.sqrt(distSq);
 				double norm = dist / radius;
-				double nx = x / radius, ny = y / radius, nz = z / radius;
-				// Quarter-sphere cutaway: expose stellar interior zones.
-				if (cutaway(x, z)) {
-					double tex = VoxelNoise.noise3(nx * 4.0, ny * 4.0, nz * 4.0, seed ^ 0x501A);
-					if (norm < 0.28) return core;                 // radiative core
-					if (norm < 0.65) return tex > 0.55 ? gran2 : surface; // radiative zone
-					if (norm < 0.85) return tex > 0.50 ? gran1 : gran2;   // convective zone
-					return tex > 0.55 ? honey : corona;           // photosphere/corona
+				double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+				double ux = x * inv;
+				double uy = dist > 0.0 ? y * inv : 1.0;
+				double uz = z * inv;
+
+				// Interior stellar structure (kept strictly inside outer photosphere shell so no cutaway seam marks the surface).
+				if (norm < innerLimit) {
+					if (norm < 0.28) return core;
+					if (cutaway(x, z)) {
+						double tex = SurfacePainter.sphereFbm(ux, uy, uz, 4.0, 2, seed ^ 0x501A);
+						if (norm < 0.65) return tex > 0.55 ? radB : radA;
+						return tex > 0.50 ? convA : convB;
+					}
+					if (norm < 0.65) return radA;
+					return convA;
 				}
-				if (norm < 0.35) return core;
-				if (norm < 0.78) return surface;
-				// Outer shell: granulation noise
-				double g = VoxelNoise.noise3(nx * 6.0, ny * 6.0, nz * 6.0, seed);
-				if (norm > 0.92) {
-					// Corona fringe
-					return g > 0.55 ? honey : corona;
+
+				double macro = SurfacePainter.warpedSphereFbm(ux, uy, uz, 3.8, 3, 2.4, 0.38, seed);
+				double gran = SurfacePainter.sphereFbm(ux, uy, uz, 16.0, 3, 0.55, 2.1, seed ^ 0x64A4);
+				double cells = SurfacePainter.smoothstep(0.24, 0.78, gran);
+
+				double temp = 0.10 + 0.44 * macro + 0.26 * cells;
+				if (Math.abs(uy) < 0.65) {
+					double plage = SurfacePainter.warpedSphereFbm(ux, uy, uz, 5.0, 2, 2.8, 0.42, seed ^ 0xAC71);
+					if (plage > 0.54) {
+						temp += (plage - 0.54) * 0.90;
+					}
 				}
-				if (g > 0.68) return gran1;
-				if (g > 0.54) return gran2;
-				return surface;
+				if (norm > 0.965) {
+					temp += 0.14 * cells;
+				}
+
+				double faculaeBoost = 0.0;
+				TangentFeature hitSpot = null;
+				double hitRNorm = Double.MAX_VALUE;
+				for (TangentFeature f : sunspots) {
+					double dot = ux * f.cx + uy * f.cy + uz * f.cz;
+					if (dot <= 0.94) continue;
+					double dx = ux - f.cx;
+					double dy = uy - f.cy;
+					double dz = uz - f.cz;
+					double du = dx * f.t1x + dy * f.t1y + dz * f.t1z;
+					double dv = dx * f.t2x + dy * f.t2y + dz * f.t2z;
+					double rNorm = Math.hypot(du / f.radiusA, dv / f.radiusB)
+						+ (macro - 0.5) * 0.65 + (gran - 0.5) * 0.45;
+					if (rNorm < 1.15 && rNorm < hitRNorm) {
+						hitRNorm = rNorm;
+						hitSpot = f;
+					} else if (rNorm >= 1.0 && rNorm < 1.85) {
+						double boost = 0.24 * (1.0 - (rNorm - 1.0) / 0.85);
+						if (boost > faculaeBoost) faculaeBoost = boost;
+					}
+				}
+
+				int plasmaMat = plasmaRamp.sampleDithered(temp + faculaeBoost, 0.45, x, y, z, seed ^ 0x5011);
+				if (hitSpot != null) {
+					int spotMat = spotRamp.sampleDithered(Math.max(0.0, hitRNorm), 0.40, x, y, z, hitSpot.seed);
+					return SurfacePainter.blend(spotMat, plasmaMat, hitRNorm, 0.90, 0.45, x, y, z, hitSpot.seed ^ 0x44);
+				}
+				return plasmaMat;
 			},
 			palette, scale, diameter);
 	}
@@ -182,49 +283,159 @@ final class BlueprintShapes {
 	// ================================================================== MOON
 
 	/**
-	 * Moon: grey highlands with dark maria patches and scattered impact craters.
+	 * Moon: dark basaltic maria against bright anorthositic highlands with rayed impact craters.
 	 */
 	static Blueprint moon(MaterialPalette palette, int diameter, double scale, int seed) {
-		int surface  = palette.indexOf(Palette.LIGHT_GRAY_CONCRETE);
-		int highland = palette.indexOf(Palette.ANDESITE);
-		int bright   = palette.indexOf(Palette.SMOOTH_STONE);
-		int dusty    = palette.indexOf(Palette.LIGHT_GRAY_TERRACOTTA);
-		int mare     = palette.indexOf(Palette.SMOOTH_BASALT);
-		int mareAlt  = palette.indexOf(Palette.GRAY_CONCRETE);
-		int rimBlock = palette.indexOf(Palette.CALCITE);
-		int ironCore = palette.indexOf(Palette.IRON_BLOCK);
-		int mantle   = palette.indexOf(Palette.DEEPSLATE);
-		int crustIn  = palette.indexOf(Palette.STONE);
+		// NASA LRO / Moon Facts (https://science.nasa.gov/moon/facts/): dark basaltic maria
+		// (~16% globally, concentrated on near side), bright anorthositic highlands, and
+		// rayed impact craters such as Tycho (43.4 deg S).
+		int ironCore  = palette.indexOf(Palette.IRON_BLOCK);
+		int mantle    = palette.indexOf(Palette.DEEPSLATE);
+		int crustIn   = palette.indexOf(Palette.STONE);
+		int craterFloor = palette.indexOf(Palette.GRAY_CONCRETE);
+		int craterPeak  = palette.indexOf(Palette.CALCITE);
+
+		MaterialRamp mareRamp = MaterialRamp.of(palette,
+			Palette.BLACKSTONE,
+			Palette.SMOOTH_BASALT,
+			Palette.DEEPSLATE,
+			Palette.GRAY_CONCRETE,
+			Palette.TUFF);
+		MaterialRamp highlandRamp = MaterialRamp.of(palette,
+			Palette.STONE,
+			Palette.ANDESITE,
+			Palette.LIGHT_GRAY_CONCRETE,
+			Palette.SMOOTH_STONE,
+			Palette.DIORITE,
+			Palette.CALCITE);
+		MaterialRamp rayRamp = MaterialRamp.of(palette,
+			Palette.SMOOTH_STONE,
+			Palette.DIORITE,
+			Palette.CALCITE,
+			Palette.WHITE_CONCRETE);
+
+		// 6 major mare basins: 4 clustered across the +X near-side hemisphere, 2 smaller on far side.
+		TangentFeature[] maria = {
+			TangentFeature.of(0.86, 0.36, -0.35, 0.38, 0.38, seed ^ 0x101),
+			TangentFeature.of(0.92, 0.14, 0.36, 0.34, 0.34, seed ^ 0x102),
+			TangentFeature.of(0.76, -0.18, 0.62, 0.30, 0.30, seed ^ 0x103),
+			TangentFeature.of(0.72, 0.50, 0.10, 0.28, 0.28, seed ^ 0x104),
+			TangentFeature.of(-0.82, 0.22, -0.52, 0.24, 0.24, seed ^ 0x105),
+			TangentFeature.of(-0.70, -0.30, 0.64, 0.22, 0.22, seed ^ 0x106)
+		};
+
+		// 4 bright ray craters: radiusA = crater radius, radiusB = ejecta ray reach.
+		TangentFeature[] rayCraters = {
+			TangentFeature.of(0.70, -0.68, -0.20, 0.065, 0.58, seed ^ 0x201), // Tycho-like
+			TangentFeature.of(0.94, 0.17, -0.30, 0.055, 0.48, seed ^ 0x202),  // Copernicus-like
+			TangentFeature.of(-0.78, 0.35, 0.52, 0.060, 0.52, seed ^ 0x203),
+			TangentFeature.of(-0.62, -0.45, -0.64, 0.052, 0.46, seed ^ 0x204)
+		};
+
+		// 28 painted background impact craters.
+		TangentFeature[] smallCraters = new TangentFeature[28];
+		for (int i = 0; i < smallCraters.length; i++) {
+			int fs = seed ^ ((i + 1) * 0x9E3779B1);
+			double[] v = VoxelNoise.unitVector(fs);
+			double r = 0.042 + 0.068 * VoxelNoise.hashUnit(i, 3, 0, seed ^ 0xC4A7);
+			smallCraters[i] = TangentFeature.of(v[0], v[1], v[2], r, r, fs ^ 0x7711);
+		}
+
 		double radius = diameter / 2.0;
-		int craterCount = 18;
+		double innerLimit = interiorLimit(radius);
 		return new Blueprint(AstronomyClass.MOON,
 			(x, y, z) -> {
-				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
-				if (dist > radius) return 0;
-				double nx = x / radius, ny = y / radius, nz = z / radius;
+				double distSq = (double) x * x + (double) y * y + (double) z * z;
+				if (distSq > radius * radius) return 0;
+				double dist = Math.sqrt(distSq);
 				double norm = dist / radius;
-				// Quarter-sphere cutaway: expose small iron core + rocky mantle.
-				if (cutaway(x, z)) {
+				double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+				double ux = x * inv;
+				double uy = dist > 0.0 ? y * inv : 1.0;
+				double uz = z * inv;
+
+				if (norm < innerLimit) {
 					if (norm < 0.25) return ironCore;
 					if (norm < 0.85) return mantle;
-					if (norm < 0.95) return crustIn;
-					// fall through to surface detail at rim
+					return crustIn;
 				}
-				// Check craters first
-				int ce = craterEffect(x, y, z, craterCount, seed, radius, 0.08, rimBlock);
-				if (ce == 0) return 0;
-				if (ce > 0) return ce;
-				// Maria (dark smooth plains)
-				double mare3 = VoxelNoise.noise3(nx * 1.4, ny * 1.4, nz * 1.4, seed ^ 0x1A2B);
-				if (mare3 > 0.64) {
-					return (VoxelNoise.noise3(nx * 3.0, ny * 3.0, nz * 3.0, seed ^ 0x3C4D) > 0.52) ? mare : mareAlt;
+
+				double mareNoise = SurfacePainter.warpedSphereFbm(ux, uy, uz, 2.4, 3, 2.0, 0.38, seed ^ 0x1A2B);
+				double hTex = SurfacePainter.warpedSphereFbm(ux, uy, uz, 5.5, 3, 2.5, 0.25, seed ^ 0xF00F);
+				double micro = SurfacePainter.sphereFbm(ux, uy, uz, 16.0, 2, seed ^ 0x3C4D);
+				double regolithField = SurfacePainter.smoothstep(0.28, 0.72, 0.60 * hTex + 0.40 * micro);
+
+				double basinScore = 0.0;
+				for (TangentFeature m : maria) {
+					double dot = ux * m.cx + uy * m.cy + uz * m.cz;
+					if (dot > 0.70) {
+						double ang = Math.sqrt(Math.max(0.0, 2.0 * (1.0 - dot)));
+						double s = SurfacePainter.smoothstep(m.radiusA * 1.25, m.radiusA * 0.20,
+							ang + (mareNoise - 0.5) * 0.30);
+						if (s > basinScore) basinScore = s;
+					}
 				}
-				// Highlands texture
-				double tex = VoxelNoise.noise3(nx * 5.0, ny * 5.0, nz * 5.0, seed ^ 0xF00F);
-				if (tex > 0.68) return bright;
-				if (tex > 0.55) return highland;
-				if (tex < 0.32) return dusty;
-				return surface;
+				double mareField = SurfacePainter.clamp01(basinScore * 0.48 + mareNoise * 0.66);
+				int mareMat = mareRamp.sampleDithered(regolithField, 0.40,
+					x, y, z, seed ^ 0x4A2E);
+				int highMat = highlandRamp.sampleDithered(regolithField, 0.45,
+					x, y, z, seed ^ 0x4164);
+				int mat = SurfacePainter.blend(highMat, mareMat, mareField, 0.58, 0.22, x, y, z, seed ^ 0x5402);
+
+				for (TangentFeature sc : smallCraters) {
+					double dot = ux * sc.cx + uy * sc.cy + uz * sc.cz;
+					if (dot <= 0.97) continue;
+					double ang = Math.sqrt(Math.max(0.0, 2.0 * (1.0 - dot)));
+					double rNorm = ang / sc.radiusA;
+					if (rNorm < 0.72) {
+						mat = SurfacePainter.blend(mat, craterFloor, 1.0 - rNorm / 0.72, 0.40, 0.30, x, y, z, sc.seed);
+					} else if (rNorm < 1.08) {
+						double rimPeak = 1.0 - Math.abs(rNorm - 0.90) / 0.18;
+						mat = SurfacePainter.blend(mat, craterPeak, rimPeak, 0.55, 0.35, x, y, z, sc.seed ^ 0x1B);
+					}
+				}
+
+				for (int i = 0; i < rayCraters.length; i++) {
+					TangentFeature rc = rayCraters[i];
+					double dot = ux * rc.cx + uy * rc.cy + uz * rc.cz;
+					if (dot <= 0.76) continue;
+					double ang = Math.sqrt(Math.max(0.0, 2.0 * (1.0 - dot)));
+					double craterR = rc.radiusA;
+					double rayReach = rc.radiusB;
+					if (ang >= rayReach) continue;
+
+					if (ang < craterR * 0.70) {
+						if (ang < craterR * 0.22) {
+							mat = craterPeak;
+						} else {
+							mat = SurfacePainter.blend(mat, mareRamp.at(2), 0.80, 0.50, 0.30, x, y, z, rc.seed);
+						}
+						continue;
+					}
+					if (ang < craterR * 1.25) {
+						double t = 1.0 - Math.abs(ang - craterR * 0.95) / (craterR * 0.30);
+						int rim = rayRamp.sampleDithered(0.45 + 0.50 * t, 0.35, x, y, z, rc.seed);
+						mat = SurfacePainter.blend(mat, rim, t, 0.45, 0.30, x, y, z, rc.seed ^ 0x2C);
+						continue;
+					}
+					double dx = ux - rc.cx;
+					double dy = uy - rc.cy;
+					double dz = uz - rc.cz;
+					double du = dx * rc.t1x + dy * rc.t1y + dz * rc.t1z;
+					double dv = dx * rc.t2x + dy * rc.t2y + dz * rc.t2z;
+					double phi = Math.atan2(dv, du);
+					int rayCount = 7 + (i % 3) * 2;
+					double halo = 0.72 * SurfacePainter.smoothstep(craterR * 2.8, craterR * 0.9, ang);
+					double fan = Math.pow(0.5 + 0.5 * Math.sin(phi * rayCount + hTex * 2.2), 1.6)
+						* (0.45 + 0.55 * Math.pow(0.5 + 0.5 * Math.cos(phi * (rayCount + 2) - micro * 1.8), 1.4))
+						* SurfacePainter.smoothstep(rayReach, craterR, ang);
+					double ejecta = SurfacePainter.clamp01(Math.max(halo, fan * 0.95));
+					if (ejecta > 0.12) {
+						int rayMat = rayRamp.sampleDithered(ejecta, 0.45, x, y, z, rc.seed ^ 0x7A);
+						mat = SurfacePainter.blend(mat, rayMat, ejecta, 0.44, 0.42, x, y, z, rc.seed ^ 0x99);
+					}
+				}
+				return mat;
 			},
 			palette, scale, diameter);
 	}
@@ -232,50 +443,136 @@ final class BlueprintShapes {
 	// ================================================================== MARS
 
 	/**
-	 * Mars: rust-red with dark volcanic regions, white polar caps, and canyon shadows.
+	 * Mars: rust-red plains, dark basaltic albedo provinces, Valles Marineris, Hellas Basin, and polar caps.
 	 */
 	static Blueprint mars(MaterialPalette palette, int diameter, double scale, int seed) {
-		int surface  = palette.indexOf(Palette.RED_TERRACOTTA);
-		int dust     = palette.indexOf(Palette.ORANGE_TERRACOTTA);
-		int rock     = palette.indexOf(Palette.RED_SANDSTONE);
-		int smooth   = palette.indexOf(Palette.SMOOTH_RED_SANDSTONE);
-		int highland = palette.indexOf(Palette.GRANITE);
-		int dark     = palette.indexOf(Palette.NETHERRACK);
-		int canyon   = palette.indexOf(Palette.RED_NETHER_BRICKS);
-		int polar    = palette.indexOf(Palette.WHITE_CONCRETE);
-		int polarDry = palette.indexOf(Palette.SNOW_BLOCK);
-		int ironCore = palette.indexOf(Palette.RAW_IRON_BLOCK);
-		int mantleIn = palette.indexOf(Palette.NETHERRACK);
-		int crustIn  = palette.indexOf(Palette.STONE);
+		// NASA Mars Facts / MRO (https://science.nasa.gov/mars/facts/): rusty iron-oxide plains,
+		// dark basaltic albedo regions, Valles Marineris (~3,000-4,000 km canyon at 0-20 deg S),
+		// Hellas Planitia (~2,200 km basin at ~35-42 deg S), and polar ice caps.
+		int ironCore   = palette.indexOf(Palette.RAW_IRON_BLOCK);
+		int mantleIn   = palette.indexOf(Palette.NETHERRACK);
+		int crustIn    = palette.indexOf(Palette.STONE);
+		int duneCollar = palette.indexOf(Palette.GRAY_TERRACOTTA);
+		int polarEdge  = palette.indexOf(Palette.CALCITE);
+		int polarMid   = palette.indexOf(Palette.WHITE_CONCRETE);
+		int polarCore  = palette.indexOf(Palette.SNOW_BLOCK);
+
+		MaterialRamp rustRamp = MaterialRamp.of(palette,
+			Palette.RED_TERRACOTTA,
+			Palette.GRANITE,
+			Palette.RED_SANDSTONE,
+			Palette.RAW_COPPER_BLOCK,
+			Palette.COPPER_BLOCK,
+			Palette.TERRACOTTA,
+			Palette.ORANGE_TERRACOTTA,
+			Palette.SMOOTH_RED_SANDSTONE,
+			Palette.RAW_IRON_BLOCK);
+		MaterialRamp darkRamp = MaterialRamp.of(palette,
+			Palette.RED_NETHER_BRICKS,
+			Palette.NETHERRACK,
+			Palette.BROWN_CONCRETE,
+			Palette.BROWN_TERRACOTTA,
+			Palette.MUD_BRICKS,
+			Palette.PACKED_MUD,
+			Palette.GRAY_TERRACOTTA);
+		MaterialRamp canyonRamp = MaterialRamp.of(palette,
+			Palette.BLACKSTONE,
+			Palette.RED_NETHER_BRICKS,
+			Palette.NETHERRACK,
+			Palette.BROWN_CONCRETE,
+			Palette.RED_TERRACOTTA);
+		MaterialRamp hellasRamp = MaterialRamp.of(palette,
+			Palette.RED_TERRACOTTA,
+			Palette.TERRACOTTA,
+			Palette.ORANGE_TERRACOTTA,
+			Palette.SMOOTH_RED_SANDSTONE,
+			Palette.RAW_IRON_BLOCK);
+
+		TangentFeature valles  = TangentFeature.of(0.95, -0.18, -0.25, 0.46, 0.055, seed ^ 0xCA47);
+		TangentFeature hellas  = TangentFeature.of(-0.28, -0.62, -0.73, 0.28, 0.22, seed ^ 0x4E11);
+		TangentFeature tharsis = TangentFeature.of(0.55, 0.14, 0.82, 0.36, 0.32, seed ^ 0x74A2);
+
 		double radius = diameter / 2.0;
+		double innerLimit = interiorLimit(radius);
 		return new Blueprint(AstronomyClass.MARS,
 			(x, y, z) -> {
-				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
-				if (dist > radius) return 0;
-				double nx = x / radius, ny = y / radius, nz = z / radius;
+				double distSq = (double) x * x + (double) y * y + (double) z * z;
+				if (distSq > radius * radius) return 0;
+				double dist = Math.sqrt(distSq);
 				double norm = dist / radius;
-				// Quarter-sphere cutaway: iron core → rocky mantle → crust.
-				if (cutaway(x, z)) {
+				double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+				double ux = x * inv;
+				double uy = dist > 0.0 ? y * inv : 1.0;
+				double uz = z * inv;
+
+				if (norm < innerLimit) {
 					if (norm < 0.45) return ironCore;
 					if (norm < 0.85) return mantleIn;
-					if (norm < 0.95) return crustIn;
-					// fall through to red surface detail
+					return crustIn;
 				}
-				double absy = Math.abs(ny);
-				// Polar caps
-				if (absy > 0.82) return absy > 0.9 ? polarDry : polar;
-				// Surface noise
-				double base = VoxelNoise.noise3(nx * 2.0, ny * 2.0, nz * 2.0, seed);
-				double detail = VoxelNoise.noise3(nx * 5.5, ny * 5.5, nz * 5.5, seed ^ 0x9191);
-				if (base < 0.28) {
-					// Deep canyon / dark volcanic lowland
-					return detail > 0.55 ? canyon : dark;
+
+				double macro = SurfacePainter.warpedSphereFbm(ux, uy, uz, 2.3, 3, 2.0, 0.42, seed);
+				double detail = SurfacePainter.sphereFbm(ux, uy, uz, 7.5, 3, 0.5, 2.0, seed ^ 0x9191);
+				double tharsisBoost = 0.0;
+				if (ux * tharsis.cx + uy * tharsis.cy + uz * tharsis.cz > 0.82) {
+					double dx = ux - tharsis.cx, dy = uy - tharsis.cy, dz = uz - tharsis.cz;
+					double du = (dx * tharsis.t1x + dy * tharsis.t1y + dz * tharsis.t1z) / tharsis.radiusA;
+					double dv = (dx * tharsis.t2x + dy * tharsis.t2y + dz * tharsis.t2z) / tharsis.radiusB;
+					tharsisBoost = 0.20 * SurfacePainter.smoothstep(1.25, 0.25, Math.hypot(du, dv));
 				}
-				if (base < 0.42) return smooth;
-				if (base > 0.72) return highland;
-				if (detail > 0.60) return rock;
-				if (detail < 0.30) return dust;
-				return surface;
+
+				double albedo = SurfacePainter.smoothstep(0.24, 0.78, macro * 0.70 + detail * 0.30 + tharsisBoost);
+				int rustMat = rustRamp.sampleDithered(albedo, 0.45, x, y, z, seed ^ 0x2057);
+				int darkMat = darkRamp.sampleDithered(detail, 0.45, x, y, z, seed ^ 0xDA2C);
+				int mat = SurfacePainter.blend(darkMat, rustMat, macro + tharsisBoost * 0.5, 0.40, 0.18,
+					x, y, z, seed ^ 0xB1E4);
+
+				// Hellas Planitia: bright dust-filled basin with a darker rim collar.
+				if (ux * hellas.cx + uy * hellas.cy + uz * hellas.cz > 0.85) {
+					double dx = ux - hellas.cx, dy = uy - hellas.cy, dz = uz - hellas.cz;
+					double du = (dx * hellas.t1x + dy * hellas.t1y + dz * hellas.t1z) / hellas.radiusA;
+					double dv = (dx * hellas.t2x + dy * hellas.t2y + dz * hellas.t2z) / hellas.radiusB;
+					double eR = Math.hypot(du, dv) + (detail - 0.5) * 0.14;
+					if (eR < 1.0) {
+						int basinMat = hellasRamp.sampleDithered(1.0 - eR * 0.85, 0.40, x, y, z, hellas.seed);
+						mat = SurfacePainter.blend(mat, basinMat, 1.0 - eR, 0.25, 0.34, x, y, z, hellas.seed ^ 0x11);
+					} else if (eR < 1.25) {
+						mat = SurfacePainter.blend(mat, darkRamp.at(3), 1.25 - eR, 0.15, 0.20,
+							x, y, z, hellas.seed ^ 0x22);
+					}
+				}
+
+				// Valles Marineris: tapered equatorial-south canyon chasm.
+				if (ux * valles.cx + uy * valles.cy + uz * valles.cz > 0.70) {
+					double dx = ux - valles.cx, dy = uy - valles.cy, dz = uz - valles.cz;
+					double du = dx * valles.t1x + dy * valles.t1y + dz * valles.t1z;
+					double dv = dx * valles.t2x + dy * valles.t2y + dz * valles.t2z;
+					if (Math.abs(du) < valles.radiusA) {
+						double spine = dv + (detail - 0.5) * 0.055 + 0.025 * Math.sin(du * 9.0);
+						double uNorm = du / valles.radiusA;
+						double halfW = valles.radiusB * (1.0 - Math.min(1.0, uNorm * uNorm)) * (0.7 + 0.6 * detail);
+						double distSpine = Math.abs(spine);
+						if (halfW > 1e-4 && distSpine < halfW * 1.8) {
+							double cNorm = distSpine / (halfW * 1.8);
+							int cMat = canyonRamp.sampleDithered(cNorm, 0.35, x, y, z, valles.seed);
+							mat = SurfacePainter.blend(cMat, mat, cNorm, 0.68, 0.32, x, y, z, valles.seed ^ 0x33);
+						}
+					}
+				}
+
+				// Polar ice caps with dark circumpolar sand collar.
+				double wLat = SurfacePainter.warpedLatitude(ux, uy, uz, 5.5, 0.045, 3, seed ^ 0x901A);
+				double polar = SurfacePainter.latitudeGradient(wLat, 0.86, 0.94);
+				if (polar > 0.02) {
+					if (polar < 0.35) {
+						double collar = 1.0 - Math.abs(polar - 0.18) / 0.17;
+						mat = SurfacePainter.blend(mat, duneCollar, collar, 0.50, 0.35, x, y, z, seed ^ 0xD04E);
+					}
+					int iceMat = SurfacePainter.blend(polarEdge, polarMid, polar, 0.52, 0.24, x, y, z, seed ^ 0x1CE1);
+					iceMat = SurfacePainter.blend(iceMat, polarCore, polar, 0.78, 0.22, x, y, z, seed ^ 0x1CE2);
+					mat = SurfacePainter.blend(mat, iceMat, polar, 0.42, 0.24, x, y, z, seed ^ 0x1CE3);
+				}
+				return mat;
 			},
 			palette, scale, diameter);
 	}
@@ -283,57 +580,150 @@ final class BlueprintShapes {
 	// ================================================================== JUPITER
 
 	/**
-	 * Jupiter: horizontal bands with an equator-pinned Great Red Spot.
+	 * Jupiter: alternating belts and zones with turbulent edges, swirling Great Red Spot, and white ovals.
 	 */
 	static Blueprint jupiter(MaterialPalette palette, int diameter, double scale, int seed) {
-		int paleBand  = palette.indexOf(Palette.WHITE_CONCRETE);
-		int lightBand = palette.indexOf(Palette.ORANGE_CONCRETE);
-		int darkBand  = palette.indexOf(Palette.BROWN_CONCRETE);
-		int tan       = palette.indexOf(Palette.TERRACOTTA);
-		int cream     = palette.indexOf(Palette.WHITE_TERRACOTTA);
-		int warm      = palette.indexOf(Palette.RAW_COPPER_BLOCK);
-		int peach     = palette.indexOf(Palette.RAW_IRON_BLOCK);
-		int redSpot   = palette.indexOf(Palette.RED_CONCRETE);
-		int rockCore  = palette.indexOf(Palette.DEEPSLATE);
-		int metalH    = palette.indexOf(Palette.IRON_BLOCK);
-		int molecH    = palette.indexOf(Palette.LAPIS_BLOCK);
+		// NASA Hubble / Juno (https://science.nasa.gov/jupiter/facts/): alternating rust-brown belts
+		// and cream zones with turbulent wavy boundaries, anticyclonic Great Red Spot in the southern
+		// hemisphere (~22 deg S, pinned for arrival view), and temperate white ovals.
+		int rockCore = palette.indexOf(Palette.DEEPSLATE);
+		int metalH   = palette.indexOf(Palette.IRON_BLOCK);
+		int molecH   = palette.indexOf(Palette.LAPIS_BLOCK);
+		int redEye   = palette.indexOf(Palette.RED_CONCRETE);
+		int ovalCore = palette.indexOf(Palette.WHITE_CONCRETE);
+		int ovalMid  = palette.indexOf(Palette.SMOOTH_QUARTZ);
+		int ovalRim  = palette.indexOf(Palette.WHITE_TERRACOTTA);
+
+		MaterialRamp bandRamp = MaterialRamp.of(palette,
+			Palette.BROWN_CONCRETE,
+			Palette.BROWN_TERRACOTTA,
+			Palette.RAW_COPPER_BLOCK,
+			Palette.TERRACOTTA,
+			Palette.ORANGE_TERRACOTTA,
+			Palette.RAW_IRON_BLOCK,
+			Palette.YELLOW_TERRACOTTA,
+			Palette.WHITE_TERRACOTTA,
+			Palette.SMOOTH_QUARTZ,
+			Palette.WHITE_CONCRETE);
+		MaterialRamp polarRamp = MaterialRamp.of(palette,
+			Palette.GRAY_TERRACOTTA,
+			Palette.MUD_BRICKS,
+			Palette.PACKED_MUD,
+			Palette.LIGHT_GRAY_TERRACOTTA,
+			Palette.TERRACOTTA,
+			Palette.WHITE_TERRACOTTA);
+		MaterialRamp grsRamp = MaterialRamp.of(palette,
+			Palette.RED_CONCRETE,
+			Palette.RED_TERRACOTTA,
+			Palette.ORANGE_CONCRETE,
+			Palette.COPPER_BLOCK,
+			Palette.ORANGE_TERRACOTTA,
+			Palette.RAW_IRON_BLOCK);
+
+		// Great Red Spot: pinned to the +X arrival face at ~15 deg S, matching PlanetWorldTests.checkPinnedFeatures.
+		TangentFeature grs = TangentFeature.of(0.9384, -0.2528, -0.2357, 0.185, 0.120, seed ^ 0x6250);
+		TangentFeature[] whiteOvals = {
+			TangentFeature.of(0.84, -0.51, 0.18, 0.068, 0.044, seed ^ 0x7001),
+			TangentFeature.of(0.62, -0.56, -0.55, 0.068, 0.044, seed ^ 0x7002),
+			TangentFeature.of(0.76, 0.50, -0.41, 0.068, 0.044, seed ^ 0x7003),
+			TangentFeature.of(-0.72, -0.54, 0.43, 0.068, 0.044, seed ^ 0x7004),
+			TangentFeature.of(-0.68, 0.52, -0.52, 0.068, 0.044, seed ^ 0x7005)
+		};
+
 		double radius = diameter / 2.0;
-		// Great Red Spot: pinned to a fixed direction so it always appears from the
-		// arrival camera (normalised (1, 0, -0.25)).
-		final double spotX = 0.9701425001453319;
-		final double spotZ = -0.24253562503633297;
-		double spotSize = 0.22; // angular half-width (slightly larger so it reads from distance)
+		double innerLimit = interiorLimit(radius);
 		return new Blueprint(AstronomyClass.JUPITER,
 			(x, y, z) -> {
-				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
-				if (dist > radius) return 0;
-				double nx = x / radius, ny = y / radius, nz = z / radius;
+				double distSq = (double) x * x + (double) y * y + (double) z * z;
+				if (distSq > radius * radius) return 0;
+				double dist = Math.sqrt(distSq);
 				double norm = dist / radius;
-				// Quarter-sphere cutaway: gas-giant interior layers.
-				if (cutaway(x, z)) {
-					double tex = VoxelNoise.noise3(nx * 3.0, ny * 3.0, nz * 3.0, seed ^ 0x3A91);
+				double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+				double ux = x * inv;
+				double uy = dist > 0.0 ? y * inv : 1.0;
+				double uz = z * inv;
+
+				if (norm < innerLimit) {
 					if (norm < 0.15) return rockCore;
-					if (norm < 0.60) return tex > 0.55 ? metalH : rockCore;
-					if (norm < 0.90) return tex > 0.50 ? molecH : metalH;
-					// fall through to outer cloud bands
+					if (cutaway(x, z)) {
+						double tex = SurfacePainter.sphereFbm(ux, uy, uz, 3.0, 2, seed ^ 0x3A91);
+						if (norm < 0.60) return tex > 0.55 ? metalH : rockCore;
+						return tex > 0.50 ? molecH : metalH;
+					}
+					return norm < 0.60 ? metalH : molecH;
 				}
-				// Latitude-based bands (ny = sin(latitude))
-				double lat = ny; // -1 to 1
-				double bandNoise = VoxelNoise.noise3(nx * 0.5, ny * 8.0, nz * 0.5, seed);
-				double bandPos = lat + bandNoise * 0.10;
-				// Great Red Spot: oval near ny ≈ -0.25 (southern equatorial belt)
-				double dotSpot = nx * spotX + nz * spotZ;
-				double spotDist = Math.sqrt((dotSpot - 1.0) * (dotSpot - 1.0) * 0.5 + (ny + 0.25) * (ny + 0.25));
-				if (spotDist < spotSize) return redSpot;
-				// Band colouring
-				int bandIdx = (int) Math.floor((bandPos + 1.0) * 9.0);
-				int detail = VoxelNoise.hash(bandIdx, (int) (nx * 50), (int) (nz * 50), seed) & 0x3;
-				return switch (bandIdx % 6) {
-					case 0, 2 -> detail == 0 ? cream : (detail == 1 ? peach : lightBand);
-					case 1, 3 -> detail == 0 ? tan   : (detail == 1 ? warm  : darkBand);
-					case 4    -> detail == 0 ? cream : paleBand;
-					default   -> detail == 0 ? peach : tan;
-				};
+
+				double eddy = SurfacePainter.warpedSphereFbm(ux, uy, uz, 4.5, 3, 2.8, 0.35, seed ^ 0xED1E);
+				double wLat = SurfacePainter.warpedLatitude(ux, uy, uz, 4.0, 0.080, 3, seed)
+					+ (eddy - 0.5) * 0.085;
+
+				double eqZone = 0.35 * Math.exp(-(wLat * wLat) / (0.11 * 0.11));
+				double neb = 0.38 * Math.exp(-((wLat - 0.22) * (wLat - 0.22)) / (0.09 * 0.09));
+				double seb = 0.36 * Math.exp(-((wLat + 0.24) * (wLat + 0.24)) / (0.10 * 0.10));
+				double absW = Math.abs(wLat);
+				double tropZones = 0.38 * Math.exp(-((absW - 0.40) * (absW - 0.40)) / (0.075 * 0.075));
+				double tempBands = 0.24 * Math.cos(wLat * Math.PI * 7.5) * (0.75 + 0.50 * eddy);
+				double bandVal = SurfacePainter.clamp01(
+					0.52 + eqZone - neb - seb + tropZones + tempBands + (eddy - 0.5) * 0.28);
+
+				int mat = bandRamp.sampleDithered(bandVal, 0.42, x, y, z, seed ^ 0xBA4D);
+
+				// Smooth stormy polar hood above ~43 deg latitude, eliminating polar wedges.
+				double polar = SurfacePainter.latitudeGradient(uy, 0.68, 0.86);
+				if (polar > 0.01) {
+					int pMat = polarRamp.sampleDithered(eddy, 0.45, x, y, z, seed ^ 0x901A);
+					mat = SurfacePainter.blend(mat, pMat, polar, 0.48, 0.30, x, y, z, seed ^ 0x901B);
+				}
+
+				// Great Red Spot with cream hollow collar and swirling spiral eye.
+				double gDot = ux * grs.cx + uy * grs.cy + uz * grs.cz;
+				if (gDot > 0.85) {
+					double dx = ux - grs.cx, dy = uy - grs.cy, dz = uz - grs.cz;
+					double du = dx * grs.t1x + dy * grs.t1y + dz * grs.t1z;
+					double dv = dx * grs.t2x + dy * grs.t2y + dz * grs.t2z;
+					double ex = du / grs.radiusA;
+					double ey = dv / grs.radiusB;
+					double rawRNorm = Math.hypot(ex, ey);
+					if (rawRNorm < 0.30) {
+						return redEye;
+					}
+					double wx = ex + (eddy - 0.5) * 0.12;
+					double wy = ey + (eddy - 0.5) * 0.12;
+					double rNorm = Math.hypot(wx, wy);
+					if (rNorm < 1.32) {
+						int collar = SurfacePainter.blend(mat, ovalRim, 1.32 - rNorm, 0.30, 0.42,
+							x, y, z, grs.seed ^ 0xC0);
+						if (rNorm < 1.0) {
+							double twist = 3.4 * (1.0 - rNorm);
+							double cosT = Math.cos(twist);
+							double sinT = Math.sin(twist);
+							double sx = wx * cosT - wy * sinT;
+							double sy = wx * sinT + wy * cosT;
+							double sw = SurfacePainter.fbm(sx * 3.0 + 1.7, sy * 3.0 - 2.3, rNorm * 4.0, 2, grs.seed);
+							double t = SurfacePainter.clamp01(rNorm * 0.72 + (sw - 0.5) * 0.42);
+							int spotMat = grsRamp.sampleDithered(t, 0.40, x, y, z, grs.seed);
+							return SurfacePainter.blend(spotMat, collar, rNorm, 0.88, 0.28,
+								x, y, z, grs.seed ^ 0x50);
+						}
+						return collar;
+					}
+				}
+
+				// Compact anticyclonic white ovals.
+				for (TangentFeature oval : whiteOvals) {
+					double dot = ux * oval.cx + uy * oval.cy + uz * oval.cz;
+					if (dot <= 0.96) continue;
+					double dx = ux - oval.cx, dy = uy - oval.cy, dz = uz - oval.cz;
+					double du = dx * oval.t1x + dy * oval.t1y + dz * oval.t1z;
+					double dv = dx * oval.t2x + dy * oval.t2y + dz * oval.t2z;
+					double rNorm = Math.hypot(du / oval.radiusA, dv / oval.radiusB);
+					if (rNorm < 1.0) {
+						int coreMat = rNorm < 0.58 ? ovalCore : ovalMid;
+						int ovalMat = SurfacePainter.blend(coreMat, ovalRim, rNorm, 0.65, 0.28, x, y, z, oval.seed);
+						return SurfacePainter.blend(ovalMat, mat, rNorm, 0.86, 0.26, x, y, z, oval.seed ^ 0x71);
+					}
+				}
+				return mat;
 			},
 			palette, scale, diameter);
 	}
@@ -386,13 +776,12 @@ final class BlueprintShapes {
 	// ================================================================== SATURN
 
 	/**
-	 * Saturn: pale gold banded body with a flat equatorial quartz-block ring.
+	 * Saturn: subtle pale butter-gold bands, gentle polar tone shift + north hexagon, and equatorial rings.
 	 */
 	static Blueprint saturn(MaterialPalette palette, int diameter, double scale, int seed) {
-		int body     = palette.indexOf(Palette.YELLOW_TERRACOTTA);
-		int paleBand = palette.indexOf(Palette.WHITE_TERRACOTTA);
-		int goldBand = palette.indexOf(Palette.SMOOTH_SANDSTONE);
-		int creamBand = palette.indexOf(Palette.END_STONE_BRICKS);
+		// NASA Cassini / Hubble (https://science.nasa.gov/saturn/facts/): subtle pale butter-gold
+		// and cream atmospheric bands with soft edges, a dusty bluish-grey polar tone shift, and
+		// the north polar hexagonal jet stream (~75-80 deg N).
 		int ringMain = palette.indexOf(Palette.QUARTZ_BLOCK);
 		int ringBrt  = palette.indexOf(Palette.SMOOTH_QUARTZ);
 		int ringEdge = palette.indexOf(Palette.LIGHT_GRAY_CONCRETE);
@@ -400,7 +789,26 @@ final class BlueprintShapes {
 		int rockCore = palette.indexOf(Palette.DEEPSLATE);
 		int metalH   = palette.indexOf(Palette.IRON_BLOCK);
 		int molecH   = palette.indexOf(Palette.LAPIS_BLOCK);
+
+		MaterialRamp bodyRamp = MaterialRamp.of(palette,
+			Palette.PACKED_MUD,
+			Palette.TERRACOTTA,
+			Palette.RAW_IRON_BLOCK,
+			Palette.YELLOW_TERRACOTTA,
+			Palette.RAW_GOLD_BLOCK,
+			Palette.WHITE_TERRACOTTA,
+			Palette.END_STONE_BRICKS,
+			Palette.END_STONE,
+			Palette.SMOOTH_SANDSTONE);
+		MaterialRamp polarRamp = MaterialRamp.of(palette,
+			Palette.CYAN_TERRACOTTA,
+			Palette.TUFF,
+			Palette.LIGHT_GRAY_TERRACOTTA,
+			Palette.PACKED_MUD,
+			Palette.WHITE_TERRACOTTA);
+
 		double bodyRadius = diameter / 2.0;
+		double innerLimit = interiorLimit(bodyRadius);
 		double ringInner  = bodyRadius * 1.25;
 		double ringOuter  = bodyRadius * 1.9;
 		return new Blueprint(AstronomyClass.SATURN,
@@ -409,29 +817,42 @@ final class BlueprintShapes {
 				double dist = Math.sqrt(dist2);
 				if (inSphere(x, y, z, bodyRadius)) {
 					double norm = dist / bodyRadius;
-					// Quarter-sphere cutaway: expose gas-giant interior. Rings are outside
-					// the body sphere so this branch does not affect them.
-					if (cutaway(x, z)) {
-						double nxx = x / bodyRadius, nyy = y / bodyRadius, nzz = z / bodyRadius;
-						double tex = VoxelNoise.noise3(nxx * 3.0, nyy * 3.0, nzz * 3.0, seed ^ 0x5A77);
+					double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+					double ux = x * inv;
+					double uy = dist > 0.0 ? y * inv : 1.0;
+					double uz = z * inv;
+
+					if (norm < innerLimit) {
 						if (norm < 0.15) return rockCore;
-						if (norm < 0.60) return tex > 0.55 ? metalH : rockCore;
-						if (norm < 0.90) return tex > 0.50 ? molecH : metalH;
+						if (cutaway(x, z)) {
+							double tex = SurfacePainter.sphereFbm(ux, uy, uz, 3.0, 2, seed ^ 0x5A77);
+							if (norm < 0.60) return tex > 0.55 ? metalH : rockCore;
+							return tex > 0.50 ? molecH : metalH;
+						}
+						return norm < 0.60 ? metalH : molecH;
 					}
-					// Body bands keyed by latitude
-					double ny = y / bodyRadius;
-					double bandNoise = VoxelNoise.noise3(nx(x, bodyRadius) * 0.8, ny * 7.0,
-						nz(z, bodyRadius) * 0.8, seed);
-					double bpos = ny + bandNoise * 0.08;
-					int bi = (int) Math.floor((bpos + 1.0) * 8.0);
-					return switch (bi % 4) {
-						case 0 -> paleBand;
-						case 1 -> body;
-						case 2 -> goldBand;
-						default -> creamBand;
-					};
+
+					double wLat = SurfacePainter.warpedLatitude(ux, uy, uz, 2.8, 0.04, 2, seed);
+					double haze = SurfacePainter.sphereFbm(ux, uy, uz, 4.5, 3, 0.5, 2.0, seed ^ 0x5A70);
+					double eqBright = 0.25 * Math.exp(-(wLat * wLat) / (0.22 * 0.22));
+					double waves = 0.22 * Math.cos(wLat * Math.PI * 5.0)
+						+ 0.12 * Math.sin(wLat * Math.PI * 9.0);
+					double bandVal = SurfacePainter.clamp01(0.52 + eqBright + waves + (haze - 0.5) * 0.18);
+					int goldMat = bodyRamp.sampleDithered(bandVal, 0.65, x, y, z, seed ^ 0x5A11);
+
+					double hexWave = (uy > 0.70)
+						? 0.018 * Math.cos(6.0 * Math.atan2(uz, ux)) * SurfacePainter.smoothstep(0.995, 0.94, uy)
+						: 0.0;
+					double polar = SurfacePainter.latitudeGradient(uy + hexWave, 0.72, 0.93);
+					if (polar > 0.01) {
+						int polarMat = polarRamp.sampleDithered(
+							SurfacePainter.clamp01(0.25 + 0.55 * haze - 0.25 * polar),
+							0.55, x, y, z, seed ^ 0x901E);
+						return SurfacePainter.blend(goldMat, polarMat, polar, 0.55, 0.42, x, y, z, seed ^ 0x5A90);
+					}
+					return goldMat;
 				}
-				// Ring: flat annulus in the y ≈ 0 plane (|y| < 0.5)
+				// Ring: flat annulus in the y ≈ 0 plane (|y| < 0.5) — left for Steps 6-7.
 				if (Math.abs(y) < 0.6 && dist > bodyRadius) {
 					double planar = Math.sqrt((double) x * x + (double) z * z);
 					if (planar >= ringInner && planar <= ringOuter) {

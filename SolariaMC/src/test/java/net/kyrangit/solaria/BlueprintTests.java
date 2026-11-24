@@ -8,9 +8,11 @@ import net.kyrangit.solaria.blueprint.MaterialPalette;
 import net.kyrangit.solaria.blueprint.Palette;
 import net.kyrangit.solaria.logging.ReasonCode;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -43,6 +45,7 @@ public final class BlueprintTests {
 		testInvalidInputs();
 		testAllClassesEmitVoxels();
 		testColourCoverage();
+		testStep3NaturalPatterns();
 		System.out.println("Blueprint plumbing check (synthetic): " + assertions + " assertions passed.");
 	}
 
@@ -227,6 +230,73 @@ public final class BlueprintTests {
 		for (String blockId : required) {
 			check(palette.allBlockIds().contains(blockId),
 				"palette supplies colour swatch: " + blockId);
+		}
+	}
+
+	private static void testStep3NaturalPatterns() {
+		AstronomyClass[] targets = {
+			AstronomyClass.SUN, AstronomyClass.MOON, AstronomyClass.MARS,
+			AstronomyClass.JUPITER, AstronomyClass.SATURN
+		};
+		double goldenAngle = Math.PI * (3.0 - Math.sqrt(5.0));
+		for (AstronomyClass cls : targets) {
+			Blueprint a = BlueprintGenerator.generate(cls, 1.0);
+			Blueprint b = BlueprintGenerator.generate(cls, 1.0);
+			double r = a.diameter() / 2.0 - 0.5;
+			Map<Integer, Integer> counts = new HashMap<>();
+			int total = 0;
+
+			for (int i = 0; i < 10_000; i++) {
+				double uy = 1.0 - (2.0 * (i + 0.5) / 10_000.0);
+				double ring = Math.sqrt(Math.max(0.0, 1.0 - uy * uy));
+				double theta = goldenAngle * i;
+				int vx = (int) Math.round(r * ring * Math.cos(theta));
+				int vy = (int) Math.round(r * uy);
+				int vz = (int) Math.round(r * ring * Math.sin(theta));
+				int va = a.voxelAt(vx, vy, vz);
+				if (i < 2_000) {
+					check(va == b.voxelAt(vx, vy, vz), cls.id() + ": deterministic full-scale surface voxel");
+				}
+				if (va != 0) {
+					counts.merge(va, 1, Integer::sum);
+					total++;
+				}
+			}
+
+			check(counts.size() >= 6, cls.id() + ": uses >= 6 distinct surface blocks, got " + counts.size());
+			int maxCount = 0;
+			for (int count : counts.values()) {
+				if (count > maxCount) maxCount = count;
+			}
+			double topShare = (100.0 * maxCount) / total;
+			check(topShare < 40.0,
+				String.format("%s: single most common surface block share %.1f%% >= 40%%", cls.id(), topShare));
+		}
+
+		// Jupiter north & south polar rings must vary smoothly without repeating Cartesian wedges.
+		Blueprint jupiter = BlueprintGenerator.generate(AstronomyClass.JUPITER, 1.0);
+		double jr = jupiter.diameter() / 2.0 - 0.5;
+		for (int sign : new int[]{-1, 1}) {
+			double lat = sign * Math.toRadians(82.0);
+			double cosLat = Math.cos(lat);
+			int vy = (int) Math.round(jr * Math.sin(lat));
+			int distinctPolar = 0;
+			int prev = -1;
+			Set<Integer> seenPolar = new HashSet<>();
+			for (int step = 0; step < 36; step++) {
+				double lon = (2.0 * Math.PI * step) / 36.0;
+				int vx = (int) Math.round(jr * cosLat * Math.cos(lon));
+				int vz = (int) Math.round(jr * cosLat * Math.sin(lon));
+				int v = jupiter.voxelAt(vx, vy, vz);
+				check(v != 0, "jupiter polar sample is solid");
+				seenPolar.add(v);
+				if (v != prev) {
+					distinctPolar++;
+					prev = v;
+				}
+			}
+			check(!seenPolar.isEmpty() && distinctPolar <= 28,
+				"jupiter polar cap transitions naturally without wedge stripes (transitions=" + distinctPolar + ")");
 		}
 	}
 
