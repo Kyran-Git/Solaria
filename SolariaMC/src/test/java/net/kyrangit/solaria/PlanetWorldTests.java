@@ -265,10 +265,23 @@ public final class PlanetWorldTests {
             double expected = cls == AstronomyClass.SUN ? 1.0 : 0.75;
             check(type.get("ambient_light").getAsDouble() == expected,
                 cls.id() + ": ambient_light is " + expected);
-            check(type.getAsJsonObject("attributes").get("minecraft:visual/fog_end_distance").getAsInt() == 768,
+            check(type.get("cardinal_light").getAsString().equals("nether"),
+                cls.id() + ": cardinal_light is nether");
+            var typeAttrs = type.getAsJsonObject("attributes");
+            String expectedAmbient = cls == AstronomyClass.SUN ? "#ffffff" : "#d9d9d9";
+            check(typeAttrs.get("minecraft:visual/ambient_light_color").getAsString().equalsIgnoreCase(expectedAmbient),
+                cls.id() + ": ambient_light_color is " + expectedAmbient);
+            check(typeAttrs.get("minecraft:visual/sky_light_factor").getAsDouble() == 0.0,
+                cls.id() + ": sky_light_factor is 0.0");
+            check(typeAttrs.get("minecraft:visual/fog_start_distance").getAsInt() == 640,
+                cls.id() + ": dimension fog_start_distance clears the planet");
+            check(typeAttrs.get("minecraft:visual/fog_end_distance").getAsInt() == 768,
                 cls.id() + ": dimension fog reaches past the planet");
             var biome = readJson("src/main/resources/data/solariamod/worldgen/biome/" + cls.id() + ".json");
-            check(biome.getAsJsonObject("attributes").get("minecraft:visual/fog_end_distance").getAsInt() == 768,
+            var biomeAttrs = biome.getAsJsonObject("attributes");
+            check(biomeAttrs.get("minecraft:visual/fog_start_distance").getAsInt() == 640,
+                cls.id() + ": biome fog_start_distance clears the planet");
+            check(biomeAttrs.get("minecraft:visual/fog_end_distance").getAsInt() == 768,
                 cls.id() + ": biome fog reaches past the planet");
         }
     }

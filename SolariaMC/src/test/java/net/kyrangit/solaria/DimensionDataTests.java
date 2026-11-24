@@ -5,8 +5,12 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.serialization.DataResult;
 import com.mojang.serialization.JsonOps;
+import net.kyrangit.solaria.blueprint.AstronomyClass;
 import net.minecraft.SharedConstants;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.world.attribute.EnvironmentAttributes;
+import net.minecraft.world.level.CardinalLighting;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.dimension.DimensionType;
 
 import java.io.IOException;
@@ -113,6 +117,30 @@ public final class DimensionDataTests {
 			name + ": logical_height does not exceed height");
 		check(type.minY() + type.height() <= 2032,
 			name + ": min_y + height stays inside the world ceiling");
+
+		AstronomyClass cls = AstronomyClass.fromId(strippedName(file));
+		if (cls != null) {
+			check(type.cardinalLightType() == CardinalLighting.Type.NETHER,
+				name + ": uses nether cardinal lighting so poles and undersides stay bright");
+			check(type.attributes().contains(EnvironmentAttributes.AMBIENT_LIGHT_COLOR),
+				name + ": declares minecraft:visual/ambient_light_color");
+			int ambientRgb = type.attributes().applyModifier(EnvironmentAttributes.AMBIENT_LIGHT_COLOR,
+				EnvironmentAttributes.AMBIENT_LIGHT_COLOR.defaultValue()) & 0xFFFFFF;
+			int expectedRgb = cls == AstronomyClass.SUN ? 0xFFFFFF : 0xD9D9D9;
+			check(ambientRgb == expectedRgb,
+				name + ": ambient_light_color is " + String.format("#%06x", expectedRgb));
+			check(type.attributes().contains(EnvironmentAttributes.SKY_LIGHT_FACTOR)
+				&& type.attributes().applyModifier(EnvironmentAttributes.SKY_LIGHT_FACTOR,
+					EnvironmentAttributes.SKY_LIGHT_FACTOR.defaultValue()) == 0.0f,
+				name + ": sky_light_factor is 0.0");
+			check(type.attributes().contains(EnvironmentAttributes.FOG_START_DISTANCE)
+				&& type.attributes().applyModifier(EnvironmentAttributes.FOG_START_DISTANCE,
+					EnvironmentAttributes.FOG_START_DISTANCE.defaultValue()) == 640.0f,
+				name + ": fog_start_distance is 640.0");
+			check(type.attributes().applyModifier(EnvironmentAttributes.FOG_END_DISTANCE,
+					EnvironmentAttributes.FOG_END_DISTANCE.defaultValue()) == 768.0f,
+				name + ": fog_end_distance is 768.0");
+		}
 	}
 
 	// ------------------------------------------------------------- dimensions
@@ -151,8 +179,13 @@ public final class DimensionDataTests {
 		var biomeJson = readObject(biomeFile);
 		var biomeOps = net.minecraft.data.registries.VanillaRegistries.createLookup()
 			.createSerializationContext(JsonOps.INSTANCE);
-		check(net.minecraft.world.level.biome.Biome.DIRECT_CODEC.parse(biomeOps, biomeJson).error().isEmpty(),
-			name + ": biome accepted by Minecraft codec");
+		DataResult<Biome> biomeDecoded = Biome.DIRECT_CODEC.parse(biomeOps, biomeJson);
+		check(biomeDecoded.error().isEmpty(), name + ": biome accepted by Minecraft codec");
+		Biome decodedBiome = biomeDecoded.result().orElseThrow();
+		check(!decodedBiome.getAttributes().contains(EnvironmentAttributes.AMBIENT_LIGHT_COLOR),
+			name + ": biome does not override dimension ambient_light_color");
+		check(decodedBiome.getAttributes().applyModifier(EnvironmentAttributes.FOG_START_DISTANCE, 0.0f) == 640.0f,
+			name + ": biome fog_start_distance is 640.0");
 
 		// Scale is optional in the codec, but when present it must be buildable: the
 		// generator rejects an over-cap scale with CAP_EXCEEDED at world load, not in game.

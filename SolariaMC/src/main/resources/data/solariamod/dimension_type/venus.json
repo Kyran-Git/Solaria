@@ -12,6 +12,7 @@
     "height":  512,
     "infiniburn":  "#minecraft:infiniburn_overworld",
     "skybox":  "overworld",
+    "cardinal_light":  "nether",
     "attributes":  {
                        "minecraft:gameplay/piglins_zombify":  false,
                        "minecraft:gameplay/bed_rule":  {
@@ -21,9 +22,12 @@
                                                        },
                        "minecraft:gameplay/respawn_anchor_works":  false,
                        "minecraft:gameplay/can_start_raid":  false,
+                       "minecraft:visual/ambient_light_color":  "#d9d9d9",
+                       "minecraft:visual/sky_light_factor":  0.0,
                        "minecraft:visual/cloud_color":  "#00000000",
                        "minecraft:visual/sky_color":  "#302616",
                        "minecraft:visual/sun_angle":  180,
+                       "minecraft:visual/fog_start_distance":  640,
                        "minecraft:visual/fog_end_distance":  768,
                        "minecraft:visual/fog_color":  "#d9bd70",
                        "minecraft:visual/star_brightness":  0.8
