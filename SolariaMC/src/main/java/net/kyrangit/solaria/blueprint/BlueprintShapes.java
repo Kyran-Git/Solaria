@@ -1211,7 +1211,7 @@ final class BlueprintShapes {
 	// ================================================================== URANUS
 
 	/**
-	 * Uranus: pale cyan with subtle shading and a near-vertical quartz ring.
+	 * Uranus: pale cyan with subtle shading and a 97.77°-tilted dark charcoal ring system.
 	 */
 	static Blueprint uranus(MaterialPalette palette, int diameter, double scale, int seed) {
 		int body     = palette.indexOf(Palette.CYAN_CONCRETE);
@@ -1221,16 +1221,39 @@ final class BlueprintShapes {
 		int rockCore = palette.indexOf(Palette.DEEPSLATE);
 		int iceMantle = palette.indexOf(Palette.BLUE_ICE);
 		double bodyRadius = diameter / 2.0;
-		MaterialRamp ringRamp = MaterialRamp.of(palette, Palette.QUARTZ_BLOCK);
-		RingSystem rings = RingSystem.of(90.0, bodyRadius,
-			new RingSystem.Band(1.2, 1.6, (t, a) -> 0.72 + 0.24 * Math.cos(t * 35), ringRamp, 1, seed ^ 0x7A1));
+		double bodyRadiusSq = bodyRadius * bodyRadius;
+		// NASA NSSDCA Uranian Rings Fact Sheet (https://nssdc.gsfc.nasa.gov/planetary/factsheet/uranringfact.html,
+		// 1 Ru = 25,559 km, axial tilt 97.77 deg): narrow dark rings 6 (1.637 Ru), 5 (1.652), 4 (1.666),
+		// alpha (1.750), beta (1.786), eta (1.846), gamma (1.863), delta (1.890), and widest outer
+		// epsilon (2.001 Ru). Real 1-15 km inner widths are expanded to ~1-1.5 blocks (~0.010 Ru) and
+		// epsilon (20-96 km) to ~3.7 blocks (~0.030 Ru) for voxel legibility at 245-block scale.
+		MaterialRamp darkInnerRamp = MaterialRamp.of(palette,
+			Palette.COAL_BLOCK, Palette.BLACKSTONE, Palette.GRAY_CONCRETE, Palette.SMOOTH_BASALT);
+		MaterialRamp midDarkRamp = MaterialRamp.of(palette,
+			Palette.BLACKSTONE, Palette.GRAY_CONCRETE, Palette.SMOOTH_BASALT, Palette.DEEPSLATE, Palette.TUFF);
+		MaterialRamp epsilonRamp = MaterialRamp.of(palette,
+			Palette.SMOOTH_BASALT, Palette.DEEPSLATE, Palette.TUFF, Palette.ANDESITE, Palette.LIGHT_GRAY_CONCRETE);
+		RingSystem rings = RingSystem.of(97.77, bodyRadius,
+			new RingSystem.Band(1.630, 1.639, RingSystem.DensityProfile.constant(0.52), darkInnerRamp, 1, seed ^ 0x7A06),
+			new RingSystem.Band(1.648, 1.656, RingSystem.DensityProfile.constant(0.52), darkInnerRamp, 1, seed ^ 0x7A05),
+			new RingSystem.Band(1.665, 1.674, RingSystem.DensityProfile.constant(0.52), darkInnerRamp, 1, seed ^ 0x7A04),
+			new RingSystem.Band(1.744, 1.756, RingSystem.DensityProfile.constant(0.58), midDarkRamp, 1, seed ^ 0x7AA1),
+			new RingSystem.Band(1.780, 1.792, RingSystem.DensityProfile.constant(0.58), midDarkRamp, 1, seed ^ 0x7AB2),
+			new RingSystem.Band(1.840, 1.851, RingSystem.DensityProfile.constant(0.48), midDarkRamp, 1, seed ^ 0x7AE7),
+			new RingSystem.Band(1.860, 1.870, RingSystem.DensityProfile.constant(0.64), midDarkRamp, 1, seed ^ 0x7AC3),
+			new RingSystem.Band(1.884, 1.896, RingSystem.DensityProfile.constant(0.60), midDarkRamp, 1, seed ^ 0x7AD4),
+			new RingSystem.Band(1.988, 2.018,
+				(t, a) -> SurfacePainter.clamp01(0.82 + 0.10 * Math.cos(a))
+					* Math.min(SurfacePainter.smoothstep(0.0, 0.14, t), SurfacePainter.smoothstep(1.0, 0.86, t)),
+				epsilonRamp, 1, seed ^ 0x7AE9));
 		return new Blueprint(AstronomyClass.URANUS,
 			(x, y, z) -> {
-				double dist = Math.sqrt((double) x * x + (double) y * y + (double) z * z);
-				if (inSphere(x, y, z, bodyRadius)) {
+				double distSq = (double) x * x + (double) y * y + (double) z * z;
+				if (distSq <= bodyRadiusSq) {
+					double dist = Math.sqrt(distSq);
 					double nx = x / bodyRadius, ny = y / bodyRadius, nz = z / bodyRadius;
 					double norm = dist / bodyRadius;
-					// Quarter-sphere cutaway: ice-giant interior. The near-vertical ring
+					// Quarter-sphere cutaway: ice-giant interior. The tilted ring
 					// sits outside the body sphere so this branch does not affect it.
 					if (cutaway(x, z)) {
 						if (norm < 0.25) return rockCore;

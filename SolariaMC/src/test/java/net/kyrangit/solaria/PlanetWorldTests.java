@@ -164,7 +164,7 @@ public final class PlanetWorldTests {
             for (int a = beyondBody; a <= bound && !ringFound; a++) {
                 for (int b = -bound; b <= bound; b++) {
                     if (!generator.blockAt(0, a, b).isAir() || !generator.blockAt(a, 0, b).isAir()
-                        || !generator.blockAt(a, b, 0).isAir()) {
+                        || !generator.blockAt(a, b, 0).isAir() || !generator.blockAt(b, a, 0).isAir()) {
                         ringFound = true;
                         break;
                     }

@@ -49,6 +49,7 @@ public final class BlueprintTests {
 		testStep4SurfaceRelief();
 		testStep5Earth();
 		testStep7SaturnRings();
+		testStep8UranusRings();
 		System.out.println("Blueprint plumbing check (synthetic): " + assertions + " assertions passed.");
 	}
 
@@ -464,7 +465,7 @@ public final class BlueprintTests {
 				double ring = Math.sqrt(Math.max(0.0, 1.0 - uy * uy));
 				double theta = goldenAngle * i;
 				double ux = ring * Math.cos(theta);
-				if (cls == AstronomyClass.URANUS && Math.abs(ux) <= 0.15) continue;
+				if (cls == AstronomyClass.URANUS && Math.abs(ux) <= 0.18) continue;
 				double uz = ring * Math.sin(theta);
 				double hit = surfaceRadiusAlong(bp, ux, uy, uz);
 				if (hit < minHit) minHit = hit;
@@ -663,6 +664,116 @@ public final class BlueprintTests {
 				}
 			}
 		}
+	}
+
+	private static void testStep8UranusRings() {
+		Blueprint a = BlueprintGenerator.generate(AstronomyClass.URANUS, 1.0);
+		Blueprint b = BlueprintGenerator.generate(AstronomyClass.URANUS, 1.0);
+		check(a.diameter() == 245, "uranus default diameter shrunk to 245 for true NASA Epsilon extent");
+		int extent = BlueprintGenerator.blueprintExtent(AstronomyClass.URANUS, a.diameter());
+		check(extent == 500 && extent <= BlueprintGenerator.MAX_EXTENT_BLOCKS,
+			"uranus full ring extent " + extent + " fits <= 500");
+
+		double r = a.diameter() / 2.0;
+		double rad = Math.toRadians(97.77);
+		double nx = Math.sin(rad);
+		double ny = Math.cos(rad);
+		double ux = Math.cos(rad);
+		double uy = -Math.sin(rad);
+
+		MaterialPalette pal = a.palette();
+		Set<Integer> allowedMaterials = Set.of(
+			pal.indexOf(Palette.COAL_BLOCK),
+			pal.indexOf(Palette.BLACKSTONE),
+			pal.indexOf(Palette.GRAY_CONCRETE),
+			pal.indexOf(Palette.SMOOTH_BASALT),
+			pal.indexOf(Palette.DEEPSLATE),
+			pal.indexOf(Palette.TUFF),
+			pal.indexOf(Palette.ANDESITE),
+			pal.indexOf(Palette.LIGHT_GRAY_CONCRETE));
+		Set<Integer> forbiddenBright = Set.of(
+			pal.indexOf(Palette.QUARTZ_BLOCK),
+			pal.indexOf(Palette.WHITE_CONCRETE),
+			pal.indexOf(Palette.SNOW_BLOCK));
+
+		double[] stats654 = tiltedBandFill(a, nx, ny, ux, uy, 1.630 * r, 1.674 * r, allowedMaterials, forbiddenBright);
+		double[] statsInnerGap = tiltedBandFill(a, nx, ny, ux, uy, 1.050 * r, 1.600 * r, allowedMaterials, forbiddenBright);
+		double[] statsAlpha = tiltedBandFill(a, nx, ny, ux, uy, 1.744 * r, 1.756 * r, allowedMaterials, forbiddenBright);
+		double[] statsGap1 = tiltedBandFill(a, nx, ny, ux, uy, 1.685 * r, 1.735 * r, allowedMaterials, forbiddenBright);
+		double[] statsBeta = tiltedBandFill(a, nx, ny, ux, uy, 1.780 * r, 1.792 * r, allowedMaterials, forbiddenBright);
+		double[] statsGap2 = tiltedBandFill(a, nx, ny, ux, uy, 1.800 * r, 1.832 * r, allowedMaterials, forbiddenBright);
+		double[] statsEtaGammaDelta = tiltedBandFill(a, nx, ny, ux, uy, 1.840 * r, 1.896 * r, allowedMaterials, forbiddenBright);
+		double[] statsGap3 = tiltedBandFill(a, nx, ny, ux, uy, 1.905 * r, 1.980 * r, allowedMaterials, forbiddenBright);
+		double[] statsEpsilon = tiltedBandFill(a, nx, ny, ux, uy, 1.992 * r, 2.014 * r, allowedMaterials, forbiddenBright);
+		double[] statsOutside = tiltedBandFill(a, nx, ny, ux, uy, 2.028 * r, 2.060 * r, allowedMaterials, forbiddenBright);
+
+		System.out.printf(
+			"Uranus ring fill rates (97.77 deg): 654=%.3f, alpha=%.3f, beta=%.3f, etaGammaDelta=%.3f, epsilon=%.3f%n",
+			stats654[0], statsAlpha[0], statsBeta[0], statsEtaGammaDelta[0], statsEpsilon[0]);
+
+		check(statsInnerGap[0] == 0.0, "uranus inner clearance empty");
+		check(stats654[0] >= 0.20, "uranus 6/5/4 rings non-empty fill=" + stats654[0]);
+		check(statsGap1[0] == 0.0 && statsGap2[0] == 0.0 && statsGap3[0] == 0.0,
+			"uranus wide empty gaps between narrow rings");
+		check(statsAlpha[0] >= 0.25 && statsBeta[0] >= 0.25 && statsEtaGammaDelta[0] >= 0.20,
+			"uranus alpha/beta/eta-gamma-delta rings non-empty");
+		check(statsEpsilon[0] >= 0.65 && statsEpsilon[0] > statsAlpha[0] && statsEpsilon[0] > statsBeta[0],
+			"uranus Epsilon ring densest/brightest outer ring fill=" + statsEpsilon[0]);
+		check(statsOutside[0] == 0.0, "uranus rings stay within outer bound");
+
+		// Tilt check: straight 90-deg axis (x=0, y=245, z=0) is air while 97.77-deg plane at y in [241..246] hits Epsilon.
+		check(a.voxelAt(0, 245, 0) == 0, "uranus 90-deg axis stays air due to 97.77-deg tilt");
+		boolean tiltedHit = false;
+		for (int y = 241; y <= 246; y++) {
+			int x = (int) Math.ceil(-0.5 - (y * ny) / nx);
+			if (a.voxelAt(x, y, 0) != 0) {
+				tiltedHit = true;
+				break;
+			}
+		}
+		check(tiltedHit, "uranus tilted 97.77-deg Epsilon ring hits offset x at z=0");
+
+		// Thinness & full-scale determinism across the tilted plane.
+		int bound = extent / 2;
+		for (int y = -bound; y <= bound; y += 2) {
+			for (int z = -bound; z <= bound; z += 2) {
+				int x = (int) Math.ceil(-0.5 - (y * ny) / nx);
+				double pr = Math.hypot(x * ux + y * uy, z);
+				if (pr > r + 2.0) {
+					check(a.voxelAt(x - 1, y, z) == 0 && a.voxelAt(x + 1, y, z) == 0,
+						"uranus ring thickness <= 1 block across columns");
+					check(a.voxelAt(x, y, z) == b.voxelAt(x, y, z),
+						"uranus ring deterministic across runs");
+				}
+			}
+		}
+	}
+
+	private static double[] tiltedBandFill(Blueprint bp, double nx, double ny, double ux, double uy,
+	                                       double rInner, double rOuter,
+	                                       Set<Integer> allowedMaterials, Set<Integer> forbiddenBright) {
+		double rInSq = rInner * rInner;
+		double rOutSq = rOuter * rOuter;
+		int maxCoord = (int) Math.ceil(rOuter) + 2;
+		long total = 0;
+		long solid = 0;
+		for (int y = -maxCoord; y <= maxCoord; y++) {
+			for (int z = -maxCoord; z <= maxCoord; z++) {
+				int x = (int) Math.ceil(-0.5 - (y * ny) / nx);
+				double pu = x * ux + y * uy;
+				double rSq = pu * pu + (double) z * z;
+				if (rSq < rInSq || rSq > rOutSq) continue;
+				total++;
+				int idx = bp.voxelAt(x, y, z);
+				if (idx != 0) {
+					solid++;
+					check(!forbiddenBright.contains(idx), "uranus ring has no pale quartz/white blocks: " + idx);
+					check(allowedMaterials.contains(idx), "uranus ring uses charcoal/grey ramp material: " + idx);
+				}
+			}
+		}
+		check(total > 200, "sampled sufficient tilted Uranus ring slots");
+		return new double[]{(double) solid / total, total};
 	}
 
 	private static double ringFillInBand(Blueprint bp, double rInner, double rOuter, int minY, int maxY) {

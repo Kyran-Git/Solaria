@@ -62,7 +62,7 @@ public final class BlueprintGenerator {
 		BASE_DIAMETERS.put(AstronomyClass.JUPITER, 475);
 		BASE_DIAMETERS.put(AstronomyClass.VENUS,   281);
 		BASE_DIAMETERS.put(AstronomyClass.SATURN,  213); // including rings (2.34 Rs): ceil(213 * 2.34) = 499
-		BASE_DIAMETERS.put(AstronomyClass.URANUS,  311); // including rings: ceil(311 * 1.6) = 498
+		BASE_DIAMETERS.put(AstronomyClass.URANUS,  245); // including rings (2.04 Ru): ceil(245 * 2.04) = 500
 		BASE_DIAMETERS.put(AstronomyClass.NEPTUNE, 351);
 		BASE_DIAMETERS.put(AstronomyClass.MERCURY, 151);
 
@@ -145,8 +145,8 @@ public final class BlueprintGenerator {
 		return switch (cls) {
 			// Saturn ring outer edge (F ring ~2.32 Rs, padded to 2.34 Rs) → ceil(213 * 2.34) = 499
 			case SATURN -> (int) Math.ceil(diameter * 2.34);
-			// Uranus ring outer radius ≈ 1.6 × body radius → full extent ≈ 3.2r
-			case URANUS -> (int) Math.ceil(diameter * 1.6);
+			// Uranus ring outer edge (Epsilon ring ~2.018 Ru, padded to 2.04 Ru) → ceil(245 * 2.04) = 500
+			case URANUS -> (int) Math.ceil(diameter * 2.04);
 			case EARTH, MOON, MARS, VENUS, MERCURY -> (int) Math.ceil(diameter * (1.0 + MAX_RELIEF_FRAC));
 			default     -> diameter;
 		};
