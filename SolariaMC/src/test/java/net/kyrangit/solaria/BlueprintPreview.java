@@ -4,40 +4,35 @@ import net.kyrangit.solaria.blueprint.AstronomyClass;
 import net.kyrangit.solaria.blueprint.Blueprint;
 import net.kyrangit.solaria.blueprint.BlueprintGenerator;
 import net.kyrangit.solaria.blueprint.MaterialPalette;
+import net.kyrangit.solaria.blueprint.MaterialRamp;
+import net.kyrangit.solaria.blueprint.Palette;
+import net.kyrangit.solaria.blueprint.SurfacePainter;
 
 import javax.imageio.ImageIO;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Renders every blueprint to PNG slices under {@code build/previews/}, so a human
- * can review the shapes without launching Minecraft.
+ * Renders blueprints to PNGs under {@code build/previews/} using an average colour per block.
+ * Each body gets three individual images ({@code front.png}, {@code cutaway.png}, {@code map.png})
+ * plus a combined 3-panel sheet {@code <name>.png}, and prints surface variety metrics and timing.
  *
- * <p>Slices are sampled through {@link Blueprint#voxelAt}: equator (y=0), two mid
- * latitudes (y = ±diameter/4), and the poles (y = ±diameter/2). Because planets
- * are now 301–1001 blocks wide, only five slices per class are written (not every y).
- *
- * <p>Scale factor: each voxel renders as {@value SCALE}×{@value SCALE} pixels.
- * For the Sun (diameter 1001) at scale 0.05, the resulting blueprint is ~51 blocks,
- * producing a 510 × 510 pixel image.
- *
- * <p>Uses AWT/ImageIO — available headlessly on Java 25 and on most CI machines.
+ * <p>Uses AWT/ImageIO headlessly on Java 25.
  */
 public final class BlueprintPreview {
-	/** Pixels per voxel. */
-	private static final int SCALE = 4;
+	private static final int BACKDROP = 0x10141A;
+	private static final int ORTHO_MAX_PX = 256;
+	private static final int MAP_WIDTH = 360;
+	private static final int MAP_HEIGHT = 180;
+	private static final int SURFACE_SAMPLES = 20_000;
 
-	/**
-	 * Scale fed to the generator. 0.05 gives a 51-wide Sun preview in ~100 ms.
-	 * A teacher wanting full-size previews can set this to 1.0 and wait longer.
-	 */
-	private static final double PREVIEW_SCALE = 0.05;
-
-	/** Approximate colour for each palette block (for human review only). */
+	/** Approximate average sRGB colour for every palette block (for preview review only). */
 	private static final Map<String, Integer> BLOCK_COLOURS = new LinkedHashMap<>();
 
 	static {
@@ -112,68 +107,301 @@ public final class BlueprintPreview {
 		BLOCK_COLOURS.put("minecraft:redstone_block",         0xAD1717);
 	}
 
+	private BlueprintPreview() {
+	}
+
+	/**
+	 * Synthetic test sphere built solely with {@link SurfacePainter} and {@link MaterialRamp}
+	 * to verify polar continuity, warped latitude bands, swirling fBm, and smooth polar caps.
+	 */
+	public static Blueprint testSphere(int diameter) {
+		MaterialPalette palette = Palette.create();
+		int seed = 0x573E0002;
+		MaterialRamp bandRamp = MaterialRamp.of(palette,
+			Palette.BROWN_CONCRETE,
+			Palette.BROWN_TERRACOTTA,
+			Palette.RAW_COPPER_BLOCK,
+			Palette.TERRACOTTA,
+			Palette.ORANGE_TERRACOTTA,
+			Palette.YELLOW_TERRACOTTA,
+			Palette.WHITE_TERRACOTTA);
+		MaterialRamp coreRamp = MaterialRamp.of(palette,
+			Palette.GLOWSTONE,
+			Palette.SHROOMLIGHT,
+			Palette.NETHERRACK);
+		int ice = palette.indexOf(Palette.SNOW_BLOCK);
+		int iceEdge = palette.indexOf(Palette.WHITE_CONCRETE);
+		double radius = diameter / 2.0;
+
+		return new Blueprint(AstronomyClass.JUPITER, (x, y, z) -> {
+			double distSq = (double) x * x + (double) y * y + (double) z * z;
+			if (distSq > radius * radius) {
+				return 0;
+			}
+			double dist = Math.sqrt(distSq);
+			double norm = dist / radius;
+			if (norm < 0.85) {
+				if (norm < 0.28) {
+					return coreRamp.at(0);
+				}
+				return coreRamp.sampleDithered((norm - 0.28) / 0.57, 0.22, x, y, z, seed ^ 0xC04E);
+			}
+			double inv = dist > 0.0 ? 1.0 / dist : 0.0;
+			double ux = x * inv;
+			double uy = dist > 0.0 ? y * inv : 1.0;
+			double uz = z * inv;
+
+			double wLat = SurfacePainter.warpedLatitude(ux, uy, uz, 3.0, 0.14, 3, seed);
+			double bandWave = 0.5 + 0.5 * Math.sin(wLat * Math.PI * 5.0);
+			double swirl = SurfacePainter.warpedSphereFbm(ux, uy, uz, 4.0, 3, 2.2, 0.32, seed ^ 0x51A1);
+			double field = SurfacePainter.clamp01(bandWave * 0.65 + swirl * 0.35);
+			int surfaceMat = bandRamp.sampleDithered(field, 0.35, x, y, z, seed ^ 0xBA4D);
+
+			double polar = SurfacePainter.latitudeGradient(uy, 0.72, 0.90);
+			int capMat = SurfacePainter.blend(iceEdge, ice, polar, 0.75, 0.30, x, y, z, seed ^ 0x1CE0);
+			return SurfacePainter.blend(surfaceMat, capMat, polar, 0.50, 0.24, x, y, z, seed ^ 0xCA90);
+		}, palette, 1.0, diameter);
+	}
+
 	public static void main(String[] args) throws IOException {
+		verifyPaletteColours();
 		Path outDir = Path.of("build", "previews");
 		Files.createDirectories(outDir);
-		int totalSlices = 0;
+
+		boolean renderAll = args.length == 0;
+		if (renderAll || containsArg(args, "test_sphere")) {
+			renderTarget("test_sphere", testSphere(161), 161, outDir);
+		}
 		for (AstronomyClass cls : AstronomyClass.values()) {
-			Blueprint bp = BlueprintGenerator.generate(cls, PREVIEW_SCALE);
-			Path classDir = outDir.resolve(cls.id());
-			Files.createDirectories(classDir);
-			totalSlices += renderSlices(bp, classDir);
+			if (renderAll || containsArg(args, cls.id())) {
+				long t0 = System.nanoTime();
+				Blueprint bp = BlueprintGenerator.generate(cls, 1.0);
+				long genMs = (System.nanoTime() - t0) / 1_000_000;
+				int halfExt = BlueprintGenerator.blueprintExtent(cls, bp.diameter()) / 2 + 2;
+				System.out.printf("[%s] generator setup %d ms (diameter=%d, halfExt=%d)%n",
+					cls.id(), genMs, bp.diameter(), halfExt);
+				renderTarget(cls.id(), bp, halfExt, outDir);
+			}
 		}
-		System.out.println("Rendered " + totalSlices + " PNG slices to " + outDir.toAbsolutePath() + ".");
 	}
 
-	private static int renderSlices(Blueprint bp, Path classDir) throws IOException {
-		int half = bp.diameter() / 2;
-		// Five representative slices: south-pole, mid-south, equator, mid-north, north-pole.
-		int[] yOffsets = {-half, -half / 2, 0, half / 2, half};
-		String[] names  = {"south_pole", "mid_south", "equator", "mid_north", "north_pole"};
-
-		// For ringed planets extend the window to include the ring.
-		int halfExt = (int) Math.ceil(half * 2.0); // generous enough for Saturn (1.9×)
-
-		MaterialPalette palette = bp.palette();
-		int written = 0;
-		for (int i = 0; i < yOffsets.length; i++) {
-			int y = yOffsets[i];
-			int imgSize = halfExt * 2 + 1;
-			BufferedImage image = new BufferedImage(imgSize * SCALE, imgSize * SCALE, BufferedImage.TYPE_INT_RGB);
-			// Background: dark space colour.
-			for (int px = 0; px < image.getWidth(); px++) {
-				for (int py = 0; py < image.getHeight(); py++) {
-					image.setRGB(px, py, 0x1A1D21);
-				}
+	private static void verifyPaletteColours() {
+		MaterialPalette palette = Palette.create();
+		for (String blockId : palette.allBlockIds()) {
+			if (!BLOCK_COLOURS.containsKey(blockId)) {
+				throw new IllegalStateException("Missing preview colour for palette block: " + blockId);
 			}
-			boolean anyVoxel = false;
-			for (int xi = 0; xi < imgSize; xi++) {
-				for (int zi = 0; zi < imgSize; zi++) {
-					int x = xi - halfExt;
-					int z = zi - halfExt;
+		}
+	}
+
+	private static boolean containsArg(String[] args, String target) {
+		for (String a : args) {
+			if (target.equalsIgnoreCase(a)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static void renderTarget(String name, Blueprint bp, int halfExt, Path outDir) throws IOException {
+		long start = System.nanoTime();
+		int[] colours = buildColourLookup(bp.palette());
+
+		BufferedImage front = renderFront(bp, halfExt, colours);
+		BufferedImage cutaway = renderCutaway(bp, halfExt, colours);
+		BufferedImage map = renderMap(bp, colours);
+
+		Path itemDir = outDir.resolve(name);
+		Files.createDirectories(itemDir);
+		ImageIO.write(front, "png", itemDir.resolve("front.png").toFile());
+		ImageIO.write(cutaway, "png", itemDir.resolve("cutaway.png").toFile());
+		ImageIO.write(map, "png", itemDir.resolve("map.png").toFile());
+
+		BufferedImage sheet = composeSheet(front, cutaway, map);
+		ImageIO.write(sheet, "png", outDir.resolve(name + ".png").toFile());
+
+		VarietyReport variety = measureVariety(bp, map);
+		long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+		System.out.printf("[%s] distinctBlocks=%d, topBlock=%s (%.1f%%), smoothTransitions=%.1f%%, rendered in %d ms -> %s%n",
+			name, variety.distinctBlocks, variety.topBlock, variety.topSharePct,
+			variety.smoothTransitionPct, elapsedMs, outDir.resolve(name + ".png").toAbsolutePath());
+	}
+
+	private static int[] buildColourLookup(MaterialPalette palette) {
+		int[] colours = new int[palette.size() + 1];
+		colours[0] = BACKDROP;
+		for (int i = 1; i < colours.length; i++) {
+			String blockId = palette.blockId(i);
+			Integer rgb = BLOCK_COLOURS.get(blockId);
+			if (rgb == null) {
+				throw new IllegalStateException("Missing preview colour for block: " + blockId);
+			}
+			colours[i] = rgb;
+		}
+		return colours;
+	}
+
+	private static BufferedImage renderFront(Blueprint bp, int halfExt, int[] colours) {
+		int span = halfExt * 2 + 1;
+		int step = Math.max(1, (span + ORTHO_MAX_PX - 1) / ORTHO_MAX_PX);
+		int size = (span + step - 1) / step;
+		BufferedImage img = blankImage(size, size);
+		double radius = bp.diameter() / 2.0;
+
+		for (int py = 0; py < size; py++) {
+			int y = halfExt - py * step;
+			for (int px = 0; px < size; px++) {
+				int z = -halfExt + px * step;
+				for (int x = halfExt; x >= -halfExt; x -= step) {
 					int idx = bp.voxelAt(x, y, z);
-					if (idx == 0) continue;
-					anyVoxel = true;
-					String blockId = palette.blockId(idx);
-					int colour = BLOCK_COLOURS.getOrDefault(blockId, 0xFF00FF);
-					fillCell(image, xi, zi, colour);
+					if (idx != 0) {
+						double shade = Math.max(0.76, Math.min(1.0, 0.80 + 0.20 * (x / Math.max(1.0, radius))));
+						img.setRGB(px, py, scaleRgb(colours[idx], shade));
+						break;
+					}
 				}
 			}
-			if (!anyVoxel) continue; // skip fully-air slices (e.g. poles of small test planets)
-			String fname = names[i] + ".png";
-			ImageIO.write(image, "png", classDir.resolve(fname).toFile());
-			written++;
 		}
-		return written;
+		return img;
 	}
 
-	private static void fillCell(BufferedImage image, int gridX, int gridZ, int rgb) {
-		int x0 = gridX * SCALE;
-		int y0 = gridZ * SCALE;
-		for (int px = 0; px < SCALE; px++) {
-			for (int py = 0; py < SCALE; py++) {
-				image.setRGB(x0 + px, y0 + py, rgb);
+	private static BufferedImage renderCutaway(Blueprint bp, int halfExt, int[] colours) {
+		int span = halfExt * 2 + 1;
+		int step = Math.max(1, (span + ORTHO_MAX_PX - 1) / ORTHO_MAX_PX);
+		int size = (span + step - 1) / step;
+		BufferedImage img = blankImage(size, size);
+
+		for (int py = 0; py < size; py++) {
+			int y = halfExt - py * step;
+			for (int px = 0; px < size; px++) {
+				int x = -halfExt + px * step;
+				int idx = bp.voxelAt(x, y, 0);
+				if (idx != 0) {
+					img.setRGB(px, py, colours[idx]);
+				}
 			}
 		}
+		return img;
+	}
+
+	private static BufferedImage renderMap(Blueprint bp, int[] colours) {
+		BufferedImage img = blankImage(MAP_WIDTH, MAP_HEIGHT);
+		double radius = bp.diameter() / 2.0;
+		double maxR = Math.ceil(radius) + 8.0;
+		double minR = Math.max(1.0, radius - 16.0);
+
+		for (int py = 0; py < MAP_HEIGHT; py++) {
+			double lat = Math.toRadians(90.0 - ((py + 0.5) * 180.0 / MAP_HEIGHT));
+			double cosLat = Math.cos(lat);
+			double uy = Math.sin(lat);
+			for (int px = 0; px < MAP_WIDTH; px++) {
+				double lon = Math.toRadians(-180.0 + ((px + 0.5) * 360.0 / MAP_WIDTH));
+				double ux = cosLat * Math.cos(lon);
+				double uz = cosLat * Math.sin(lon);
+				for (double r = maxR; r >= minR; r -= 0.75) {
+					int vx = (int) Math.round(ux * r);
+					int vy = (int) Math.round(uy * r);
+					int vz = (int) Math.round(uz * r);
+					int idx = bp.voxelAt(vx, vy, vz);
+					if (idx != 0) {
+						img.setRGB(px, py, colours[idx]);
+						break;
+					}
+				}
+			}
+		}
+		return img;
+	}
+
+	private static BufferedImage composeSheet(BufferedImage front, BufferedImage cutaway, BufferedImage map) {
+		int pad = 8;
+		int rowH = Math.max(front.getHeight(), Math.max(cutaway.getHeight(), map.getHeight()));
+		int width = pad + front.getWidth() + pad + cutaway.getWidth() + pad + map.getWidth() + pad;
+		int height = pad + rowH + pad;
+		BufferedImage sheet = blankImage(width, height);
+		Graphics2D g = sheet.createGraphics();
+		int x = pad;
+		g.drawImage(front, x, pad + (rowH - front.getHeight()) / 2, null);
+		x += front.getWidth() + pad;
+		g.drawImage(cutaway, x, pad + (rowH - cutaway.getHeight()) / 2, null);
+		x += cutaway.getWidth() + pad;
+		g.drawImage(map, x, pad + (rowH - map.getHeight()) / 2, null);
+		g.dispose();
+		return sheet;
+	}
+
+	private static VarietyReport measureVariety(Blueprint bp, BufferedImage map) {
+		double radius = bp.diameter() / 2.0;
+		double maxR = Math.ceil(radius) + 8.0;
+		double minR = Math.max(1.0, radius - 16.0);
+		Map<Integer, Integer> counts = new HashMap<>();
+		int total = 0;
+		double goldenAngle = Math.PI * (3.0 - Math.sqrt(5.0));
+
+		for (int i = 0; i < SURFACE_SAMPLES; i++) {
+			double uy = 1.0 - (2.0 * (i + 0.5) / SURFACE_SAMPLES);
+			double ring = Math.sqrt(Math.max(0.0, 1.0 - uy * uy));
+			double theta = goldenAngle * i;
+			double ux = ring * Math.cos(theta);
+			double uz = ring * Math.sin(theta);
+			for (double r = maxR; r >= minR; r -= 0.75) {
+				int idx = bp.voxelAt((int) Math.round(ux * r), (int) Math.round(uy * r), (int) Math.round(uz * r));
+				if (idx != 0) {
+					counts.merge(idx, 1, Integer::sum);
+					total++;
+					break;
+				}
+			}
+		}
+
+		int topIdx = 0;
+		int topCount = 0;
+		for (var e : counts.entrySet()) {
+			if (e.getValue() > topCount) {
+				topCount = e.getValue();
+				topIdx = e.getKey();
+			}
+		}
+		String topBlock = topIdx == 0 ? "none" : bp.palette().blockId(topIdx);
+		double topSharePct = total == 0 ? 0.0 : (100.0 * topCount) / total;
+
+		int transitions = 0;
+		int blended = 0;
+		for (int y = 0; y < MAP_HEIGHT - 1; y++) {
+			for (int x = 0; x < MAP_WIDTH - 1; x++) {
+				int c = map.getRGB(x, y);
+				int r = map.getRGB(x + 1, y);
+				if (c != r) {
+					transitions++;
+					if (x + 2 < MAP_WIDTH && map.getRGB(x + 2, y) == c) {
+						blended++;
+					} else if (x > 0 && map.getRGB(x - 1, y) == r) {
+						blended++;
+					}
+				}
+			}
+		}
+		double smoothPct = transitions == 0 ? 100.0 : (100.0 * blended) / transitions;
+		return new VarietyReport(counts.size(), topBlock, topSharePct, smoothPct);
+	}
+
+	private static BufferedImage blankImage(int width, int height) {
+		BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+		for (int y = 0; y < height; y++) {
+			for (int x = 0; x < width; x++) {
+				img.setRGB(x, y, BACKDROP);
+			}
+		}
+		return img;
+	}
+
+	private static int scaleRgb(int rgb, double factor) {
+		int r = Math.min(255, Math.max(0, (int) Math.round(((rgb >> 16) & 0xFF) * factor)));
+		int g = Math.min(255, Math.max(0, (int) Math.round(((rgb >> 8) & 0xFF) * factor)));
+		int b = Math.min(255, Math.max(0, (int) Math.round((rgb & 0xFF) * factor)));
+		return (r << 16) | (g << 8) | b;
+	}
+
+	private record VarietyReport(int distinctBlocks, String topBlock, double topSharePct, double smoothTransitionPct) {
 	}
 }

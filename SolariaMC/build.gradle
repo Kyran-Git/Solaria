@@ -163,6 +163,17 @@ tasks.register('blueprintTest', JavaExec) {
 	}
 }
 
+tasks.register('surfacePainterTest', JavaExec) {
+	group = 'verification'
+	description = 'Validates SurfacePainter and MaterialRamp determinism, monotonicity, dither widths, and polar continuity.'
+	dependsOn testClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'net.kyrangit.solaria.SurfacePainterTests'
+	javaLauncher = javaToolchains.launcherFor {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
 // Manual-only preview task: renders PNG slices under build/previews/ for human review.
 // Not wired into `test` to keep CI/build cheap; run with `gradlew blueprintPreview`.
 tasks.register('blueprintPreview', JavaExec) {
@@ -303,7 +314,7 @@ tasks.register('quizBankTest', JavaExec) {
 
 tasks.named('test') {
 	dependsOn reviewGateTest, buildTravelTest, quizBankTest
-	dependsOn foundationTest, wikiStructureTest, blueprintTest, scanStateTest, cameraAccessTest, webcamTest, dimensionDataTest, serviceClientTest, planetWorldTest, introHubTest
+	dependsOn foundationTest, wikiStructureTest, blueprintTest, surfacePainterTest, scanStateTest, cameraAccessTest, webcamTest, dimensionDataTest, serviceClientTest, planetWorldTest, introHubTest
 	// Tests use a Java main runner rather than a JUnit engine.
 	exclude '**/*'
 }
