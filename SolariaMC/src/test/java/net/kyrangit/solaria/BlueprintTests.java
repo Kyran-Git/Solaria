@@ -48,6 +48,7 @@ public final class BlueprintTests {
 		testStep3NaturalPatterns();
 		testStep4SurfaceRelief();
 		testStep5Earth();
+		testStep7SaturnRings();
 		System.out.println("Blueprint plumbing check (synthetic): " + assertions + " assertions passed.");
 	}
 
@@ -609,6 +610,79 @@ public final class BlueprintTests {
 		}
 		check(clearSamples >= 2 && matches * 2 >= clearSamples,
 			String.format("earth region %s: matched %d/%d non-cloud samples", label, matches, clearSamples));
+	}
+
+	private static void testStep7SaturnRings() {
+		Blueprint a = BlueprintGenerator.generate(AstronomyClass.SATURN, 1.0);
+		Blueprint b = BlueprintGenerator.generate(AstronomyClass.SATURN, 1.0);
+		check(a.diameter() == 213, "saturn default diameter shrunk to 213 for true NASA F-ring extent");
+		int extent = BlueprintGenerator.blueprintExtent(AstronomyClass.SATURN, a.diameter());
+		check(extent == 499 && extent <= BlueprintGenerator.MAX_EXTENT_BLOCKS,
+			"saturn full ring extent " + extent + " fits <= 500");
+
+		double r = a.diameter() / 2.0;
+		double innerGap = ringFillInBand(a, 1.05 * r, 1.20 * r, 0, 0);
+		double cFill = ringFillInBand(a, 1.27 * r, 1.49 * r, 0, 0);
+		double bFill = ringFillInBand(a, 1.56 * r, 1.92 * r, -1, 0);
+		double bFillLower = ringFillInBand(a, 1.56 * r, 1.92 * r, -1, -1);
+		double cassiniFill = ringFillInBand(a, 1.96 * r, 2.02 * r, 0, 0);
+		double aInnerFill = ringFillInBand(a, 2.05 * r, 2.18 * r, 0, 0);
+		double enckeFill = ringFillInBand(a, 2.205 * r, 2.221 * r, 0, 0);
+		double aOuterFill = ringFillInBand(a, 2.235 * r, 2.262 * r, 0, 0);
+		double rocheGap = ringFillInBand(a, 2.280 * r, 2.302 * r, 0, 0);
+		double fFill = ringFillInBand(a, 2.314 * r, 2.326 * r, 0, 0);
+		double outsideFill = ringFillInBand(a, 2.345 * r, 2.55 * r, -2, 2);
+
+		System.out.printf(
+			"Saturn ring fill rates: C=%.3f, B=%.3f (lower=%.3f), Cassini=%.3f, A_in=%.3f, Encke=%.3f, A_out=%.3f, F=%.3f%n",
+			cFill, bFill, bFillLower, cassiniFill, aInnerFill, enckeFill, aOuterFill, fFill);
+
+		check(innerGap == 0.0, "saturn inner clearance empty");
+		check(cFill >= 0.12 && cFill <= 0.38, "saturn C ring faint fill=" + cFill);
+		check(bFill >= 0.72 && bFillLower >= 0.72, "saturn B ring dense 2-block thick fill=" + bFill);
+		check(cassiniFill >= 0.01 && cassiniFill <= 0.15 && cassiniFill < cFill && cassiniFill < aInnerFill,
+			"saturn Cassini Division sparse non-empty fill=" + cassiniFill);
+		check(aInnerFill >= 0.45 && aInnerFill <= 0.78, "saturn A ring inner fill=" + aInnerFill);
+		check(enckeFill <= 0.12 && enckeFill < aInnerFill * 0.25 && enckeFill < aOuterFill * 0.25,
+			"saturn Encke gap distinct fill=" + enckeFill);
+		check(aOuterFill >= 0.38 && aOuterFill <= 0.75, "saturn A ring outer fill=" + aOuterFill);
+		check(rocheGap == 0.0, "saturn Roche gap clear before F ring");
+		check(fFill >= 0.15 && fFill <= 0.68, "saturn F ring visible fill=" + fFill);
+		check(outsideFill == 0.0, "saturn rings stay within extent");
+
+		// Thinness & full-scale determinism outside primary sphere.
+		int bound = extent / 2;
+		for (int x = -bound; x <= bound; x += 2) {
+			for (int z = -bound; z <= bound; z += 2) {
+				double pr = Math.hypot(x, z);
+				if (pr > r + 2.0) {
+					check(a.voxelAt(x, 1, z) == 0 && a.voxelAt(x, 2, z) == 0 && a.voxelAt(x, -2, z) == 0,
+						"saturn ring thickness <= 2 blocks");
+					check(a.voxelAt(x, 0, z) == b.voxelAt(x, 0, z) && a.voxelAt(x, -1, z) == b.voxelAt(x, -1, z),
+						"saturn ring deterministic across runs");
+				}
+			}
+		}
+	}
+
+	private static double ringFillInBand(Blueprint bp, double rInner, double rOuter, int minY, int maxY) {
+		double rInSq = rInner * rInner;
+		double rOutSq = rOuter * rOuter;
+		int maxCoord = (int) Math.ceil(rOuter);
+		long total = 0;
+		long solid = 0;
+		for (int x = -maxCoord; x <= maxCoord; x++) {
+			for (int z = -maxCoord; z <= maxCoord; z++) {
+				double rSq = (double) x * x + (double) z * z;
+				if (rSq < rInSq || rSq > rOutSq) continue;
+				for (int y = minY; y <= maxY; y++) {
+					total++;
+					if (bp.voxelAt(x, y, z) != 0) solid++;
+				}
+			}
+		}
+		check(total > 200, "sampled sufficient ring slots in band");
+		return (double) solid / total;
 	}
 
 	private static double surfaceRadiusAlong(Blueprint bp, double x, double y, double z) {

@@ -1063,12 +1063,50 @@ final class BlueprintShapes {
 
 		double bodyRadius = diameter / 2.0;
 		double innerLimit = interiorLimit(bodyRadius);
-		MaterialRamp ringRamp = MaterialRamp.of(palette, Palette.LIGHT_GRAY_CONCRETE, Palette.QUARTZ_BLOCK, Palette.SMOOTH_QUARTZ);
-		MaterialRamp gapRamp = MaterialRamp.of(palette, Palette.GRAY_TERRACOTTA);
+		// NASA NSSDCA Saturnian Rings Fact Sheet (https://nssdc.gsfc.nasa.gov/planetary/factsheet/satringfact.html,
+		// 1 Rs = 60,268 km): C ring 1.239-1.526 Rs, B ring 1.526-1.950 Rs, Cassini Division 1.950-2.030 Rs,
+		// A ring 2.030-2.270 Rs with Encke Gap at ~2.214 Rs (widened slightly to ~2.6 blocks for voxel legibility),
+		// Roche Division 2.270-2.310 Rs, and detached narrow F ring at ~2.320 Rs.
+		MaterialRamp cRamp = MaterialRamp.of(palette,
+			Palette.GRAY_TERRACOTTA, Palette.PACKED_MUD, Palette.LIGHT_GRAY_TERRACOTTA, Palette.LIGHT_GRAY_CONCRETE);
+		MaterialRamp bRamp = MaterialRamp.of(palette,
+			Palette.WHITE_TERRACOTTA, Palette.END_STONE, Palette.END_STONE_BRICKS,
+			Palette.QUARTZ_BLOCK, Palette.SMOOTH_QUARTZ, Palette.WHITE_CONCRETE);
+		MaterialRamp gapRamp = MaterialRamp.of(palette,
+			Palette.GRAY_TERRACOTTA, Palette.TUFF, Palette.LIGHT_GRAY_TERRACOTTA);
+		MaterialRamp aRamp = MaterialRamp.of(palette,
+			Palette.LIGHT_GRAY_TERRACOTTA, Palette.LIGHT_GRAY_CONCRETE, Palette.WHITE_TERRACOTTA,
+			Palette.QUARTZ_BLOCK, Palette.SMOOTH_QUARTZ);
+		MaterialRamp fRamp = MaterialRamp.of(palette,
+			Palette.LIGHT_GRAY_CONCRETE, Palette.QUARTZ_BLOCK, Palette.WHITE_CONCRETE);
+
 		RingSystem rings = RingSystem.of(0.0, bodyRadius,
-			new RingSystem.Band(1.25, 1.52, (t, a) -> 0.81 + 0.16 * Math.cos(t * 45), ringRamp, 1, seed ^ 0x5A1),
-			new RingSystem.Band(1.52, 1.58, RingSystem.DensityProfile.constant(0.08), gapRamp, 1, seed ^ 0x5A2),
-			new RingSystem.Band(1.58, 1.9, (t, a) -> 0.70 + 0.20 * Math.cos(t * 56), ringRamp, 1, seed ^ 0x5A3));
+			new RingSystem.Band(1.239, 1.526,
+				(t, a) -> SurfacePainter.clamp01((0.14 + 0.22 * t) + 0.08 * Math.sin(t * Math.PI * 14.0))
+					* Math.min(SurfacePainter.smoothstep(0.0, 0.08, t), SurfacePainter.smoothstep(1.0, 0.94, t)),
+				cRamp, 1, seed ^ 0x5C01),
+			new RingSystem.Band(1.526, 1.950,
+				(t, a) -> SurfacePainter.clamp01(0.84 + 0.11 * Math.sin(t * Math.PI * 22.0) + 0.06 * Math.cos(t * Math.PI * 46.0))
+					* Math.min(SurfacePainter.smoothstep(0.0, 0.03, t), SurfacePainter.smoothstep(1.0, 0.97, t)),
+				bRamp, 2, seed ^ 0x5B02),
+			new RingSystem.Band(1.950, 2.030,
+				(t, a) -> 0.045 + 0.095 * Math.exp(-((t - 0.25) * (t - 0.25)) / (0.09 * 0.09)),
+				gapRamp, 1, seed ^ 0x5D03),
+			new RingSystem.Band(2.030, 2.201,
+				(t, a) -> SurfacePainter.clamp01(0.62 + 0.13 * Math.sin(t * Math.PI * 14.0) + 0.06 * Math.cos(t * Math.PI * 28.0))
+					* Math.min(SurfacePainter.smoothstep(0.0, 0.04, t), SurfacePainter.smoothstep(1.0, 0.96, t)),
+				aRamp, 1, seed ^ 0x5A04),
+			new RingSystem.Band(2.201, 2.225,
+				RingSystem.DensityProfile.constant(0.025),
+				gapRamp, 1, seed ^ 0x5E05),
+			new RingSystem.Band(2.225, 2.270,
+				(t, a) -> SurfacePainter.clamp01(0.58 + 0.12 * Math.sin(t * Math.PI * 6.0))
+					* Math.min(SurfacePainter.smoothstep(0.0, 0.12, t), SurfacePainter.smoothstep(1.0, 0.88, t)),
+				aRamp, 1, seed ^ 0x5A06),
+			new RingSystem.Band(2.310, 2.330,
+				(t, a) -> SurfacePainter.clamp01(0.44 + 0.14 * Math.sin(a * 7.0 + t * 3.0))
+					* Math.min(SurfacePainter.smoothstep(0.0, 0.22, t), SurfacePainter.smoothstep(1.0, 0.78, t)),
+				fRamp, 1, seed ^ 0x5F07));
 		return new Blueprint(AstronomyClass.SATURN,
 			(x, y, z) -> {
 				double dist2 = (double) x * x + (double) y * y + (double) z * z;
