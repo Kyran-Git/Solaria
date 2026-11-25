@@ -2,7 +2,7 @@
 
 Use this guide on your student computer. Your teacher handles Docker, the AI service, and approvals. You do **not** need the teacher's token, token file, Docker commands, or teacher web console.
 
-> **Current limits:** the default classroom service uses MOCK predictions, which normally say Earth regardless of the drawing. That is a connection demonstration, not real recognition. Scanner submission and review code exists, but live classroom camera/LAN behaviour still needs validation. Approval does not yet guarantee planet generation or travel.
+> **Current limits:** the default classroom service uses MOCK predictions, which normally say Earth regardless of the drawing and display a `"Synthetic result, not real recognition"` banner on the scanner screen and result panel. That is a connection demonstration, not real recognition. Scanner submission and review code exists, but live classroom camera/LAN behaviour still needs validation. Approval does not yet guarantee planet generation or travel.
 
 ## 1. Get ready
 

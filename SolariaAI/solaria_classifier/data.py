@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import json
 import random
 import warnings
 from collections import Counter
@@ -14,9 +15,11 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 from .classes import CLASS_IDS, is_valid_class
+from .config import SPLIT_RATIOS
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
+_SPLIT_PAIRS: tuple[tuple[str, str], ...] = (("train", "val"), ("train", "test"), ("val", "test"))
 
 
 @dataclass
@@ -68,26 +71,65 @@ def _transform(train: bool, size: int, grayscale: bool, rotation: float,
     return transforms.Compose(ops)
 
 
-def _duplicate_warnings(samples: list[tuple[str, int]], scope: str) -> None:
-    hashes = Counter(hashlib.sha256(Path(p).read_bytes()).digest() for p, _ in samples)
-    if any(n > 1 for n in hashes.values()):
-        warnings.warn(f"{scope} contains exact duplicate images; inspect train/validation leakage.",
-                      UserWarning)
-    # A small perceptual signature catches copies saved with different compression.
-    signatures: list[int] = []
-    for path, _ in samples:
-        try:
-            from PIL import Image
-            pixels = Image.open(path).convert("L").resize((8, 8))
-            mean = sum(pixels.getdata()) / 64
-            signatures.append(sum((value >= mean) << i for i, value in enumerate(pixels.getdata())))
-        except (OSError, ValueError):
-            continue
-    if any((a ^ b).bit_count() <= 2 for i, a in enumerate(signatures) for b in signatures[i + 1:]):
-        warnings.warn(f"{scope} contains near-duplicate images; inspect split leakage.", UserWarning)
+def _perceptual_signature(path: str | Path) -> int | None:
+    try:
+        with Image.open(path) as image:
+            pixels = image.convert("L").resize((8, 8)).tobytes()
+        mean = sum(pixels) / 64
+        return sum((value >= mean) << i for i, value in enumerate(pixels))
+    except (OSError, ValueError):
+        return None
+
+
+def _split_fingerprints(paths: list[str]) -> tuple[list[bytes], list[int]]:
+    hashes = [hashlib.sha256(Path(path).read_bytes()).digest() for path in paths]
+    signatures = [sig for path in paths if (sig := _perceptual_signature(path)) is not None]
+    return hashes, signatures
+
+
+def _within_split_warnings(
+    samples: list[tuple[str, int]],
+    scope: str,
+    hashes: list[bytes],
+    signatures: list[int],
+) -> None:
+    if any(n > 1 for n in Counter(hashes).values()):
+        warnings.warn(f"{scope} contains exact duplicate images.", UserWarning)
+    if any(
+        (a ^ b).bit_count() <= 2
+        for i, a in enumerate(signatures)
+        for b in signatures[i + 1 :]
+    ):
+        warnings.warn(f"{scope} contains near-duplicate images.", UserWarning)
     counts = Counter(label for _, label in samples)
     if counts and min(counts.values()) * 3 < max(counts.values()):
         warnings.warn(f"Severe class imbalance detected in {scope}: {dict(counts)}", UserWarning)
+
+
+def _cross_split_leakage_warnings(
+    split_paths: dict[str, list[str]],
+    fingerprints: dict[str, tuple[list[bytes], list[int]]] | None = None,
+) -> None:
+    computed = (
+        fingerprints
+        if fingerprints is not None
+        else {split: _split_fingerprints(paths) for split, paths in split_paths.items() if paths}
+    )
+    for left, right in _SPLIT_PAIRS:
+        if left not in computed or right not in computed:
+            continue
+        left_hashes, left_sigs = computed[left]
+        right_hashes, right_sigs = computed[right]
+        if set(left_hashes) & set(right_hashes):
+            warnings.warn(
+                f"Cross-split exact duplicate leakage detected between {left} and {right} splits.",
+                UserWarning,
+            )
+        if any((a ^ b).bit_count() <= 2 for a in left_sigs for b in right_sigs):
+            warnings.warn(
+                f"Cross-split near-duplicate leakage detected between {left} and {right} splits.",
+                UserWarning,
+            )
 
 
 def _prepare_split_assignment(participants: list[str], seed: int) -> dict[str, str]:
@@ -97,8 +139,18 @@ def _prepare_split_assignment(participants: list[str], seed: int) -> dict[str, s
     total = len(ordered)
     if total == 0:
         return {}
-    train_end = max(1, round(total * 0.70))
-    val_end = train_end + max(1, round(total * 0.15))
+    if total < 3:
+        raise ValueError(
+            "Need at least 3 distinct participants for a non-empty 70/20/10 "
+            f"train/val/test split; got {total}."
+        )
+    test_count = max(1, round(total * SPLIT_RATIOS["test"]))
+    val_count = max(1, round(total * SPLIT_RATIOS["val"]))
+    if val_count + test_count >= total:
+        val_count = max(1, total - 2)
+        test_count = max(1, total - 1 - val_count)
+    train_end = total - val_count - test_count
+    val_end = train_end + val_count
     split_by_participant: dict[str, str] = {}
     for idx, participant in enumerate(ordered):
         if idx < train_end:
@@ -147,21 +199,28 @@ def prepare_dataset_from_manifest(
             image.save(dest, format="PNG")
         split_files[target_split].append(str(dest))
         counts[target_split] += 1
+    _cross_split_leakage_warnings(split_files)
     manifest_path_out = Path(output_dir) / "dataset_manifest.json"
     manifest_payload = {
         "data_origin": data_origin,
         "seed": seed,
-        "split_ratios": {"train": 0.7, "val": 0.15, "test": 0.15},
+        "split_ratios": dict(SPLIT_RATIOS),
         "classes": class_names,
         "participants": participants,
         "split_by_participant": split_by_participant,
         "counts": counts,
     }
-    manifest_path_out.write_text(__import__("json").dumps(manifest_payload, indent=2), encoding="utf-8")
+    manifest_path_out.write_text(json.dumps(manifest_payload, indent=2), encoding="utf-8")
     return manifest_payload
 
 
-def build_datasets(data_dir: str | Path, augmentation: object, grayscale: bool = False) -> DatasetBundle:
+def build_datasets(
+    data_dir: str | Path,
+    augmentation: object,
+    grayscale: bool = False,
+    *,
+    require_test: bool = True,
+) -> DatasetBundle:
     root = Path(data_dir)
     kwargs = {
         "size": augmentation.image_size,
@@ -181,18 +240,34 @@ def build_datasets(data_dir: str | Path, augmentation: object, grayscale: bool =
         raise ValueError("Train and validation class mappings differ.")
     test_bundle = None
     test_path = root / "test"
-    if test_path.exists():
+    if test_path.is_dir():
         test = datasets.ImageFolder(test_path, transform=_transform(False, **kwargs))
         check_class_set(test.classes, "Test split")
         if test.class_to_idx != train.class_to_idx:
             raise ValueError("Test split class mapping differs from train and validation.")
         test_bundle = test
-    _duplicate_warnings(train.samples, "Training split")
-    _duplicate_warnings(val.samples, "Validation split")
+    elif require_test:
+        raise FileNotFoundError(f"Required test split directory not found: {test_path}")
+
+    split_samples: dict[str, tuple[str, list[tuple[str, int]]]] = {
+        "train": ("Training split", train.samples),
+        "val": ("Validation split", val.samples),
+    }
     if test_bundle is not None:
-        _duplicate_warnings(test_bundle.samples, "Test split")
-    combined = train.samples + val.samples + (test_bundle.samples if test_bundle else [])
-    _duplicate_warnings(combined, "Combined dataset")
+        split_samples["test"] = ("Test split", test_bundle.samples)
+
+    split_paths = {
+        split: [path for path, _ in samples]
+        for split, (_, samples) in split_samples.items()
+    }
+    fingerprints = {
+        split: _split_fingerprints(paths)
+        for split, paths in split_paths.items()
+    }
+    for split, (scope, samples) in split_samples.items():
+        hashes, signatures = fingerprints[split]
+        _within_split_warnings(samples, scope, hashes, signatures)
+    _cross_split_leakage_warnings(split_paths, fingerprints)
     return DatasetBundle(train, val, train.classes, train.class_to_idx, test_bundle)
 
 
@@ -200,3 +275,12 @@ def loaders(bundle: DatasetBundle, batch_size: int, workers: int) -> tuple[DataL
     val_loader = DataLoader(bundle.val, batch_size=batch_size, shuffle=False, num_workers=workers)
     train_loader = DataLoader(bundle.train, batch_size=batch_size, shuffle=True, num_workers=workers)
     return train_loader, val_loader
+
+
+def test_loader(bundle: DatasetBundle, batch_size: int, workers: int) -> DataLoader:
+    if bundle.test is None:
+        raise ValueError("Test split is required for final evaluation, but bundle.test is None.")
+    return DataLoader(bundle.test, batch_size=batch_size, shuffle=False, num_workers=workers)
+
+
+test_loader.__test__ = False

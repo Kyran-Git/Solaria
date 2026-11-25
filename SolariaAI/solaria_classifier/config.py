@@ -4,6 +4,8 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+SPLIT_RATIOS: dict[str, float] = {"train": 0.7, "val": 0.2, "test": 0.1}
+
 
 @dataclass
 class AugmentationConfig:
@@ -20,7 +22,7 @@ class AugmentationConfig:
 class TrainConfig:
     data_dir: str
     output_dir: str = "runs"
-    backbone: str = "resnet18"
+    backbone: str = "mobilenet_v3_small"
     epochs: int = 10
     batch_size: int = 32
     learning_rate: float = 3e-4

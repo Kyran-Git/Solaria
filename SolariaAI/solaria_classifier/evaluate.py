@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
+from .data import DatasetBundle, test_loader
 from .utils import confusion_matrix
 
 
@@ -65,3 +66,14 @@ def evaluate(model: torch.nn.Module, loader: DataLoader, classes: list[str],
         "coverage_vs_accuracy": coverage_vs_accuracy,
         "confusion_matrix": matrix.tolist(),
     }
+
+
+def evaluate_test(
+    model: torch.nn.Module,
+    bundle: DatasetBundle,
+    batch_size: int,
+    workers: int,
+    device: torch.device,
+) -> dict[str, object]:
+    """Run final held-out evaluation strictly on the required test split."""
+    return evaluate(model, test_loader(bundle, batch_size, workers), bundle.classes, device)

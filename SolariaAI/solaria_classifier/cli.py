@@ -13,7 +13,7 @@ def main() -> None:
     t.add_argument("--output-dir", default="runs")
     t.add_argument("--epochs", type=int, default=10)
     t.add_argument("--batch-size", type=int, default=32)
-    t.add_argument("--backbone", default="resnet18")
+    t.add_argument("--backbone", default="mobilenet_v3_small")
     t.add_argument("--seed", type=int, default=42)
     e = sub.add_parser("export")
     e.add_argument("checkpoint")

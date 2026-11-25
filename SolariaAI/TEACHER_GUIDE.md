@@ -95,7 +95,7 @@ try {
 2. Paste the token into **Startup bearer token**, without `Bearer`.
 3. Click **Connect**.
 4. Check **Service overview**: mode, model, confidence threshold, queue, and classes.
-5. Expect a synthetic-prediction warning in MOCK mode.
+5. Expect a `"Synthetic result, not real recognition"` banner in the service card and review panel when MOCK mode is active.
 
 The feed refreshes every **3 seconds** while connected. **Refresh** requests an immediate update. An empty feed is normal until scans arrive: the page cannot capture, upload, create sample scans, or train a model.
 
@@ -263,7 +263,7 @@ This is **synthetic validation**, not proof of real-drawing accuracy, browser in
 
 | Responsibility | What SolariaAI does | Teacher / maintainer responsibility |
 | --- | --- | --- |
-| Image preparation | Page/line-work cleaning and quality checks, with actionable failure hints | Help students improve framing, lighting, focus, and contrast; validate camera thresholds |
+| Image preparation | Page detection, colour-preserving gentle illumination normalisation, and 7 pre-normalisation quality checks with actionable failure hints | Help students improve framing, lighting, focus, and contrast, and validate camera thresholds |
 | Classification | ONNX inference, confidence, top predictions, acceptance and mock status | Review mistakes; do not mistake synthetic results for real recognition |
 | Runtime contract | Authenticated health/classify/review/override/ack APIs and class metadata | Keep the host paired and supported class mapping consistent |
 | Capacity control | Bounded processing queue, workers, request limits, and timeouts | Monitor availability; stagger retries rather than repeatedly flooding the service |
@@ -276,8 +276,8 @@ Supported runtime classes currently include `sun`, `earth`, `moon`, `mars`, `jup
 ### Offline training stays separate
 
 - Source drawings may be organised in **`D:/Solaria/SolariaAI/TrainingDataset/<class>/`**.
-- The documented training inputs are **`D:/Solaria/SolariaAI/data/train/<class>/`** and **`D:/Solaria/SolariaAI/data/val/<class>/`**. Prepare reviewed splits explicitly; the runtime container does not populate or convert these directories.
-- Split by participant where appropriate, inspect duplicates/leakage and class balance, and assess held-out real drawings.
+- The documented training inputs are **`D:/Solaria/SolariaAI/data/train/<class>/`**, **`D:/Solaria/SolariaAI/data/val/<class>/`**, and the required untouched **`D:/Solaria/SolariaAI/data/test/<class>/`** split (70% train / 20% validation / 10% test, strictly participant-aware by `participant_code`). Prepare reviewed splits explicitly, as the runtime container does not populate or convert these directories.
+- Split strictly by `participant_code`, inspect exact SHA-256 and perceptual near-duplicate leakage across all three split pairs (`train`/`val`, `train`/`test`, `val`/`test`) and class balance, and assess held-out real drawings on `data/test`.
 - Runtime reviews and corrections are **not** automatically saved as training samples or used for online learning. Dataset collection requires a separate approved process.
 - The service image excludes training datasets, PyTorch, and training/export tooling. Deploy exported artifacts only after offline validation.
 

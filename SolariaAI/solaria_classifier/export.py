@@ -16,11 +16,25 @@ def export_onnx(checkpoint: str | Path, output: str | Path, opset: int = 17) -> 
     model.load_state_dict(state["model"])
     model.eval()
     size = config.augmentation.image_size
-    torch.onnx.export(model, torch.randn(1, 3, size, size), output, opset_version=opset,
-                      input_names=["images"], output_names=["logits"],
-                      dynamic_axes={"images": {0: "batch"}, "logits": {0: "batch"}})
-    metadata = {"resize": [size, size], "resize_method": "bilinear", "channels": "RGB (grayscale replicated to 3)",
-                "mean": IMAGENET_MEAN, "std": IMAGENET_STD, "labels": state["classes"]}
+    torch.onnx.export(
+        model,
+        torch.randn(1, 3, size, size),
+        output,
+        opset_version=opset,
+        input_names=["images"],
+        output_names=["logits"],
+        dynamic_axes={"images": {0: "batch"}, "logits": {0: "batch"}},
+        dynamo=False,
+    )
+    metadata = {
+        "backbone": config.backbone,
+        "resize": [size, size],
+        "resize_method": "bilinear",
+        "channels": "RGB (grayscale replicated to 3)",
+        "mean": IMAGENET_MEAN,
+        "std": IMAGENET_STD,
+        "labels": state["classes"],
+    }
     Path(str(output) + ".metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
 

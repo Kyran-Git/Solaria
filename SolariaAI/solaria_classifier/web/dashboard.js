@@ -34,6 +34,7 @@
     el("decision").value = "approve";
     el("review-panel").hidden = true;
     el("mock-warning").hidden = true;
+    el("review-mock-warning").hidden = true;
     text("mode", "Not connected");
     for (const id of ["model", "threshold", "queue"]) text(id, "—");
     text("classes", "Connect to load supported classes.");
@@ -62,12 +63,14 @@
     selected = record;
     el("review-panel").hidden = !record;
     if (!record) {
+      el("review-mock-warning").hidden = true;
       el("thumbnail").removeAttribute("src");
       el("override-note").value = "";
       controls(); return;
     }
     text("application-status", record.application ? `Minecraft: ${record.application.status} · revision ${record.application.revision} (not a travel confirmation)` : "Minecraft has not acknowledged this decision.");
     const p = record.prediction;
+    el("review-mock-warning").hidden = !p.mock;
     text("review-student", `${record.student_id || "Unidentified student"} · request ${p.request_id} · ${new Date(record.received_at).toLocaleString()}`);
     text("ai-result", `${p.label} · ${(p.confidence * 100).toFixed(1)}%${p.mock ? " · MOCK" : ""}`);
     text("quality", `${p.quality.status}${p.reason_code ? ` · ${p.reason_code}` : ""}`);
@@ -101,7 +104,7 @@
       button.type = "button"; button.className = "scan-row secondary";
       button.setAttribute("aria-pressed", String(selected?.scan_id === record.scan_id));
       const p = record.prediction;
-      button.textContent = `${record.student_id || "Unidentified student"} · ${p.label} (${(p.confidence * 100).toFixed(1)}%) → ${record.final_label} · ${record.decider} · ${record.accepted ? "accepted" : (p.reason_code || "not accepted")}${p.mock ? " · MOCK" : ""} · ${p.request_id}`;
+      button.textContent = `${record.student_id || "Unidentified student"} · ${p.label} (${(p.confidence * 100).toFixed(1)}%) → ${record.final_label} · ${record.decider} · ${record.accepted ? "accepted" : (p.reason_code || "not accepted")}${p.mock ? " · MOCK (synthetic)" : ""} · ${p.request_id}`;
       button.addEventListener("click", () => { if (!busy) { renderDetail(record, true); renderFeed(); } });
       return button;
     }));
