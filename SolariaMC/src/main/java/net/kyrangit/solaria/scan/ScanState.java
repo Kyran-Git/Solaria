@@ -17,6 +17,7 @@ import java.util.Objects;
  * with a prediction, teacher approval, generation, or teleport permission.
  */
 public final class ScanState {
+	public static final String MOCK_WARNING = "Synthetic result, not real recognition";
 
 	/** Lifecycle of a single scan session. */
 	public enum Status {
@@ -44,16 +45,22 @@ public final class ScanState {
 	private final AstronomyClass predictedClass;
 	private final float confidence;
 	private final ReasonCode reasonCode;
+	private final boolean mock;
 
 	private ScanState(Status status, AstronomyClass predictedClass, float confidence, ReasonCode reasonCode) {
+		this(status, predictedClass, confidence, reasonCode, false);
+	}
+
+	private ScanState(Status status, AstronomyClass predictedClass, float confidence, ReasonCode reasonCode, boolean mock) {
 		this.status = Objects.requireNonNull(status, "status");
 		this.predictedClass = predictedClass;
 		this.confidence = confidence;
 		this.reasonCode = reasonCode;
+		this.mock = mock;
 	}
 
 	public static ScanState idle() {
-		return new ScanState(Status.IDLE, null, 0.0f, null);
+		return new ScanState(Status.IDLE, null, 0.0f, null, false);
 	}
 
 	public Status status() {
@@ -75,6 +82,29 @@ public final class ScanState {
 		return reasonCode;
 	}
 
+	/** True when the current scan result came from the service's mock mode. */
+	public boolean mock() {
+		return mock;
+	}
+
+	/** Scanner screen shows the mock warning whenever health or the displayed scan result is mock. */
+	public static boolean showScannerMockWarning(ScanState state, boolean serviceHealthMock) {
+		return serviceHealthMock || (state != null && state.mock());
+	}
+
+	/** Result panel shows the mock warning whenever the current scan result has mock=true. */
+	public static boolean showResultMockWarning(ScanState state) {
+		return state != null && state.mock();
+	}
+
+	public static String scannerMockWarning(ScanState state, boolean serviceHealthMock) {
+		return showScannerMockWarning(state, serviceHealthMock) ? MOCK_WARNING : null;
+	}
+
+	public static String resultMockWarning(ScanState state) {
+		return showResultMockWarning(state) ? MOCK_WARNING : null;
+	}
+
 	public boolean isTerminal() {
 		return status == Status.UNAVAILABLE || status == Status.DONE;
 	}
@@ -92,13 +122,13 @@ public final class ScanState {
 				if (status != Status.IDLE) {
 					throw new IllegalStateException("START_CAPTURE only valid in IDLE");
 				}
-				yield new ScanState(Status.CAPTURING, null, 0.0f, null);
+				yield new ScanState(Status.CAPTURING, null, 0.0f, null, false);
 			}
 			case ACCEPT -> {
 				if (status != Status.AWAITING_STUDENT_CONFIRM) {
 					throw new IllegalStateException("ACCEPT only valid when awaiting confirm");
 				}
-				yield new ScanState(Status.BUILDING, predictedClass, confidence, null);
+				yield new ScanState(Status.BUILDING, predictedClass, confidence, null, mock);
 			}
 			case RETRY -> {
 				if (status != Status.UNAVAILABLE && status != Status.AWAITING_STUDENT_CONFIRM && status != Status.CAPTURED) {
@@ -119,22 +149,24 @@ public final class ScanState {
 	/** Explicit submission is separate from local capture and prediction consent. */
 	public ScanState submit() {
 		if (status != Status.CAPTURED) throw new IllegalStateException("Submission requires a captured photo");
-		return new ScanState(Status.UPLOADING, null, 0, null);
+		return new ScanState(Status.UPLOADING, null, 0, null, false);
 	}
 
 	/** A real camera frame was frozen locally; never pretends that upload occurred. */
 	public ScanState withCapturedFrame() {
 		if (status != Status.CAPTURING) throw new IllegalStateException("Capture only valid while camera is open");
-		return new ScanState(Status.CAPTURED, null, 0.0f, null);
+		return new ScanState(Status.CAPTURED, null, 0.0f, null, false);
 	}
 
 	/**
 	 * Server-side injection: a real classification result arrived above the
-	 * confidence threshold. Only valid from UPLOADING or CLASSIFYING (which
-	 * are not reachable yet in Phase 4; this method exists so the hook point
-	 * is already covered by tests).
+	 * confidence threshold. Only valid from UPLOADING or CLASSIFYING.
 	 */
 	public ScanState withPrediction(AstronomyClass predicted, float conf) {
+		return withPrediction(predicted, conf, false);
+	}
+
+	public ScanState withPrediction(AstronomyClass predicted, float conf, boolean mock) {
 		Objects.requireNonNull(predicted, "predicted");
 		if (conf < 0.0f || conf > 1.0f || Float.isNaN(conf)) {
 			throw new IllegalArgumentException("confidence must be in [0,1]");
@@ -142,20 +174,28 @@ public final class ScanState {
 		if (status != Status.UPLOADING && status != Status.CLASSIFYING) {
 			throw new IllegalStateException("withPrediction not valid from " + status);
 		}
-		return new ScanState(Status.AWAITING_STUDENT_CONFIRM, predicted, conf, null);
+		return new ScanState(Status.AWAITING_STUDENT_CONFIRM, predicted, conf, null, mock);
 	}
 
 	/** Validated host correction can replace any prior result; student must confirm again. */
 	public ScanState withTeacherLabel(AstronomyClass label, float confidence) {
+		return withTeacherLabel(label, confidence, false);
+	}
+
+	public ScanState withTeacherLabel(AstronomyClass label, float confidence, boolean mock) {
 		if (label == null || !Float.isFinite(confidence) || confidence < 0 || confidence > 1)
 			throw new IllegalArgumentException("Invalid teacher result");
-		return new ScanState(Status.AWAITING_STUDENT_CONFIRM, label, confidence, null);
+		return new ScanState(Status.AWAITING_STUDENT_CONFIRM, label, confidence, null, mock);
 	}
 
 	/** Server-side injection: a classifier/transport error happened. */
 	public ScanState withFailure(ReasonCode code) {
+		return withFailure(code, false);
+	}
+
+	public ScanState withFailure(ReasonCode code, boolean mock) {
 		Objects.requireNonNull(code, "code");
-		return new ScanState(Status.UNAVAILABLE, null, 0.0f, code);
+		return new ScanState(Status.UNAVAILABLE, null, 0.0f, code, mock);
 	}
 
 	/** Server-side injection: the build completed. */
@@ -163,6 +203,6 @@ public final class ScanState {
 		if (status != Status.BUILDING) {
 			throw new IllegalStateException("withBuildComplete only valid from BUILDING");
 		}
-		return new ScanState(Status.DONE, predictedClass, confidence, null);
+		return new ScanState(Status.DONE, predictedClass, confidence, null, mock);
 	}
 }

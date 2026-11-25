@@ -194,20 +194,29 @@ public final class UiLayoutMetrics {
 
 	public record ScannerLayout(
 		Rect panel,
+		int headerHeight,
 		Rect closeButton,
 		Rect headerChip,
 		List<Rect> stageChips,
+		Rect mockBanner,
 		Rect viewport,
 		Rect infoWell,
 		Rect studentChip,
 		Rect teacherChip,
 		Rect confidenceBar,
+		Rect resultMockBanner,
 		List<Rect> actionButtons,
 		boolean compact
 	) {
 		public static ScannerLayout compute(int screenW, int screenH) {
+			return compute(screenW, screenH, false, false);
+		}
+
+		public static ScannerLayout compute(int screenW, int screenH, boolean scannerMock, boolean resultMock) {
 			boolean tight = screenH < 220;
 			boolean compact = screenH < 270;
+			boolean tightMock = tight && (scannerMock || resultMock);
+			boolean compactMock = !tight && compact && (scannerMock || resultMock);
 			int margin = 6;
 			int maxW = Math.max(200, screenW - margin * 2);
 			int maxH = Math.max(156, screenH - margin * 2);
@@ -215,20 +224,23 @@ public final class UiLayoutMetrics {
 			int padX = tight ? 10 : 14;
 			int innerW = pw - padX * 2;
 
-			int headerH = tight ? 21 : 26;
-			int closeSize = tight ? 14 : 17;
-			int stageH = tight ? 13 : 14;
-			int infoH = tight ? 32 : 42;
-			int btnH = tight ? 15 : 20;
-			int btnGap = tight ? 3 : 4;
+			int headerH = tightMock ? 20 : (tight ? 21 : (compactMock ? 22 : 26));
+			int closeSize = tight ? 14 : (compactMock ? 15 : 17);
+			int stageH = tightMock ? 12 : (tight ? 13 : 14);
+			int mockBannerH = scannerMock ? (tight ? 12 : (compactMock ? 13 : 14)) : 0;
+			int gapMockBanner = scannerMock ? (tight ? 2 : (compactMock ? 3 : 5)) : 0;
+			int infoH = tight ? (resultMock ? 35 : 32) : (resultMock ? 54 : 42);
+			int btnH = tightMock ? 14 : (tight ? 15 : (compactMock ? 18 : 20));
+			int btnGap = tightMock ? 2 : (tight ? 3 : (compactMock ? 3 : 4));
 			int buttonsBlockH = btnH * 2 + btnGap;
-			int gapStage = tight ? 3 : 6;
-			int gapViewport = tight ? 3 : 6;
-			int gapInfo = tight ? 3 : 7;
-			int gapActions = tight ? 3 : 7;
-			int bottomPad = tight ? 5 : 9;
+			int gapStage = tightMock ? 2 : (tight ? 3 : (compactMock ? 4 : 6));
+			int gapViewport = tightMock ? 2 : (tight ? 3 : (compactMock ? 4 : 6));
+			int gapInfo = tightMock ? 2 : (tight ? 3 : (compactMock ? 4 : 7));
+			int gapActions = tightMock ? 2 : (tight ? 3 : (compactMock ? 4 : 7));
+			int bottomPad = tightMock ? 4 : (tight ? 5 : (compactMock ? 6 : 9));
 
-			int fixedH = headerH + gapStage + stageH + gapViewport + gapInfo + infoH + gapActions + buttonsBlockH + bottomPad;
+			int fixedH = headerH + gapStage + stageH + gapMockBanner + mockBannerH
+				+ gapViewport + gapInfo + infoH + gapActions + buttonsBlockH + bottomPad;
 			int idealViewport = Math.min(148, Math.max(46, (innerW * 9) / 22));
 			int ph = Math.min(maxH, fixedH + idealViewport);
 			int vpH = Math.max(42, ph - fixedH);
@@ -236,8 +248,11 @@ public final class UiLayoutMetrics {
 			int px = (screenW - pw) / 2;
 			int py = (screenH - ph) / 2;
 			Rect panel = new Rect(px, py, pw, ph);
-			Rect closeBtn = new Rect(panel.right() - closeSize - 4, py + 4, closeSize, closeSize);
-			Rect headerChip = new Rect(closeBtn.x - 68, py + (tight ? 4 : 6), 62, tight ? 13 : 14);
+			int closeY = py + (tightMock || compactMock ? 3 : 4);
+			Rect closeBtn = new Rect(panel.right() - closeSize - 4, closeY, closeSize, closeSize);
+			int chipH = tightMock ? 12 : (tight || compactMock ? 13 : 14);
+			int chipY = py + (tight || compactMock ? 4 : 6);
+			Rect headerChip = new Rect(closeBtn.x - 68, chipY, 62, chipH);
 
 			int curY = py + headerH + gapStage;
 			int chipGap = 5;
@@ -246,17 +261,31 @@ public final class UiLayoutMetrics {
 			for (int i = 0; i < 4; i++) {
 				stageChips.add(new Rect(px + padX + i * (chipW + chipGap), curY, chipW, stageH));
 			}
-			curY += stageH + gapViewport;
+			curY += stageH;
+
+			Rect mockBanner = null;
+			if (scannerMock) {
+				curY += gapMockBanner;
+				mockBanner = new Rect(px + padX, curY, innerW, mockBannerH);
+				curY += mockBannerH;
+			}
+			curY += gapViewport;
 
 			Rect viewport = new Rect(px + padX, curY, innerW, vpH);
 			curY += vpH + gapInfo;
 
 			Rect infoWell = new Rect(px + padX, curY, innerW, infoH);
 			int scW = Math.min(64, (innerW - 24) / 4);
-			Rect teacherChip = new Rect(infoWell.right() - 6 - scW, curY + 4, scW, tight ? 12 : 14);
-			Rect studentChip = new Rect(teacherChip.x - 4 - scW, curY + 4, scW, tight ? 12 : 14);
-			int barY = tight ? curY + 18 : curY + 21;
-			Rect confBar = new Rect(infoWell.x + 8, barY, innerW - 16, 6);
+			int infoChipY = curY + (tight && resultMock ? 3 : 4);
+			int infoChipH = tight ? (resultMock ? 11 : 12) : 14;
+			Rect teacherChip = new Rect(infoWell.right() - 6 - scW, infoChipY, scW, infoChipH);
+			Rect studentChip = new Rect(teacherChip.x - 4 - scW, infoChipY, scW, infoChipH);
+			int barY = tight ? (resultMock ? curY + 16 : curY + 18) : curY + 21;
+			int barH = tight && resultMock ? 4 : 6;
+			Rect confBar = new Rect(infoWell.x + 8, barY, innerW - 16, barH);
+			Rect resultMockBanner = resultMock
+				? new Rect(infoWell.x + 8, barY + barH + (tight ? 2 : 3), innerW - 16, tight ? 11 : 12)
+				: null;
 			curY += infoH + gapActions;
 
 			int halfW = (innerW - 6) / 2;
@@ -266,8 +295,8 @@ public final class UiLayoutMetrics {
 				new Rect(px + padX, curY + btnH + btnGap, halfW, btnH),
 				new Rect(px + padX + halfW + 6, curY + btnH + btnGap, halfW, btnH)
 			);
-			return new ScannerLayout(panel, closeBtn, headerChip, List.copyOf(stageChips), viewport,
-				infoWell, studentChip, teacherChip, confBar, actions, compact);
+			return new ScannerLayout(panel, headerH, closeBtn, headerChip, List.copyOf(stageChips), mockBanner,
+				viewport, infoWell, studentChip, teacherChip, confBar, resultMockBanner, actions, compact);
 		}
 	}
 

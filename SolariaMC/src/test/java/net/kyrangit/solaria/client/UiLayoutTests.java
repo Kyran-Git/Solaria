@@ -94,31 +94,57 @@ public final class UiLayoutTests {
 	}
 
 	private static void verifyScanner(int w, int h, String tag) {
-		ScannerLayout l = ScannerLayout.compute(w, h);
-		checkCenteredBounds(l.panel(), w, h, tag + " scanner");
-		checkInside(l.panel(), l.closeButton(), 12, 12, tag + " scanner close");
-		checkInside(l.panel(), l.headerChip(), 24, 10, tag + " scanner chip");
+		boolean[][] modes = {{false, false}, {true, false}, {true, true}, {false, true}};
+		for (boolean[] mode : modes) {
+			boolean scannerMock = mode[0];
+			boolean resultMock = mode[1];
+			String modeTag = tag + " scanner(mock=" + scannerMock + "," + resultMock + ")";
+			ScannerLayout l = (!scannerMock && !resultMock)
+				? ScannerLayout.compute(w, h)
+				: ScannerLayout.compute(w, h, scannerMock, resultMock);
+			checkCenteredBounds(l.panel(), w, h, modeTag);
+			checkInside(l.panel(), l.closeButton(), 12, 12, modeTag + " close");
+			checkInside(l.panel(), l.headerChip(), 24, 10, modeTag + " chip");
 
-		List<Rect> outer = new ArrayList<>();
-		outer.add(l.closeButton());
-		outer.add(l.headerChip());
-		for (Rect r : l.stageChips()) {
-			checkInside(l.panel(), r, 24, 10, tag + " scanner stageChip");
-			outer.add(r);
+			List<Rect> outer = new ArrayList<>();
+			outer.add(l.closeButton());
+			outer.add(l.headerChip());
+			for (Rect r : l.stageChips()) {
+				checkInside(l.panel(), r, 24, 10, modeTag + " stageChip");
+				outer.add(r);
+			}
+			if (scannerMock) {
+				check(l.mockBanner() != null, modeTag + " mockBanner present");
+				checkInside(l.panel(), l.mockBanner(), 60, 11, modeTag + " mockBanner");
+				outer.add(l.mockBanner());
+			} else {
+				check(l.mockBanner() == null, modeTag + " mockBanner hidden");
+			}
+			checkInside(l.panel(), l.viewport(), 60, 40, modeTag + " viewport");
+			checkInside(l.panel(), l.infoWell(), 60, 28, modeTag + " infoWell");
+			checkInside(l.infoWell(), l.studentChip(), 24, 10, modeTag + " studentChip");
+			checkInside(l.infoWell(), l.teacherChip(), 24, 10, modeTag + " teacherChip");
+			checkInside(l.infoWell(), l.confidenceBar(), 40, 4, modeTag + " confBar");
+			List<Rect> inner = new ArrayList<>();
+			inner.add(l.studentChip());
+			inner.add(l.teacherChip());
+			inner.add(l.confidenceBar());
+			if (resultMock) {
+				check(l.resultMockBanner() != null, modeTag + " resultMockBanner present");
+				checkInside(l.infoWell(), l.resultMockBanner(), 40, 10, modeTag + " resultMockBanner");
+				inner.add(l.resultMockBanner());
+			} else {
+				check(l.resultMockBanner() == null, modeTag + " resultMockBanner hidden");
+			}
+			checkNoOverlaps(inner, modeTag + " infoWell inner");
+			outer.add(l.viewport());
+			outer.add(l.infoWell());
+			for (Rect r : l.actionButtons()) {
+				checkInside(l.panel(), r, 40, 14, modeTag + " actionBtn");
+				outer.add(r);
+			}
+			checkNoOverlaps(outer, modeTag);
 		}
-		checkInside(l.panel(), l.viewport(), 60, 40, tag + " scanner viewport");
-		checkInside(l.panel(), l.infoWell(), 60, 28, tag + " scanner infoWell");
-		checkInside(l.infoWell(), l.studentChip(), 24, 10, tag + " scanner studentChip");
-		checkInside(l.infoWell(), l.teacherChip(), 24, 10, tag + " scanner teacherChip");
-		checkInside(l.infoWell(), l.confidenceBar(), 40, 4, tag + " scanner confBar");
-		checkNoOverlaps(List.of(l.studentChip(), l.teacherChip(), l.confidenceBar()), tag + " scanner infoWell inner");
-		outer.add(l.viewport());
-		outer.add(l.infoWell());
-		for (Rect r : l.actionButtons()) {
-			checkInside(l.panel(), r, 40, 14, tag + " scanner actionBtn");
-			outer.add(r);
-		}
-		checkNoOverlaps(outer, tag + " scanner");
 	}
 
 	private static void verifyMenus(int w, int h, String tag) {

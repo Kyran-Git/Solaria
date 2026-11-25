@@ -22,6 +22,7 @@ public final class HostScanSessions {
     private final ConfigManager config;
     private final Map<UUID, Session> sessions = new HashMap<>();
     private final Map<UUID, Long> cooldowns = new HashMap<>();
+    private final Map<UUID, Long> healthCooldowns = new HashMap<>();
     private ThreadPoolExecutor workers;
 
     private static final class Session {
@@ -85,9 +86,11 @@ public final class HostScanSessions {
                 buildFeedback(c.player(), s, "build_failed", "Planet loading failed. Check the host installation and retry.");
             }
         });
+        ServerPlayNetworking.registerGlobalReceiver(ScanPackets.HealthCheck.TYPE, (p, c) -> checkHealth(c.server(), c.player()));
         ServerPlayConnectionEvents.DISCONNECT.register((h, server) -> {
             remove(h.getPlayer().getUUID());
             cooldowns.remove(h.getPlayer().getUUID());
+            healthCooldowns.remove(h.getPlayer().getUUID());
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             for (UUID id : List.copyOf(sessions.keySet())) {
@@ -105,11 +108,44 @@ public final class HostScanSessions {
             sessions.values().forEach(Session::cancel);
             sessions.clear();
             cooldowns.clear();
+            healthCooldowns.clear();
             if (workers != null) {
                 workers.shutdownNow();
                 workers = null;
             }
         });
+    }
+
+    private ThreadPoolExecutor ensureWorkers() {
+        if (workers == null) workers = new ThreadPoolExecutor(4, 4, 0, TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<>(28), new ThreadPoolExecutor.AbortPolicy());
+        return workers;
+    }
+
+    private void checkHealth(MinecraftServer server, ServerPlayer player) {
+        UUID playerId = player.getUUID();
+        long now = System.nanoTime();
+        if (now < healthCooldowns.getOrDefault(playerId, 0L)) return;
+        healthCooldowns.put(playerId, now + 2_000_000_000L);
+        var policy = config.current();
+        try {
+            ensureWorkers().submit(() -> {
+                try (var client = AiServiceClient.fromEnvironment(policy)) {
+                    boolean mock = client.health().mock();
+                    server.execute(() -> {
+                        ServerPlayer online = server.getPlayerList().getPlayer(playerId);
+                        if (online == null) return;
+                        JsonObject json = new JsonObject();
+                        json.addProperty("status", "health");
+                        json.addProperty("mock", mock);
+                        ServerPlayNetworking.send(online, new ScanPackets.Result("", json.toString()));
+                    });
+                } catch (ServiceException | RuntimeException ignored) {
+                    // Silent on screen open; actionable errors surface on submit or /solaria service health.
+                }
+            });
+        } catch (RejectedExecutionException ignored) {
+        }
     }
 
     private void remove(UUID id) {
@@ -153,10 +189,8 @@ public final class HostScanSessions {
             var policy = config.current();
             s.deadline = now + (2L * policy.requestTimeoutMs() + 5000) * 1_000_000L;
             send(player, s.id, "classifying", null, "");
-            if (workers == null) workers = new ThreadPoolExecutor(4, 4, 0, TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<>(28), new ThreadPoolExecutor.AbortPolicy());
             Session current = s;
-            s.job = workers.submit(() -> {
+            s.job = ensureWorkers().submit(() -> {
                 RuntimeResponses.Prediction result = null;
                 String failure = "";
                 try (var client = AiServiceClient.fromEnvironment(policy)) {
@@ -245,6 +279,9 @@ public final class HostScanSessions {
         if (s.gate != null) {
             json.addProperty("revision", s.gate.revision());
             json.addProperty("label", s.gate.label() == null ? "unknown" : s.gate.label().id());
+        }
+        if (s.prediction != null) {
+            json.addProperty("mock", s.prediction.mock());
         }
         ServerPlayNetworking.send(player, new ScanPackets.Result(s.id, json.toString()));
     }

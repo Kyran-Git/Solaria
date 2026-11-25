@@ -115,7 +115,7 @@ public final class SolariaCommands {
 				source.getServer().execute(() -> {
 					if (authorized(source, config)) source.sendSuccess(() -> Component.literal(
 						"AI service ready: api_v1, ten matching classes, threshold=" + health.threshold()
-							+ (health.mock() ? ". MOCK: synthetic predictions, not drawing recognition." : ". Model loaded.")
+							+ (health.mock() ? ". MOCK: Synthetic result, not real recognition." : ". Model loaded.")
 							+ " Approved scans can Build and travel to their body dimension."), false);
 				});
 			} catch (ServiceException error) {

@@ -47,6 +47,8 @@ public final class ScannerScreen extends Screen {
 	private boolean studentAgreed;
 	private boolean teacherApproved;
 	private boolean qualityAccepted;
+	private boolean serviceMock;
+	private boolean healthRequested;
 	private UiLayoutMetrics.ScannerLayout layout;
 
 	public ScannerScreen() {
@@ -55,7 +57,16 @@ public final class ScannerScreen extends Screen {
 
 	@Override
 	protected void init() {
-		layout = UiLayoutMetrics.ScannerLayout.compute(this.width, this.height);
+		if (!healthRequested) {
+			healthRequested = true;
+			if (net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.canSend(
+				net.kyrangit.solaria.scan.ScanPackets.HealthCheck.TYPE)) {
+				net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(
+					new net.kyrangit.solaria.scan.ScanPackets.HealthCheck());
+			}
+		}
+		layout = UiLayoutMetrics.ScannerLayout.compute(this.width, this.height,
+			showScannerMockWarning(), showResultMockWarning());
 		addRenderableWidget(new SolariaButton(layout.closeButton(), Component.literal("Close"),
 			SolariaButton.Style.CLOSE_ICON, b -> onClose()));
 
@@ -277,10 +288,23 @@ public final class ScannerScreen extends Screen {
 	}
 
 	public void receiveResult(net.kyrangit.solaria.scan.ScanPackets.Result packet) {
-		if (!packet.id().equals(submissionId)) return;
+		if (!packet.id().isEmpty() && !packet.id().equals(submissionId)) return;
 		try {
 			var data = com.google.gson.JsonParser.parseString(packet.json()).getAsJsonObject();
 			String status = data.get("status").getAsString();
+			if (packet.id().isEmpty()) {
+				if (status.equals("health") && data.has("mock") && !data.get("mock").isJsonNull()) {
+					boolean mock = data.get("mock").getAsBoolean();
+					if (serviceMock != mock) {
+						serviceMock = mock;
+						rebuildWidgets();
+					}
+				}
+				return;
+			}
+			boolean hasMock = data.has("mock") && !data.get("mock").isJsonNull();
+			boolean mock = hasMock ? data.get("mock").getAsBoolean() : state.mock();
+			if (hasMock) serviceMock = mock;
 			if (status.equals("classifying")) serviceStatus = Component.literal("Cleaning and classifying drawing...");
 			else if (status.equals("waiting_teacher")) serviceStatus = Component.literal("Student agreement recorded; waiting for teacher approval.");
 			else if (status.equals("building")) serviceStatus = Component.literal("Building your approved observation...");
@@ -291,17 +315,16 @@ public final class ScannerScreen extends Screen {
 				return;
 			} else if (status.equals("build_failed")) {
 				state = state.predictedClass() != null
-					? state.withTeacherLabel(state.predictedClass(), state.confidence())
-					: state.withFailure(ReasonCode.SERVICE_PROTOCOL_ERROR);
+					? state.withTeacherLabel(state.predictedClass(), state.confidence(), mock)
+					: state.withFailure(ReasonCode.SERVICE_PROTOCOL_ERROR, mock);
 				serviceStatus = Component.literal("Build failed: " + (data.has("reason") ? data.get("reason").getAsString() : "Ask your teacher"));
 			} else if (status.equals("correction")) {
 				reviewRevision = data.get("revision").getAsInt();
 				awaitingTeacher = false;
 				studentAgreed = teacherApproved = false;
 				state = state.withTeacherLabel(net.kyrangit.solaria.blueprint.AstronomyClass.fromId(data.get("label").getAsString()),
-					data.get("confidence").getAsFloat());
-				serviceStatus = Component.literal((data.get("mock").getAsBoolean() ? "MOCK (synthetic): " : "")
-					+ "Teacher selected " + planetName() + ". Do you agree?");
+					data.get("confidence").getAsFloat(), mock);
+				serviceStatus = Component.literal("Teacher selected " + planetName() + ". Do you agree?");
 			} else if (status.equals("ready")) {
 				reviewRevision = data.get("revision").getAsInt();
 				awaitingTeacher = true;
@@ -310,7 +333,7 @@ public final class ScannerScreen extends Screen {
 			} else if (status.equals("rejected")) {
 				reviewRevision = data.get("revision").getAsInt();
 				awaitingTeacher = false;
-				state = state.withFailure(ReasonCode.QUALITY_REJECTED);
+				state = state.withFailure(ReasonCode.QUALITY_REJECTED, mock);
 				serviceStatus = Component.literal("Teacher requested a new scan.");
 			} else if (status.equals("error")) {
 				pendingUpload = null;
@@ -318,21 +341,21 @@ public final class ScannerScreen extends Screen {
 				state = state.withFailure(ReasonCode.valueOf(data.get("reason").getAsString()));
 				serviceStatus = Component.literal("Scan failed: " + data.get("reason").getAsString());
 			} else if (status.equals("prediction")) {
-				boolean mock = data.get("mock").getAsBoolean();
 				qualityAccepted = !data.has("quality") || data.get("quality").isJsonNull()
 					|| data.get("quality").getAsString().isBlank();
 				if (data.get("accepted").getAsBoolean()) {
 					state = state.withPrediction(net.kyrangit.solaria.blueprint.AstronomyClass.fromId(data.get("label").getAsString()),
-						data.get("confidence").getAsFloat());
-					serviceStatus = mock ? Component.literal("MOCK (synthetic): " + planetName() + "  -  is this correct?") : null;
+						data.get("confidence").getAsFloat(), mock);
+					serviceStatus = null;
 				} else {
-					state = state.withFailure(ReasonCode.QUALITY_REJECTED);
-					serviceStatus = Component.literal((mock ? "MOCK (synthetic): " : "") + "Please retake: "
+					state = state.withFailure(ReasonCode.QUALITY_REJECTED, mock);
+					serviceStatus = Component.literal("Please retake: "
 						+ (data.get("quality").isJsonNull() ? "confidence below threshold" : data.get("quality").getAsString()));
 				}
 			}
 			rebuildWidgets();
 		} catch (RuntimeException e) {
+			if (packet.id().isEmpty()) return;
 			pendingUpload = null;
 			awaitingTeacher = false;
 			state = state.withFailure(ReasonCode.SERVICE_PROTOCOL_ERROR);
@@ -384,15 +407,20 @@ public final class ScannerScreen extends Screen {
 
 	@Override
 	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-		if (layout == null) {
-			layout = UiLayoutMetrics.ScannerLayout.compute(this.width, this.height);
+		boolean scannerMock = showScannerMockWarning();
+		boolean resultMock = showResultMockWarning();
+		if (layout == null || (layout.mockBanner() != null) != scannerMock
+			|| (layout.resultMockBanner() != null) != resultMock) {
+			layout = UiLayoutMetrics.ScannerLayout.compute(this.width, this.height, scannerMock, resultMock);
 		}
 		SolariaUiKit.drawBackdrop(graphics, this.width, this.height);
-		int headerH = layout.compact() ? 21 : 26;
+		int headerH = layout.headerHeight();
 		int reached = stageReached();
-		String headerLabel = state.status() == ScanState.Status.UNAVAILABLE ? "Retry"
+		String headerLabel = scannerMock ? "Mock"
+			: state.status() == ScanState.Status.UNAVAILABLE ? "Retry"
 			: reached >= 4 ? "Built" : reached >= 3 ? "Approved" : state.status() == ScanState.Status.CAPTURING ? "Live" : "Ready";
-		int headerDot = state.status() == ScanState.Status.UNAVAILABLE ? SolariaUiKit.DOT_ROSE
+		int headerDot = scannerMock ? SolariaUiKit.DOT_AMBER
+			: state.status() == ScanState.Status.UNAVAILABLE ? SolariaUiKit.DOT_ROSE
 			: reached >= 3 ? SolariaUiKit.DOT_GREEN : SolariaUiKit.DOT_CYAN;
 
 		SolariaUiKit.drawPanel(graphics, this.font, layout.panel(), "Observatory Scanner", headerH,
@@ -402,6 +430,13 @@ public final class ScannerScreen extends Screen {
 		for (int i = 0; i < stages.length && i < layout.stageChips().size(); i++) {
 			int dot = i < reached ? SolariaUiKit.DOT_GREEN : i == reached ? SolariaUiKit.DOT_CYAN : SolariaUiKit.DOT_IDLE;
 			SolariaUiKit.drawChip(graphics, this.font, layout.stageChips().get(i), stages[i], dot);
+		}
+
+		String mockWarningText = scannerMock || resultMock
+			? Component.translatable("solaria.scan.mock_warning").getString()
+			: null;
+		if (layout.mockBanner() != null && mockWarningText != null) {
+			SolariaUiKit.drawWarningBanner(graphics, this.font, layout.mockBanner(), mockWarningText);
 		}
 
 		UiLayoutMetrics.Rect vp = layout.viewport();
@@ -428,12 +463,14 @@ public final class ScannerScreen extends Screen {
 		}
 
 		UiLayoutMetrics.Rect info = layout.infoWell();
-		SolariaUiKit.drawAccentWell(graphics, info, SolariaUiKit.WELL_LIGHT, SolariaUiKit.CYAN_ACCENT);
+		SolariaUiKit.drawAccentWell(graphics, info, SolariaUiKit.WELL_LIGHT,
+			resultMock ? SolariaUiKit.DOT_AMBER : SolariaUiKit.CYAN_ACCENT);
 		String pred = state.predictedClass() == null ? "Pending scan"
 			: planetName() + " (" + Math.round(state.confidence() * 100f) + "%)";
 		int maxPredW = Math.max(30, layout.studentChip().x() - info.x() - 12);
+		int predY = info.y() + (layout.studentChip().y() - info.y()) + Math.max(0, (layout.studentChip().height() - 8) / 2);
 		graphics.text(this.font, SolariaUiKit.clipText(this.font, pred, maxPredW),
-			info.x() + 8, info.y() + 6, SolariaUiKit.TEXT_DARK, false);
+			info.x() + 8, predY, SolariaUiKit.TEXT_DARK, false);
 		SolariaUiKit.drawChip(graphics, this.font, layout.studentChip(), "Student",
 			studentAgreed ? SolariaUiKit.DOT_GREEN : SolariaUiKit.DOT_IDLE);
 		SolariaUiKit.drawChip(graphics, this.font, layout.teacherChip(), "Teacher",
@@ -441,7 +478,12 @@ public final class ScannerScreen extends Screen {
 
 		float barFrac = state.predictedClass() == null ? 0f : state.confidence();
 		SolariaUiKit.drawProgressBar(graphics, layout.confidenceBar(), barFrac);
-		int statusY = layout.confidenceBar().bottom() + 4;
+		if (layout.resultMockBanner() != null && mockWarningText != null) {
+			SolariaUiKit.drawWarningBanner(graphics, this.font, layout.resultMockBanner(), mockWarningText);
+		}
+		int statusY = layout.resultMockBanner() != null
+			? layout.resultMockBanner().bottom() + 2
+			: layout.confidenceBar().bottom() + 4;
 		if (statusY + 8 <= info.bottom() - 2) {
 			String statusStr = SolariaUiKit.clipText(this.font, statusLine().getString(), info.width() - 16);
 			int statusInk = state.status() == ScanState.Status.UNAVAILABLE ? SolariaUiKit.DOT_ROSE : SolariaUiKit.TEXT_MUTED;
@@ -449,6 +491,14 @@ public final class ScannerScreen extends Screen {
 		}
 
 		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+	}
+
+	private boolean showScannerMockWarning() {
+		return ScanState.showScannerMockWarning(state, serviceMock);
+	}
+
+	private boolean showResultMockWarning() {
+		return ScanState.showResultMockWarning(state);
 	}
 
 	private int stageReached() {

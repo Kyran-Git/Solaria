@@ -26,6 +26,7 @@ public final class ScanStateTests {
 		testFailureInjectionIsTerminal();
 		testTransitionIsPure();
 		testConfidenceBoundsRejected();
+		testMockPropagationAndWarnings();
 		testStateImmutable();
 		System.out.println("Plumbing check (synthetic): " + assertions + " scanner assertions passed.");
 	}
@@ -156,6 +157,56 @@ public final class ScanStateTests {
 		expectIllegalArg(() -> uploading.withPrediction(AstronomyClass.SUN, -0.01f), "negative confidence");
 		expectIllegalArg(() -> uploading.withPrediction(AstronomyClass.SUN, 1.01f), "confidence > 1");
 		expectIllegalArg(() -> uploading.withPrediction(AstronomyClass.SUN, Float.NaN), "NaN confidence");
+	}
+
+	private static void testMockPropagationAndWarnings() {
+		ScanState idle = ScanState.idle();
+		check(!idle.mock(), "idle is not mock");
+		check(!ScanState.showScannerMockWarning(idle, false), "real idle hides scanner warning");
+		check(ScanState.scannerMockWarning(idle, false) == null, "real idle scanner warning text is null");
+		check(!ScanState.showResultMockWarning(idle), "idle hides result panel warning");
+		check(ScanState.resultMockWarning(idle) == null, "idle result warning text is null");
+
+		// Health reports mock=true before any scan: scanner screen warns, result panel stays clean.
+		check(ScanState.showScannerMockWarning(idle, true), "mock health shows scanner screen warning");
+		check("Synthetic result, not real recognition".equals(ScanState.scannerMockWarning(idle, true)),
+			"scanner warning text matches required phrasing");
+		check(!ScanState.showResultMockWarning(idle), "mock health alone does not mark empty result panel");
+
+		// Mock prediction propagates across confirm, building, and done; shows on BOTH scanner screen and result panel.
+		ScanState uploading = idle.transition(ScanAction.START_CAPTURE).withCapturedFrame().submit();
+		ScanState mockPred = uploading.withPrediction(AstronomyClass.EARTH, 0.92f, true);
+		check(mockPred.mock(), "mock prediction retains mock=true");
+		check(ScanState.showScannerMockWarning(mockPred, false), "mock result shows scanner warning even without prior health");
+		check("Synthetic result, not real recognition".equals(ScanState.scannerMockWarning(mockPred, false)),
+			"scanner warning text on mock result");
+		check(ScanState.showResultMockWarning(mockPred), "mock result shows result panel warning");
+		check("Synthetic result, not real recognition".equals(ScanState.resultMockWarning(mockPred)),
+			"result panel warning text matches required phrasing");
+
+		ScanState mockBuilding = mockPred.transition(ScanAction.ACCEPT);
+		check(mockBuilding.mock() && ScanState.showResultMockWarning(mockBuilding), "BUILDING keeps mock flag");
+		ScanState mockDone = mockBuilding.withBuildComplete();
+		check(mockDone.mock() && ScanState.showResultMockWarning(mockDone), "DONE keeps mock flag");
+
+		// Teacher correction and failed mock prediction preserve mock=true; retry/reject/close clear it.
+		ScanState mockCorrected = mockPred.withTeacherLabel(AstronomyClass.JUPITER, 0.92f, true);
+		check(mockCorrected.mock() && ScanState.showResultMockWarning(mockCorrected), "teacher correction keeps mock flag");
+		ScanState mockRejected = uploading.withFailure(ReasonCode.QUALITY_REJECTED, true);
+		check(mockRejected.mock() && ScanState.showResultMockWarning(mockRejected), "rejected mock result keeps mock flag");
+		check(!mockPred.transition(ScanAction.RETRY).mock(), "RETRY clears mock flag");
+		check(!mockPred.transition(ScanAction.REJECT).mock(), "REJECT clears mock flag");
+		check(!mockPred.transition(ScanAction.CLOSE).mock(), "CLOSE clears mock flag");
+
+		// Real prediction (mock=false) hides both warnings when health is not mock.
+		ScanState realPred = uploading.withPrediction(AstronomyClass.JUPITER, 0.88f, false);
+		check(!realPred.mock(), "real prediction has mock=false");
+		check(!ScanState.showScannerMockWarning(realPred, false), "real prediction hides scanner warning");
+		check(!ScanState.showResultMockWarning(realPred), "real prediction hides result panel warning");
+		check(ScanState.scannerMockWarning(realPred, false) == null, "real prediction scanner warning is null");
+		check(ScanState.resultMockWarning(realPred) == null, "real prediction result warning is null");
+		ScanState realCorrected = realPred.withTeacherLabel(AstronomyClass.SATURN, 0.88f, false);
+		check(!realCorrected.mock() && !ScanState.showResultMockWarning(realCorrected), "real teacher correction hides warning");
 	}
 
 	private static void testStateImmutable() {

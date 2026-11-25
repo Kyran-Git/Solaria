@@ -52,6 +52,7 @@
   "solaria.scan.status.building": "Building %s...",
   "solaria.scan.status.done": "Finished building %s. Use /solaria visit to explore.",
   "solaria.scan.status.unavailable": "Scan unavailable: %s",
+  "solaria.scan.mock_warning": "Synthetic result, not real recognition",
   "solaria.scan.help.hold_drawing": "- Hold the paper flat in front of the webcam.",
   "solaria.scan.help.good_light": "- Make sure the room is well-lit and the drawing fills the view.",
   "solaria.scan.help.press_capture": "- Open camera enables video only. Nothing is saved or sent.",

@@ -73,10 +73,20 @@ public final class ScanPackets {
         @Override public Type<Build> type() { return TYPE; }
     }
 
+    /** Client asks the host whether the configured AI service is running in mock mode. */
+    public record HealthCheck() implements CustomPacketPayload {
+        public static final Type<HealthCheck> TYPE = new Type<>(SolariaMod.id("scan_health_v1"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, HealthCheck> CODEC = CustomPacketPayload.codec(
+            (p, b) -> {},
+            b -> new HealthCheck());
+        @Override public Type<HealthCheck> type() { return TYPE; }
+    }
+
     public static void register() {
         PayloadTypeRegistry.serverboundPlay().register(Upload.TYPE, Upload.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(Decision.TYPE, Decision.CODEC);
         PayloadTypeRegistry.serverboundPlay().register(Build.TYPE, Build.CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(HealthCheck.TYPE, HealthCheck.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(Result.TYPE, Result.CODEC);
     }
 }

@@ -45,6 +45,9 @@ public final class SolariaUiKit {
 	public static final int DOT_AMBER = 0xFFD68A28;
 	public static final int DOT_ROSE = 0xFFD2555A;
 	public static final int DOT_IDLE = 0xFF8E95AA;
+	public static final int WARNING_BG = 0xFFF5E3B8;
+	public static final int WARNING_BORDER = 0xFFD68A28;
+	public static final int WARNING_TEXT = 0xFF6B3400;
 
 	private SolariaUiKit() {
 	}
@@ -171,6 +174,24 @@ public final class SolariaUiKit {
 		String clipped = clipText(font, text, maxTextW);
 		int ty = y + (r.height() - 8) / 2;
 		g.text(font, clipped, textX, ty, TEXT_DARK, false);
+	}
+
+	public static void drawWarningBanner(GuiGraphicsExtractor g, Font font, UiLayoutMetrics.Rect r, String text) {
+		if (r == null || r.width() < 16 || r.height() < 10) {
+			return;
+		}
+		int x = r.x();
+		int y = r.y();
+		int x2 = r.right();
+		int y2 = r.bottom();
+		g.fill(x, y, x2, y2, WARNING_BORDER);
+		g.fill(x + 1, y + 1, x2 - 1, y2 - 1, WARNING_BG);
+		g.fill(x + 1, y + 1, x + 3, y2 - 1, WARNING_BORDER);
+		String clipped = clipText(font, text, Math.max(0, r.width() - 10));
+		int tw = font.width(clipped);
+		int tx = x + Math.max(5, (r.width() - tw) / 2);
+		int ty = y + (r.height() - 8) / 2;
+		g.text(font, clipped, tx, ty, WARNING_TEXT, false);
 	}
 
 	public static void drawViewfinder(GuiGraphicsExtractor g, UiLayoutMetrics.Rect viewport, boolean liveSweep) {

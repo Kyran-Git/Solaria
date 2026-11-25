@@ -73,6 +73,11 @@ public final class ServiceClientTests {
 		tokenFiles();
 		var health = RuntimeResponses.health(RuntimeResponses.parse(HEALTH));
 		check(health.mock() && health.classes().getFirst() == AstronomyClass.MERCURY, "Metadata order preserved");
+		var realHealth = RuntimeResponses.health(RuntimeResponses.parse(
+			HEALTH.replace("\"mock\":true,\"model_loaded\":false", "\"mock\":false,\"model_loaded\":true")));
+		check(!realHealth.mock() && realHealth.modelLoaded(), "Real health parses mock=false");
+		expect(ReasonCode.SERVICE_PROTOCOL_ERROR, () -> RuntimeResponses.health(RuntimeResponses.parse(HEALTH.replace("\"mock\":true,", ""))));
+		expect(ReasonCode.SERVICE_PROTOCOL_ERROR, () -> RuntimeResponses.health(RuntimeResponses.parse(HEALTH.replace("\"mock\":true", "\"mock\":\"true\""))));
 		for (String bad : new String[]{HEALTH.replace("mercury", "earth"), HEALTH.replace("mercury", "Mercury"),
 			HEALTH.replace("\"mercury\",", "")}) {
 			expect(ReasonCode.CLASS_SET_MISMATCH, () -> RuntimeResponses.health(RuntimeResponses.parse(bad)));
@@ -85,8 +90,19 @@ public final class ServiceClientTests {
 		}
 		for (AstronomyClass cls : AstronomyClass.values()) {
 			var result = RuntimeResponses.prediction(prediction(cls.id()), "request");
-			check(result.label() == cls && result.accepted(), "All ten labels accepted");
+			check(result.label() == cls && result.accepted() && result.mock(), "All ten mock labels accepted");
 		}
+		JsonObject realPrediction = prediction("jupiter");
+		realPrediction.addProperty("mock", false);
+		var parsedReal = RuntimeResponses.prediction(realPrediction, "request");
+		check(!parsedReal.mock() && parsedReal.label() == AstronomyClass.JUPITER && parsedReal.accepted(),
+			"Prediction parses mock=false");
+		JsonObject missingMock = prediction("earth");
+		missingMock.remove("mock");
+		expect(ReasonCode.SERVICE_PROTOCOL_ERROR, () -> RuntimeResponses.prediction(missingMock, "request"));
+		JsonObject stringMock = prediction("earth");
+		stringMock.addProperty("mock", "true");
+		expect(ReasonCode.SERVICE_PROTOCOL_ERROR, () -> RuntimeResponses.prediction(stringMock, "request"));
 		JsonObject low = prediction("earth");
 		low.addProperty("accepted", false);
 		low.addProperty("label", "unknown");
@@ -122,8 +138,13 @@ public final class ServiceClientTests {
 		failedButAccepted.addProperty("label", "earth");
 		expect(ReasonCode.SERVICE_PROTOCOL_ERROR, () -> RuntimeResponses.prediction(failedButAccepted, "request"));
 		JsonObject review = review(low, 1);
-		check(RuntimeResponses.review(review, SCAN, "request", "participant", 0).finalLabel() == AstronomyClass.MARS,
-			"Teacher can correct low confidence");
+		var parsedReview = RuntimeResponses.review(review, SCAN, "request", "participant", 0);
+		check(parsedReview.finalLabel() == AstronomyClass.MARS && parsedReview.prediction().mock(),
+			"Teacher can correct low confidence and mock flag is preserved");
+		JsonObject realLow = low.deepCopy();
+		realLow.addProperty("mock", false);
+		check(!RuntimeResponses.review(review(realLow, 1), SCAN, "request", "participant", 0).prediction().mock(),
+			"Review preserves mock=false on real predictions");
 		expect(ReasonCode.REVIEW_CONFLICT, () -> RuntimeResponses.review(review, SCAN, "request", "participant", 2));
 		expect(ReasonCode.SERVICE_PROTOCOL_ERROR, () -> RuntimeResponses.review(review, SCAN, "request", "other", 0));
 		expect(ReasonCode.SERVICE_PROTOCOL_ERROR, () -> RuntimeResponses.review(review, "f".repeat(32), "request", "participant", 0));
