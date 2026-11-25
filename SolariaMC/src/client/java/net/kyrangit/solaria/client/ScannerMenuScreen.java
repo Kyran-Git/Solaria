@@ -105,7 +105,6 @@ public final class ScannerMenuScreen extends Screen {
 		int chipDot = picking || canScan ? SolariaUiKit.DOT_CYAN : SolariaUiKit.DOT_AMBER;
 
 		SolariaUiKit.drawPanel(g, this.font, layout.panel(), title, headerH, layout.headerChip(), chipText, chipDot);
-		SolariaUiKit.drawLeftTabRail(g, layout.panel(), picking ? 0 : 2);
 
 		UiLayoutMetrics.Rect sw = layout.subtitleWell();
 		if (picking) {

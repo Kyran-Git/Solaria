@@ -397,7 +397,6 @@ public final class ScannerScreen extends Screen {
 
 		SolariaUiKit.drawPanel(graphics, this.font, layout.panel(), "Observatory Scanner", headerH,
 			layout.headerChip(), headerLabel, headerDot);
-		SolariaUiKit.drawLeftTabRail(graphics, layout.panel(), 1);
 
 		String[] stages = {"Captured", "Classified", "Approved", "Built"};
 		for (int i = 0; i < stages.length && i < layout.stageChips().size(); i++) {

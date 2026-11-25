@@ -46,13 +46,6 @@ public final class SolariaUiKit {
 	public static final int DOT_ROSE = 0xFFD2555A;
 	public static final int DOT_IDLE = 0xFF8E95AA;
 
-	public enum Glyph {
-		QUIZ,
-		SCAN,
-		MENU,
-		CLOSE
-	}
-
 	private SolariaUiKit() {
 	}
 
@@ -113,38 +106,6 @@ public final class SolariaUiKit {
 
 		if (chipRect != null && chipText != null && !chipText.isBlank()) {
 			drawChip(g, font, chipRect, chipText, chipDot);
-		}
-	}
-
-	/** Left-docked ceramic icon rail matching AE2's seamless tab bezel when horizontal space permits. */
-	public static void drawLeftTabRail(GuiGraphicsExtractor g, UiLayoutMetrics.Rect panel, int activeTab) {
-		if (panel.x() < 26) {
-			return;
-		}
-		Glyph[] glyphs = {Glyph.QUIZ, Glyph.SCAN, Glyph.MENU};
-		for (int i = 0; i < glyphs.length; i++) {
-			int ty = panel.y() + 10 + i * 25;
-			int tx = panel.x() - 21;
-			if (ty + 22 > panel.bottom() - 4) {
-				break;
-			}
-			boolean active = i == activeTab;
-			g.fill(tx + 1, ty, panel.x(), ty + 22, PANEL_OUTLINE);
-			g.fill(tx, ty + 1, panel.x(), ty + 21, PANEL_OUTLINE);
-			g.fill(tx + 1, ty + 1, panel.x(), ty + 21, PANEL_BG);
-			g.fill(tx + 1, ty + 1, panel.x() - 1, ty + 2, PANEL_BEVEL_HI);
-			g.fill(tx + 1, ty + 1, tx + 2, ty + 20, PANEL_BEVEL_HI);
-			g.fill(tx + 2, ty + 20, panel.x() - 1, ty + 21, PANEL_BEVEL_SH);
-			if (active) {
-				// Seamlessly fuse active tab into the panel + highlight strip
-				g.fill(panel.x(), ty + 2, panel.x() + 1, ty + 20, PANEL_BG);
-				g.fill(tx + 2, ty + 3, tx + 4, ty + 19, CYAN_ACCENT);
-				drawMatteFill(g, tx + 5, ty + 3, 14, 16, 0xFF3CA6BF, 0xFF2E8DA5, 0xFF83DDF0, 0xFF20677B, 0xFF184E5E);
-				drawGlyph(g, tx + 8, ty + 7, glyphs[i], TEXT_WHITE);
-			} else {
-				drawMatteFill(g, tx + 4, ty + 3, 15, 16, 0xFF989FB4, 0xFF878EA4, 0xFFB6BDD2, 0xFF666D84, 0xFF4A5064);
-				drawGlyph(g, tx + 8, ty + 7, glyphs[i], TEXT_WHITE);
-			}
 		}
 	}
 
@@ -268,41 +229,11 @@ public final class SolariaUiKit {
 		}
 	}
 
-	public static void drawGlyph(GuiGraphicsExtractor g, int x, int y, Glyph glyph, int color) {
-		switch (glyph) {
-			case QUIZ -> {
-				g.fill(x + 2, y, x + 6, y + 1, color);
-				g.fill(x + 1, y + 1, x + 2, y + 3, color);
-				g.fill(x + 5, y + 1, x + 7, y + 4, color);
-				g.fill(x + 3, y + 3, x + 5, y + 5, color);
-				g.fill(x + 3, y + 6, x + 5, y + 8, color);
-			}
-			case SCAN -> {
-				g.fill(x, y, x + 3, y + 1, color);
-				g.fill(x, y, x + 1, y + 3, color);
-				g.fill(x + 5, y, x + 8, y + 1, color);
-				g.fill(x + 7, y, x + 8, y + 3, color);
-				g.fill(x, y + 7, x + 3, y + 8, color);
-				g.fill(x, y + 5, x + 1, y + 8, color);
-				g.fill(x + 5, y + 7, x + 8, y + 8, color);
-				g.fill(x + 7, y + 5, x + 8, y + 8, color);
-				g.fill(x + 2, y + 2, x + 6, y + 6, color);
-			}
-			case MENU -> {
-				for (int r = 0; r < 2; r++) {
-					for (int c = 0; c < 2; c++) {
-						g.fill(x + c * 4, y + r * 4, x + c * 4 + 3, y + r * 4 + 3, color);
-					}
-				}
-			}
-			case CLOSE -> {
-				// Clean top-right return arrow inspired by AE2 corner close/back control
-				g.fill(x + 1, y + 1, x + 6, y + 2, color);
-				g.fill(x + 5, y + 1, x + 6, y + 6, color);
-				g.fill(x + 1, y + 5, x + 6, y + 6, color);
-				g.fill(x + 1, y + 4, x + 3, y + 7, color);
-			}
-		}
+	public static void drawCloseGlyph(GuiGraphicsExtractor g, int x, int y, int color) {
+		g.fill(x + 1, y + 1, x + 6, y + 2, color);
+		g.fill(x + 5, y + 1, x + 6, y + 6, color);
+		g.fill(x + 1, y + 5, x + 6, y + 6, color);
+		g.fill(x + 1, y + 4, x + 3, y + 7, color);
 	}
 
 	public static int drawCenteredLines(

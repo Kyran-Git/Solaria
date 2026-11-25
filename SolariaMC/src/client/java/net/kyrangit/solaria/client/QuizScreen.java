@@ -247,7 +247,6 @@ public final class QuizScreen extends Screen {
 		int headerH = layout.compact() ? 22 : 26;
 
 		SolariaUiKit.drawPanel(g, this.font, layout.panel(), title, headerH, layout.headerChip(), chipText, chipDot);
-		SolariaUiKit.drawLeftTabRail(g, layout.panel(), 0);
 
 		if (result != null) {
 			renderResult(g);

@@ -102,7 +102,7 @@ public final class SolariaButton extends Button {
 		if (style == Style.CLOSE_ICON) {
 			int gx = x + (w - 7) / 2;
 			int gy = y + (h - 7) / 2;
-			SolariaUiKit.drawGlyph(g, gx, gy, SolariaUiKit.Glyph.CLOSE, ink);
+			SolariaUiKit.drawCloseGlyph(g, gx, gy, ink);
 			return;
 		}
 
