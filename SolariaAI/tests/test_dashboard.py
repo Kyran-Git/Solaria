@@ -82,6 +82,8 @@ def test_dashboard_contains_help_controls_and_local_assets():
         assert {
             "token",
             "connect-form",
+            "mock-warning",
+            "review-mock-warning",
             "review-feed",
             "override-form",
             "override-label",
@@ -90,6 +92,7 @@ def test_dashboard_contains_help_controls_and_local_assets():
         assert not {"image-file", "classify", "sample", "scenario"} & set(parser.ids)
         assert b'type="file"' not in body
         assert b"Students scan their drawings in Minecraft" in body
+        assert body.count(b"Synthetic result, not real recognition.") == 2
         assert set(parser.assets) == {
             "/assets/tokens.css",
             "/assets/dashboard.css",
@@ -105,6 +108,8 @@ def test_teacher_script_matches_markup_and_never_submits_images():
     parser.feed((web / "index.html").read_text(encoding="utf-8"))
     script = (web / "dashboard.js").read_text(encoding="utf-8")
     assert set(re.findall(r'el\("([\w-]+)"\)', script)) <= set(parser.ids)
+    assert 'el("mock-warning").hidden = !health.mock;' in script
+    assert 'el("review-mock-warning").hidden = !p.mock;' in script
     assert "/v1/reviews" in script and "/override" in script
     assert "/v1/classify" not in script
     assert "innerHTML" not in script
