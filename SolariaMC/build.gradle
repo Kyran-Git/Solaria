@@ -114,6 +114,18 @@ tasks.register('webcamTest', JavaExec) {
 	systemProperty 'java.awt.headless', 'true'
 }
 
+tasks.register('uiLayoutTest', JavaExec) {
+	group = 'verification'
+	description = 'Validates responsive Step 12 ceramic-slate UI layouts across GUI scales 1 to 4.'
+	dependsOn testClasses, clientClasses
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'net.kyrangit.solaria.client.UiLayoutTests'
+	systemProperty 'java.awt.headless', 'true'
+	javaLauncher = javaToolchains.launcherFor {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
 // Explicit opt-in only: opens the local webcam, discards all images, then checks reopening.
 tasks.register('webcamSmoke', JavaExec) {
 	group = 'verification'
@@ -324,7 +336,7 @@ tasks.register('quizBankTest', JavaExec) {
 }
 
 tasks.named('test') {
-	dependsOn reviewGateTest, buildTravelTest, quizBankTest
+	dependsOn reviewGateTest, buildTravelTest, quizBankTest, uiLayoutTest
 	dependsOn foundationTest, wikiStructureTest, blueprintTest, surfacePainterTest, ringSystemTest, scanStateTest, cameraAccessTest, webcamTest, dimensionDataTest, serviceClientTest, planetWorldTest, introHubTest
 	// Tests use a Java main runner rather than a JUnit engine.
 	exclude '**/*'
