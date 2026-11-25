@@ -1,0 +1,124 @@
+/* Shared ceramic silver-slate + futuristic cyan design tokens aligned with Step 12 (SolariaUiKit).
+ * Strictly offline: local CSS variables and system font stacks only; zero external URLs. */
+:root {
+  /* Backdrop & ceramic panel surfaces */
+  --solaria-backdrop: #0D1422;
+  --solaria-backdrop-glow: rgba(76, 201, 223, 0.10);
+  --solaria-panel-bg: #D6DAE6;
+  --solaria-panel-outline: #5A6275;
+  --solaria-bevel-hi: #F5F7FC;
+  --solaria-bevel-hi-inner: #EAEFF9;
+  --solaria-bevel-sh: #9FA6BA;
+  --solaria-bevel-sh-inner: #B5BCCF;
+  --solaria-divider-top: #B7BECE;
+  --solaria-divider-bot: #E9ECF5;
+  --solaria-well-light: #C4CAD8;
+  --solaria-well-mid: #AEB5C8;
+  --solaria-well-sh: #8B92A8;
+  --solaria-well-rim: #EFF2F8;
+  --solaria-viewport-bg: #0E1726;
+  --solaria-input-bg: #EEF1F8;
+
+  /* Cyan accents */
+  --solaria-cyan: #4CC9DF;
+  --solaria-cyan-bright: #8CE8F8;
+  --solaria-eyebrow-cyan: #62DCF2;
+
+  /* WCAG AA (>= 4.5:1) ink tokens */
+  --solaria-ink-on-dark: #F1F5FC;
+  --solaria-muted-on-dark: #B8C4DC;
+  --solaria-ink: #1F2536;
+  --solaria-ink-muted: #3E465C;
+  --solaria-ink-well-muted: #384056;
+  --solaria-ink-input: #1A2030;
+  --solaria-ink-placeholder: #525B72;
+  --solaria-ink-link: #0A5063;
+  --solaria-ink-code: #154B5D;
+
+  /* Buttons (beveled ceramic + deep cyan CTA, WCAG >= 5.08:1) */
+  --solaria-cta-top: #136B82;
+  --solaria-cta-bot: #0E5C71;
+  --solaria-cta-hover-top: #177891;
+  --solaria-cta-hover-bot: #11667D;
+  --solaria-cta-hi: #6ED4E8;
+  --solaria-cta-lip: #093E4D;
+  --solaria-cta-border: #0A4656;
+  --solaria-cta-ink: #FFFFFF;
+
+  --solaria-btn-top: #555E74;
+  --solaria-btn-bot: #4B5368;
+  --solaria-btn-hover-top: #606A82;
+  --solaria-btn-hover-bot: #535C73;
+  --solaria-btn-hi: #8E97AE;
+  --solaria-btn-lip: #363D4E;
+  --solaria-btn-border: #3E4558;
+  --solaria-btn-ink: #FFFFFF;
+
+  --solaria-dis-top: #BFC5D4;
+  --solaria-dis-bot: #B3BACB;
+  --solaria-dis-ink: #3E465C;
+
+  /* Selectable scan rows */
+  --solaria-row-bg: #C4CAD8;
+  --solaria-row-hover: #D0D8E8;
+  --solaria-row-active-bg: #BBE6F0;
+  --solaria-row-active-ink: #103542;
+  --solaria-row-active-border: #177891;
+
+  /* Badges & semantic notices (light ceramic panel vs dark observatory backdrop) */
+  --solaria-badge-bg: #C5CCDC;
+  --solaria-badge-ink: #1F2536;
+  --solaria-badge-border: #8E97AE;
+  --solaria-dot-info: #0F7C94;
+
+  --solaria-badge-ok-bg: #CDEEE0;
+  --solaria-badge-ok-ink: #0E4E31;
+  --solaria-badge-ok-border: #4D9E77;
+  --solaria-dot-ok: #1D8A4E;
+
+  --solaria-notice-info-bg: #C7DCE6;
+  --solaria-notice-info-ink: #103E4E;
+  --solaria-notice-info-border: #5A93A8;
+
+  --solaria-notice-ok-bg: #CDEEE0;
+  --solaria-notice-ok-ink: #0E4E31;
+  --solaria-notice-ok-border: #4D9E77;
+
+  --solaria-notice-warn-bg: #F8E8C4;
+  --solaria-notice-warn-ink: #5A3605;
+  --solaria-notice-warn-border: #B47B1B;
+
+  --solaria-notice-err-bg: #F7D8DC;
+  --solaria-notice-err-ink: #6E161E;
+  --solaria-notice-err-border: #B84A54;
+
+  --solaria-dark-notice-info-bg: #152538;
+  --solaria-dark-notice-info-ink: #CFEAF4;
+  --solaria-dark-notice-info-border: #366882;
+
+  --solaria-dark-notice-ok-bg: #122E26;
+  --solaria-dark-notice-ok-ink: #BFF0D6;
+  --solaria-dark-notice-ok-border: #2F7A5A;
+
+  --solaria-dark-notice-warn-bg: #312511;
+  --solaria-dark-notice-warn-ink: #FBE0A8;
+  --solaria-dark-notice-warn-border: #8F6520;
+
+  --solaria-dark-notice-err-bg: #361920;
+  --solaria-dark-notice-err-ink: #FFD0D6;
+  --solaria-dark-notice-err-border: #9E3E4B;
+
+  /* Focus, typography, radii & spacing */
+  --solaria-focus-on-dark: #7CE5F7;
+  --solaria-focus-on-light: #0B6A82;
+  --solaria-font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --solaria-font-mono: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  --solaria-radius-panel: 4px;
+  --solaria-radius-control: 3px;
+  --solaria-radius-pill: 999px;
+  --solaria-space-xs: 6px;
+  --solaria-space-sm: 10px;
+  --solaria-space-md: 16px;
+  --solaria-space-lg: 22px;
+  --solaria-space-xl: 32px;
+}

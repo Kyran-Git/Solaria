@@ -26,6 +26,7 @@ from .startup_token import load_token
 MAX_BODY_BYTES = 2 * 1024 * 1024
 WEB_ASSETS = {
     "/": ("index.html", "text/html; charset=utf-8"),
+    "/assets/tokens.css": ("tokens.css", "text/css; charset=utf-8"),
     "/assets/dashboard.css": ("dashboard.css", "text/css; charset=utf-8"),
     "/assets/dashboard.js": ("dashboard.js", "text/javascript; charset=utf-8"),
 }
