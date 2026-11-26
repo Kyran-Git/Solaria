@@ -1,54 +1,28 @@
 # Solaria
 
-Solaria is a Minecraft learning tool for secondary school students. A student
-draws an astronomy concept on paper, scans it through an in-game camera item,
-and a machine-learning service cleans and classifies the drawing. If the
-student accepts the result, they travel to a dimension for that concept and fly
-around a full-size sphere of it. A teacher oversees the process and can
-override the classification.
+Solaria is a Minecraft-based astronomy learning tool designed for secondary school classrooms. It aims to bridge hands-on drawing with interactive 3D exploration: students draw an astronomy concept on paper, scan it with an in-game camera item, and have a local machine-learning service clean and classify the drawing. Once a result is accepted, students can travel to a dedicated dimension for that concept and fly around a full-scale voxel sphere of the celestial body, while a teacher oversees the classroom workflow and retains authority to review or override classifications.
 
-This directory holds two repositories that must stay in step:
+## Repository Structure
+
+This workspace contains two companion projects that work together:
 
 | Folder | What it is | Where it runs |
 |---|---|---|
-| `SolariaAI/` | Python package: training, cleaning, quality checks, classification, and a local HTTP service. Separate program and separate tests. | The teacher's machine, bound to `127.0.0.1`. |
-| `SolariaMC/` | Fabric mod for Minecraft Java Edition 26.1.2: camera item, GUI, networking, dimensions, generation, and teacher tools. | The teacher's machine (hosts a LAN world) and every student machine (joins as a client). |
+| `SolariaAI/` | Standalone Python package for dataset training, ONNX export, drawing cleaning, quality checks, classification, and a local HTTP service with a teacher review console. | The teacher's machine, bound to loopback (`127.0.0.1`). |
+| `SolariaMC/` | Fabric mod for Minecraft Java Edition 26.1.2 providing the camera item, scanning GUI, webcam capture and server relay, custom dimensions, spherical voxel generation, and teacher moderation tools. | The teacher's machine (hosting a LAN world) and student machines (joining as clients). |
 
-## Current plan (Solaria v2)
+## How Solaria Works
 
-The authoritative plan is the "Solaria end-to-end build prompt" (see
-`SOLARIA_AGENT_PROMPT.md`). The important fixed
-decisions it carries:
+1. **Draw and capture:** A student sketches an astronomy concept on paper and scans it using the in-game camera interface on their Minecraft client.
+2. **Relay and clean:** The student client sends the downsized capture to the teacher's Minecraft server, which relays the image over loopback HTTP to `SolariaAI`. The AI service runs perspective/illumination cleaning and quality checks.
+3. **Classify with confidence gating:** The classifier predicts one of the supported astronomy classes. Predictions below the confidence threshold (default `0.60`) are reported as `unknown` so uncertain drawings do not trigger automatic generation.
+4. **Teacher oversight:** Teachers oversee scans and hold final authority—a teacher's approval or override always takes precedence over the model's prediction.
+5. **Explore in 3D:** Accepted concepts let students travel to the corresponding `solaria:<class>` dimension and fly around a full-size spherical voxel model centred at the origin.
 
-- **Platform.** Minecraft Java Edition 26.1.2 with Fabric, Java 25, LAN hosted
-  by the teacher.
-- **Ten classes.** `sun`, `earth`, `moon`, `mars`, `jupiter`, `venus`,
-  `saturn`, `uranus`, `neptune`, `mercury`. All ids are lowercase and must
-  match the model metadata byte for byte.
-- **One dimension per class.** Ids are `solaria:<class>`. Each dimension holds
-  one full-size sphere of that class centred at the origin.
-- **Student mode.** Creative, flight only. No walkable terrain in this version.
-- **AI boundary.** The mod never loads a model and never contains AI code. The
-  AI service runs as a separate process on the teacher's machine, over
-  loopback HTTP with a startup token.
-- **Confidence.** Default threshold is `0.60`. Below the threshold the result
-  is `unknown` and nothing is generated automatically.
-- **Teacher authority.** A teacher decision always beats the model.
-- **Privacy.** Everything runs locally. No cloud, no uploads, no student
-  usernames in logs. Participant codes only.
+## Core Design Goals & Principles
 
-## Phases (both repos share the numbering)
-
-| # | Phase | Owner |
-|---|---|---|
-| 0 | Audit, reconciliation report, and webcam capture spike | Both repos |
-| 1 | AI service: cleaning, quality checks, classify (mock first), bounded queue, packaging for the teacher machine | SolariaAI |
-| 2 | Blueprint v2: `voxelAt`, new sizes, 69-block palette, determinism tests | SolariaMC |
-| 3 | Ten per-class dimensions, travel and return, Sun-sized load numbers for 1, 10, and 30 students | SolariaMC |
-| 4 | Scan item and GUI, webcam capture, chunked upload, mock classifier end to end | SolariaMC |
-| 5 | Teacher permission, approval modes, review queue, override, reject, audit log | SolariaMC |
-| 6 | Integration, docs, classroom QA checklist, real-model path ready | Both repos |
-
-Each phase ends with a short report, the checks defined in the plan, and a
-pause for human approval before the next phase begins.
+- **Strict AI boundary:** `SolariaMC` never embeds ML models or inference libraries. `SolariaAI` runs as an independent local process on the teacher's machine, authenticated with a startup bearer token over loopback HTTP.
+- **Aligned class contract:** Ten lowercase astronomy classes—`sun`, `earth`, `moon`, `mars`, `jupiter`, `venus`, `saturn`, `uranus`, `neptune`, and `mercury`—are shared identically between the model metadata and the mod's dimensions (`solaria:<class>`).
+- **Classroom privacy:** All processing stays on the local classroom network and the teacher's machine, with no cloud services or external uploads, and participant codes used instead of student usernames in logs.
+- **Educational focus:** Students explore planetary and solar scale through Creative-mode flight in dedicated dimensions designed around each celestial body.
 
