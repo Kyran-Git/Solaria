@@ -1,10 +1,11 @@
-/* Shared ceramic silver-slate + futuristic cyan design tokens aligned with Step 12 (SolariaUiKit).
+/* Shared light ceramic silver-slate + futuristic cyan design tokens aligned with Step 12 (SolariaUiKit).
  * Strictly offline: local CSS variables and system font stacks only; zero external URLs. */
 :root {
-  /* Backdrop & ceramic panel surfaces */
-  --solaria-backdrop: #0D1422;
-  --solaria-backdrop-glow: rgba(76, 201, 223, 0.10);
+  /* Light ceramic backdrop & panel surfaces */
+  --solaria-backdrop: #E5E9F2;
+  --solaria-backdrop-glow: rgba(76, 201, 223, 0.08);
   --solaria-panel-bg: #D6DAE6;
+  --solaria-review-bg: #DCE0EC;
   --solaria-panel-outline: #5A6275;
   --solaria-bevel-hi: #F5F7FC;
   --solaria-bevel-hi-inner: #EAEFF9;
@@ -16,17 +17,18 @@
   --solaria-well-mid: #AEB5C8;
   --solaria-well-sh: #8B92A8;
   --solaria-well-rim: #EFF2F8;
+  --solaria-group-header-top: #CFD5E3;
+  --solaria-group-header-bot: #C3C9D8;
+  --solaria-group-header-hover-top: #D8DEEC;
+  --solaria-group-header-hover-bot: #CBD2E1;
   --solaria-viewport-bg: #0E1726;
   --solaria-input-bg: #EEF1F8;
 
   /* Cyan accents */
   --solaria-cyan: #4CC9DF;
   --solaria-cyan-bright: #8CE8F8;
-  --solaria-eyebrow-cyan: #62DCF2;
 
   /* WCAG AA (>= 4.5:1) ink tokens */
-  --solaria-ink-on-dark: #F1F5FC;
-  --solaria-muted-on-dark: #B8C4DC;
   --solaria-ink: #1F2536;
   --solaria-ink-muted: #3E465C;
   --solaria-ink-well-muted: #384056;
@@ -59,13 +61,13 @@
   --solaria-dis-ink: #3E465C;
 
   /* Selectable scan rows */
-  --solaria-row-bg: #C4CAD8;
+  --solaria-row-bg: #D6DAE6;
   --solaria-row-hover: #D0D8E8;
   --solaria-row-active-bg: #BBE6F0;
   --solaria-row-active-ink: #103542;
   --solaria-row-active-border: #177891;
 
-  /* Badges & semantic notices (light ceramic panel vs dark observatory backdrop) */
+  /* Badges & light semantic notices */
   --solaria-badge-bg: #C5CCDC;
   --solaria-badge-ink: #1F2536;
   --solaria-badge-border: #8E97AE;
@@ -91,22 +93,6 @@
   --solaria-notice-err-bg: #F7D8DC;
   --solaria-notice-err-ink: #6E161E;
   --solaria-notice-err-border: #B84A54;
-
-  --solaria-dark-notice-info-bg: #152538;
-  --solaria-dark-notice-info-ink: #CFEAF4;
-  --solaria-dark-notice-info-border: #366882;
-
-  --solaria-dark-notice-ok-bg: #122E26;
-  --solaria-dark-notice-ok-ink: #BFF0D6;
-  --solaria-dark-notice-ok-border: #2F7A5A;
-
-  --solaria-dark-notice-warn-bg: #312511;
-  --solaria-dark-notice-warn-ink: #FBE0A8;
-  --solaria-dark-notice-warn-border: #8F6520;
-
-  --solaria-dark-notice-err-bg: #361920;
-  --solaria-dark-notice-err-ink: #FFD0D6;
-  --solaria-dark-notice-err-border: #9E3E4B;
 
   /* Focus, typography, radii & spacing */
   --solaria-focus-on-dark: #7CE5F7;
