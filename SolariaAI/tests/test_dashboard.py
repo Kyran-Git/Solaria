@@ -61,12 +61,14 @@ class PageParser(HTMLParser):
     def __init__(self):
         super().__init__()
         self.ids = []
+        self.attrs_by_id = {}
         self.assets = []
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
         if "id" in attrs:
             self.ids.append(attrs["id"])
+            self.attrs_by_id[attrs["id"]] = attrs
         if tag == "script":
             self.assets.append(attrs["src"])
         if tag == "link" and attrs.get("rel") == "stylesheet":
@@ -85,10 +87,17 @@ def test_dashboard_contains_help_controls_and_local_assets():
             "mock-warning",
             "review-mock-warning",
             "review-feed",
+            "review-panel",
+            "review-empty",
+            "review-content",
+            "clear-selection",
+            "expand-all",
+            "collapse-all",
             "override-form",
             "override-label",
             "history",
         } <= set(parser.ids)
+        assert "hidden" not in parser.attrs_by_id["review-panel"]
         assert not {"image-file", "classify", "sample", "scenario"} & set(parser.ids)
         assert b'type="file"' not in body
         assert b"Students scan their drawings in Minecraft" in body
@@ -110,6 +119,7 @@ def test_teacher_script_matches_markup_and_never_submits_images():
     assert set(re.findall(r'el\("([\w-]+)"\)', script)) <= set(parser.ids)
     assert 'el("mock-warning").hidden = !health.mock;' in script
     assert 'el("review-mock-warning").hidden = !p.mock;' in script
+    assert "student_id" in script
     assert "/v1/reviews" in script and "/override" in script
     assert "/v1/classify" not in script
     assert "innerHTML" not in script
@@ -156,16 +166,24 @@ def test_dashboard_token_contrast_meets_wcag_aa():
     tokens = dict(re.findall(r"(--solaria-[\w-]+):\s*(#[0-9A-Fa-f]{6})\s*;", tokens_css))
 
     pairs = [
-        ("--solaria-ink-on-dark", "--solaria-backdrop"),
-        ("--solaria-muted-on-dark", "--solaria-backdrop"),
-        ("--solaria-eyebrow-cyan", "--solaria-backdrop"),
+        ("--solaria-ink", "--solaria-backdrop"),
+        ("--solaria-ink-muted", "--solaria-backdrop"),
+        ("--solaria-ink-link", "--solaria-backdrop"),
         ("--solaria-ink", "--solaria-panel-bg"),
         ("--solaria-ink-muted", "--solaria-panel-bg"),
+        ("--solaria-ink", "--solaria-review-bg"),
+        ("--solaria-ink-muted", "--solaria-review-bg"),
         ("--solaria-ink", "--solaria-well-light"),
         ("--solaria-ink-well-muted", "--solaria-well-light"),
         ("--solaria-ink-code", "--solaria-well-light"),
         ("--solaria-ink-link", "--solaria-panel-bg"),
         ("--solaria-ink-link", "--solaria-well-light"),
+        ("--solaria-ink", "--solaria-group-header-top"),
+        ("--solaria-ink", "--solaria-group-header-bot"),
+        ("--solaria-ink", "--solaria-group-header-hover-top"),
+        ("--solaria-ink", "--solaria-group-header-hover-bot"),
+        ("--solaria-ink-link", "--solaria-group-header-top"),
+        ("--solaria-ink-link", "--solaria-group-header-bot"),
         ("--solaria-ink-input", "--solaria-input-bg"),
         ("--solaria-ink-placeholder", "--solaria-input-bg"),
         ("--solaria-cta-ink", "--solaria-cta-top"),
@@ -187,10 +205,6 @@ def test_dashboard_token_contrast_meets_wcag_aa():
         ("--solaria-notice-ok-ink", "--solaria-notice-ok-bg"),
         ("--solaria-notice-warn-ink", "--solaria-notice-warn-bg"),
         ("--solaria-notice-err-ink", "--solaria-notice-err-bg"),
-        ("--solaria-dark-notice-info-ink", "--solaria-dark-notice-info-bg"),
-        ("--solaria-dark-notice-ok-ink", "--solaria-dark-notice-ok-bg"),
-        ("--solaria-dark-notice-warn-ink", "--solaria-dark-notice-warn-bg"),
-        ("--solaria-dark-notice-err-ink", "--solaria-dark-notice-err-bg"),
     ]
     for fg, bg in pairs:
         ratio = _wcag_contrast_ratio(tokens[fg], tokens[bg])
